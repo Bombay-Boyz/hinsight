@@ -1,0 +1,17 @@
+# Bans from the Haskell Engineering Standard, section 5.2. These are errors,
+# not suggestions.
+- ignore: {name: "Use camelCase"}
+- error: {name: "No partial head", lhs: head, rhs: "listToMaybe"}
+- functions:
+    - {name: head, within: [], message: "Partial. Use pattern matching or listToMaybe."}
+    - {name: tail, within: [], message: "Partial. Use pattern matching."}
+    - {name: init, within: [], message: "Partial. Use pattern matching."}
+    - {name: last, within: [], message: "Partial. Use pattern matching."}
+    - {name: fromJust, within: [], message: "Partial. Handle the Nothing case."}
+    - {name: "!!", within: [], message: "Partial. Use a safe lookup."}
+    - {name: error, within: [], message: "Banned. Return a typed error."}
+    - {name: undefined, within: [], message: "Banned. No placeholders."}
+    - {name: unsafePerformIO, within: [], message: "Banned. Breaks referential transparency."}
+    - {name: foldl, within: [], message: "Lazy accumulator. Use a strict fold."}
+- modules:
+    - {name: Debug.Trace, within: [], message: "Banned in committed code."}

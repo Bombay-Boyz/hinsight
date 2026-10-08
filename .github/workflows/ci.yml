@@ -1,0 +1,45 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: haskell-actions/setup@v2
+        with:
+          ghc-version: "9.10.3"
+          cabal-version: "latest"
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cabal/store
+            dist-newstyle
+          key: ${{ runner.os }}-ghc-9.10.3-${{ hashFiles('**/*.cabal', 'cabal.project*') }}
+
+      - name: Build with warnings as errors
+        run: cabal build all
+
+      - name: Test, including the checks that run a real GHC
+        run: cabal test all --test-show-details=direct
+
+      - name: Lint
+        run: |
+          cabal install --installdir="$HOME/.local/bin" --overwrite-policy=always hlint
+          "$HOME/.local/bin/hlint" src test
+
+      - name: Format check
+        run: |
+          cabal install --installdir="$HOME/.local/bin" --overwrite-policy=always ormolu
+          "$HOME/.local/bin/ormolu" --mode check $(find src test -name '*.hs')
+
+      - name: Independence check
+        run: |
+          if grep -rIl --ignore-case --exclude-dir=.git --exclude-dir=dist-newstyle "ras[i]ka" .; then
+            echo "this package must not mention the application that uses it"; exit 1
+          fi
