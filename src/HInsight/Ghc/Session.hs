@@ -19,7 +19,7 @@ import Control.Exception (Handler (..), IOException, catches)
 import Data.Bifunctor (first)
 import Data.IORef (IORef, newIORef, readIORef)
 import Data.Maybe (listToMaybe)
-import qualified Data.Text as T
+import Data.Text qualified as T
 import GHC
   ( DynFlags (..),
     Ghc,

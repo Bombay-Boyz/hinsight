@@ -1,0 +1,6 @@
+# Weeder reports top-level code that nothing reaches (Standard 1.11).
+# Roots are the places reachability starts from. The test suite's main is a
+# root, so anything the tests or the library itself use counts as reachable.
+roots = ["^Main\\.main$"]
+type-class-roots = true
+unused-types = true

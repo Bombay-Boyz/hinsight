@@ -20,7 +20,7 @@ module HInsight.Support
   )
 where
 
-import qualified Data.Text as T
+import Data.Text qualified as T
 import HInsight.Explanation
 import HInsight.Hole
 import HInsight.Source
@@ -31,7 +31,7 @@ rightToMaybe :: Either e a -> Maybe a
 rightToMaybe = either (const Nothing) Just
 
 -- | Unwrap a 'Right' inside a test, failing the test with the error otherwise.
-ok :: Show e => Either e a -> IO a
+ok :: (Show e) => Either e a -> IO a
 ok = either (fail . show) pure
 
 genLine :: Gen Line

@@ -4,23 +4,39 @@ on:
   push:
   pull_request:
 
+# A newer push to the same branch makes the older run pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  GHC_VERSION: "9.10.3"
+  ORMOLU_VERSION: "0.9.0.0"
+  HLINT_VERSION: "3.10"
+  WEEDER_VERSION: "2.11.0"
+
 jobs:
   build:
+    name: build and test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: haskell-actions/setup@v2
         with:
-          ghc-version: "9.10.3"
-          cabal-version: "latest"
+          ghc-version: ${{ env.GHC_VERSION }}
+          cabal-version: latest
 
       - uses: actions/cache@v4
         with:
           path: |
             ~/.cabal/store
             dist-newstyle
-          key: ${{ runner.os }}-ghc-9.10.3-${{ hashFiles('**/*.cabal', 'cabal.project*') }}
+          key: ${{ runner.os }}-ghc-${{ env.GHC_VERSION }}-${{ hashFiles('hinsight.cabal', 'cabal.project', 'cabal.project.freeze') }}
+          restore-keys: ${{ runner.os }}-ghc-${{ env.GHC_VERSION }}-
 
       - name: Build with warnings as errors
         run: cabal build all
@@ -28,17 +44,57 @@ jobs:
       - name: Test, including the checks that run a real GHC
         run: cabal test all --test-show-details=direct
 
-      - name: Lint
-        run: |
-          cabal install --installdir="$HOME/.local/bin" --overwrite-policy=always hlint
-          "$HOME/.local/bin/hlint" src test
+      # Weeder is advisory until its first real report has been read and its
+      # roots tuned in weeder.toml. Remove continue-on-error then.
+      - name: Install weeder
+        id: weeder-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/bin/weeder
+          key: weeder-${{ env.WEEDER_VERSION }}-ghc-${{ env.GHC_VERSION }}
 
-      - name: Format check
+      - name: Build weeder
+        if: steps.weeder-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
         run: |
-          cabal install --installdir="$HOME/.local/bin" --overwrite-policy=always ormolu
-          "$HOME/.local/bin/ormolu" --mode check $(find src test -name '*.hs')
+          # Run outside the project so its freeze file does not constrain weeder.
+          cd "$RUNNER_TEMP"
+          cabal install "weeder-$WEEDER_VERSION" --with-compiler="ghc-$GHC_VERSION" \
+            --installdir="$HOME/.local/bin" --overwrite-policy=always
 
-      - name: Independence check
+      - name: Find dead code with weeder
+        continue-on-error: true
+        run: |
+          "$HOME/.local/bin/weeder" --hie-directory .hie
+
+  lint:
+    name: lint and format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch pinned hlint and ormolu
+        run: |
+          mkdir -p "$HOME/tools" && cd "$HOME/tools"
+          curl -fsSL -o hlint.tgz "https://github.com/ndmitchell/hlint/releases/download/v${HLINT_VERSION}/hlint-${HLINT_VERSION}-x86_64-linux.tar.gz"
+          tar xzf hlint.tgz
+          curl -fsSL -o ormolu.zip "https://github.com/tweag/ormolu/releases/download/${ORMOLU_VERSION}/ormolu-x86_64-linux.zip"
+          unzip -q ormolu.zip && chmod +x ormolu
+          echo "$HOME/tools/hlint-${HLINT_VERSION}" >> "$GITHUB_PATH"
+          echo "$HOME/tools" >> "$GITHUB_PATH"
+
+      - name: HLint (bans from the engineering standard are errors)
+        run: hlint src test
+
+      - name: "Ormolu (fixtures excluded because their line numbers are asserted)"
+        run: ormolu --mode check $(find src test -name '*.hs' -not -path 'test/fixtures/*')
+
+  independence:
+    name: package independence
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: No mention of the application that uses this package
         run: |
           if grep -rIl --ignore-case --exclude-dir=.git --exclude-dir=dist-newstyle "ras[i]ka" .; then
             echo "this package must not mention the application that uses it"; exit 1

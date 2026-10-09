@@ -7,7 +7,7 @@ module HInsight.Ghc.Holes
 where
 
 import Data.Bifunctor (first)
-import qualified Data.Text as T
+import Data.Text qualified as T
 import HInsight.Error (DomainError, ExtractionError (..), InsightError (..))
 import HInsight.Ghc.Convert (convertSpan, convertText)
 import HInsight.Ghc.HoleCapture (CapturedFit (..), CapturedHole (..))

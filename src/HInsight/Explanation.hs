@@ -21,7 +21,7 @@ module HInsight.Explanation
 where
 
 import Data.Text (Text)
-import qualified Data.Text as T
+import Data.Text qualified as T
 import HInsight.Error (DomainError (..))
 import HInsight.Source (Position, Span, positionColumn, positionLine, spanStart, unColumn, unLine)
 

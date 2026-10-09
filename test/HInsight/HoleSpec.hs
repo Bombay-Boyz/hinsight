@@ -2,7 +2,7 @@ module HInsight.HoleSpec (spec) where
 
 import Data.List (sort)
 import Data.Maybe (mapMaybe)
-import qualified Data.Text as T
+import Data.Text qualified as T
 import HInsight.Error (DomainError (..))
 import HInsight.Explanation (mkTypeText)
 import HInsight.Hole
@@ -67,9 +67,11 @@ spec = do
       rankFits [localOne, importedZero, importedOne, localZeroWithHole, localZero]
         `shouldBe` [localZero, localZeroWithHole, importedZero, localOne, importedOne]
     prop "keeps exactly the same fits" $
-      forAll (listOf genHoleFit) $ \fs -> sort (rankFits fs) === sort fs
+      forAll (listOf genHoleFit) $
+        \fs -> sort (rankFits fs) === sort fs
     prop "is idempotent" $
-      forAll (listOf genHoleFit) $ \fs -> rankFits (rankFits fs) === rankFits fs
+      forAll (listOf genHoleFit) $
+        \fs -> rankFits (rankFits fs) === rankFits fs
     prop "does not depend on the input order" $
       forAll (listOf genHoleFit) $ \fs ->
         forAll (shuffle fs) $ \shuffled -> rankFits shuffled === rankFits fs
@@ -77,7 +79,8 @@ spec = do
       forAll (listOf genHoleFit) $ \fs ->
         let ls = levels (rankFits fs) in ls === sort ls
     prop "puts local before imported at the same level" $
-      forAll (listOf genHoleFit) $ \fs -> adjacentOk (rankFits fs)
+      forAll (listOf genHoleFit) $
+        \fs -> adjacentOk (rankFits fs)
     it "ranks a hundred thousand fits without losing any" $ do
       let fs = mapMaybe syntheticFit [1 .. 100_000]
           ranked = rankFits fs

@@ -1,6 +1,6 @@
 module HInsight.ErrorSpec (spec) where
 
-import qualified Data.Text as T
+import Data.Text qualified as T
 import HInsight.Error
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)

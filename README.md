@@ -1,5 +1,7 @@
 # hinsight
 
+[![ci](https://github.com/Bombay-Boyz/hinsight/actions/workflows/ci.yml/badge.svg)](https://github.com/Bombay-Boyz/hinsight/actions/workflows/ci.yml)
+
 Answers questions about Haskell code that need GHC's own data.
 
 This first version does two things for a single Haskell module:
@@ -21,12 +23,11 @@ must match the GHC that reads the project.
 
 Early. Read this before relying on it.
 
-- The pure core (`HInsight.Source`, `Explanation`, `Hole`, `Error`, `Config`,
-  `Analysis`) is covered by example and property tests.
-- The modules under `HInsight.Ghc` target the GHC 9.10.3 API and were written
-  against its source. They had **not been compiled** when this file was
-  written. Expect small fixes on the first build. `docs/decisions.md` lists
-  what to check.
+- The pure core and the GHC-facing modules under `HInsight.Ghc` build and pass
+  their tests against a real GHC 9.10.3: type mismatches, typed-hole fits and
+  out-of-scope errors are extracted from real files.
+- Whether the origin text GHC gives is useful to a reader has not been judged
+  yet (`docs/decisions.md`, item 5).
 - It analyses one module that imports only installed packages. A file that
   pulls in other modules of its own project is reported, not analysed.
 - It does not trace the constraint solver. GHC does not expose solver steps;

@@ -47,11 +47,11 @@ merge sort over the fits of one hole, and a test ranks 100,000 fits. A
 `criterion` benchmark with a CI threshold is still owed. Add it when
 `hinsight` is first used on a real project.
 
-## 7. No weeder, no dependency freeze yet (Standard 1.11, 2.12)
+## 7. Dead-code check is advisory; no benchmark yet
 
-`weeder` needs `.hie` files from a successful build, and
-`cabal.project.freeze` needs one. After the first green build run
-`cabal freeze` and wire `weeder` into CI.
+`cabal.project.freeze` is committed. CI runs weeder, but its step is allowed
+to fail until the first real report has been read and the roots in
+`weeder.toml` tuned; then remove `continue-on-error` in the workflow.
 
 ## 8. Prior-art review not done (Standard 5.7)
 
@@ -66,15 +66,10 @@ The module document names a third signal, usage. Nothing in the current
 extraction can supply it, so it is not in the type. Add it in the change that
 makes it available.
 
-## First-build checklist for the GHC edge
+## Checks that run on every push
 
-The `HInsight.Ghc.*` modules were checked against the GHC 9.10.3 source but
-not compiled. On the first build, confirm:
-
-1. The code compiles with `-Werror`; fix any signature mismatch.
-2. `typecheckModule` throws a `SourceError` that holds the error diagnostics.
-3. The static hole-fit plugin is still installed after `depanal` and
-   `typecheckModule` run. If the hole test finds no fits, plugins were reset.
-4. The hole-fit plugin is called once per hole. If a hole appears twice,
-   deduplicate by name and span.
-5. The origin text from `pprCtOrigin` is useful on one line.
+Build with `-Werror`, tests (including those that run a real GHC 9.10.3),
+HLint with the standard's bans as errors, Ormolu 0.9.0.0 in check mode, a
+no-mention-of-the-application check, and weeder (advisory). Tool versions are
+pinned in the workflow's `env` block. Dependabot proposes updates to the
+actions weekly.

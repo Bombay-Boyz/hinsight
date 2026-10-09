@@ -17,7 +17,7 @@ where
 
 import Data.List (sortOn)
 import Data.Text (Text)
-import qualified Data.Text as T
+import Data.Text qualified as T
 import HInsight.Error (DomainError (..))
 import HInsight.Explanation (TypeText)
 import HInsight.Source (Span)

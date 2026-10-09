@@ -1,10 +1,10 @@
 module Main (main) where
 
-import qualified HInsight.ErrorSpec
-import qualified HInsight.ExplanationSpec
-import qualified HInsight.GhcSessionSpec
-import qualified HInsight.HoleSpec
-import qualified HInsight.SourceSpec
+import HInsight.ErrorSpec qualified
+import HInsight.ExplanationSpec qualified
+import HInsight.GhcSessionSpec qualified
+import HInsight.HoleSpec qualified
+import HInsight.SourceSpec qualified
 import Test.Hspec (hspec)
 
 main :: IO ()

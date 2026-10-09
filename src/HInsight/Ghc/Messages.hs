@@ -13,6 +13,7 @@ module HInsight.Ghc.Messages
   )
 where
 
+import Data.Text qualified as T
 import GHC.Core.Type (Type)
 import GHC.Driver.Errors.Types (GhcMessage (..))
 import GHC.Tc.Errors.Types
@@ -29,7 +30,6 @@ import GHC.Tc.Errors.Types
 import GHC.Tc.Types.Origin (pprCtOrigin)
 import GHC.Types.Error (MsgEnvelope (..))
 import GHC.Types.SrcLoc (RealSrcSpan, SrcSpan (..))
-import qualified Data.Text as T
 import HInsight.Error (InsightError)
 import HInsight.Explanation
   ( Divergence,

@@ -13,7 +13,7 @@ module HInsight.Ghc.Convert
 where
 
 import Data.Bifunctor (first)
-import qualified Data.Text as T
+import Data.Text qualified as T
 import GHC.Core.Type (Type)
 import GHC.Types.SrcLoc (RealSrcSpan, srcSpanEndCol, srcSpanEndLine, srcSpanStartCol, srcSpanStartLine)
 import GHC.Utils.Outputable (SDoc, defaultSDocContext, ppr, showSDocOneLine)

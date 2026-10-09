@@ -22,7 +22,7 @@ import Control.Monad.IO.Class (liftIO)
 import Data.IORef (IORef, modifyIORef')
 import Data.Maybe (mapMaybe)
 import GHC.Tc.Errors.Hole.FitTypes (HoleFit (..), TypedHole (..), hfIsLcl)
-import qualified GHC.Tc.Errors.Hole.Plugin as Hole
+import GHC.Tc.Errors.Hole.Plugin qualified as Hole
 import GHC.Tc.Types (TcM)
 import GHC.Tc.Types.Constraint (Hole (..), ctLocSpan)
 import GHC.Tc.Utils.Monad (newTcRef)

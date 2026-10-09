@@ -4,3 +4,5 @@ with-compiler: ghc-9.10.3
 
 package hinsight
   flags: +werror
+  -- HIE files let weeder find dead code; they are build output, not source.
+  ghc-options: -fwrite-ide-info -hiedir=.hie

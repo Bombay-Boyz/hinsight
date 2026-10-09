@@ -2,7 +2,7 @@ module HInsight.ExplanationSpec (spec) where
 
 import Data.Either (isRight)
 import Data.Maybe (isJust)
-import qualified Data.Text as T
+import Data.Text qualified as T
 import HInsight.Error (DomainError (..))
 import HInsight.Explanation
 import HInsight.Source
@@ -36,9 +36,11 @@ spec = do
     it "turns a newline inside the text into one space" $
       (unTypeText <$> mkTypeText "Maybe\n   Int") `shouldBe` Right "Maybe Int"
     prop "never holds a newline" $
-      forAll genTypeText $ \t -> T.all (/= '\n') (unTypeText t)
+      forAll genTypeText $
+        \t -> T.all (/= '\n') (unTypeText t)
     prop "is unchanged when rebuilt from its own text" $
-      forAll genTypeText $ \t -> mkTypeText (unTypeText t) === Right t
+      forAll genTypeText $
+        \t -> mkTypeText (unTypeText t) === Right t
     prop "is accepted exactly when it has a non-space character" $ \s ->
       let t = T.pack s in isRight (mkTypeText t) === not (T.null (T.strip t))
 

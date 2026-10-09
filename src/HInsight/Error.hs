@@ -22,7 +22,7 @@ module HInsight.Error
 where
 
 import Data.Text (Text)
-import qualified Data.Text as T
+import Data.Text qualified as T
 
 -- | Any failure of the package, tagged by the stage that produced it.
 data InsightError
