@@ -47,6 +47,7 @@ library
   exposed-modules:
     HInsight
     HInsight.Analysis
+    HInsight.Cli
     HInsight.Config
     HInsight.Error
     HInsight.Explanation
@@ -56,7 +57,18 @@ library
     HInsight.Ghc.Messages
     HInsight.Ghc.Session
     HInsight.Hole
+    HInsight.Report
     HInsight.Source
+
+executable hinsight-demo
+  import:           warnings
+  hs-source-dirs:   app
+  main-is:          Main.hs
+  build-depends:
+    , base
+    , hinsight
+    , process  >=1.6 && <1.7
+    , text
 
 test-suite hinsight-test
   import:           warnings
@@ -64,10 +76,12 @@ test-suite hinsight-test
   hs-source-dirs:   test
   main-is:          Main.hs
   other-modules:
+    HInsight.CliSpec
     HInsight.ErrorSpec
     HInsight.ExplanationSpec
     HInsight.GhcSessionSpec
     HInsight.HoleSpec
+    HInsight.ReportSpec
     HInsight.SourceSpec
     HInsight.Support
   build-depends:

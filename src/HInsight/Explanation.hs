@@ -23,7 +23,7 @@ where
 import Data.Text (Text)
 import Data.Text qualified as T
 import HInsight.Error (DomainError (..))
-import HInsight.Source (Position, Span, positionColumn, positionLine, spanStart, unColumn, unLine)
+import HInsight.Source (Span, renderPosition, spanStart)
 
 -- | A type as GHC printed it. Invariants: not blank, and on a single line with
 -- single spaces between words, so a rendered explanation has a predictable
@@ -103,6 +103,3 @@ renderExplanation e =
       ]
     originText :: Origin -> Text
     originText (Origin t) = t
-
-renderPosition :: Position -> Text
-renderPosition p = T.pack (show (unLine (positionLine p))) <> ":" <> T.pack (show (unColumn (positionColumn p)))

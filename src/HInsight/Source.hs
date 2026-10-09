@@ -23,9 +23,12 @@ module HInsight.Source
     mkSpan,
     spanStart,
     spanEnd,
+    renderPosition,
   )
 where
 
+import Data.Text (Text)
+import Data.Text qualified as T
 import HInsight.Error (DomainError (..))
 
 -- | A path to a Haskell source file. Invariant: not empty.
@@ -106,3 +109,7 @@ spanStart (UnsafeSpan s _) = s
 -- | Where a 'Span' ends (exclusive).
 spanEnd :: Span -> Position
 spanEnd (UnsafeSpan _ e) = e
+
+-- | A position as @line:column@, the form editors and compilers use.
+renderPosition :: Position -> Text
+renderPosition p = T.pack (show (unLine (positionLine p))) <> ":" <> T.pack (show (unColumn (positionColumn p)))

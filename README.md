@@ -48,6 +48,19 @@ The tests that run a real GHC ask `ghc-9.10.3` for its library directory. To
 use a different installation, set `HINSIGHT_GHC_LIBDIR` to its library
 directory.
 
+## Try it
+
+A small demo program prints what hinsight finds in a file:
+
+```sh
+cabal run hinsight-demo -- test/fixtures/TypeMismatch.hs
+cabal run hinsight-demo -- test/fixtures/Hole.hs
+```
+
+It asks `ghc-9.10.3` for its library directory, or uses
+`HINSIGHT_GHC_LIBDIR` if set. The file must be one module that imports only
+installed packages.
+
 ## Use
 
 ```haskell
@@ -73,6 +86,8 @@ The paths are arguments: the library never searches for tools.
 | `HInsight.Source`, `Config` | validated positions, spans and paths |
 | `HInsight.Explanation` | a type mismatch as data, and its text rendering |
 | `HInsight.Hole` | typed holes and fit ranking |
+| `HInsight.Report` | plain-text reports of an analysis |
+| `HInsight.Cli` | argument handling for the demo program |
 | `HInsight.Error` | every failure, in one place |
 | `HInsight.Ghc.*` | the GHC-facing edge: session, message and hole conversion |
 

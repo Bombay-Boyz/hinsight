@@ -17,10 +17,13 @@ module HInsight.Support
     genHoleFit,
     genDivergence,
     genExplanation,
+    genHoleReport,
+    genAnalysis,
   )
 where
 
 import Data.Text qualified as T
+import HInsight.Analysis (Analysis (..))
 import HInsight.Explanation
 import HInsight.Hole
 import HInsight.Source
@@ -76,3 +79,18 @@ genExplanation =
     <*> genTypeText
     <*> oneof [pure Nothing, Just <$> genDivergence]
     <*> (Origin . unTypeText <$> genTypeText)
+
+genHoleReport :: Gen HoleReport
+genHoleReport =
+  HoleReport
+    <$> genIdentifier
+    <*> genSpan
+    <*> genTypeText
+    <*> resize 5 (listOf genHoleFit)
+
+genAnalysis :: Gen Analysis
+genAnalysis =
+  Analysis
+    <$> resize 3 (listOf genExplanation)
+    <*> resize 3 (listOf genHoleReport)
+    <*> chooseInt (0, 4)
