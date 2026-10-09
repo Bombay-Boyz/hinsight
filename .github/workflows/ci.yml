@@ -23,7 +23,7 @@ jobs:
     name: build and test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: haskell-actions/setup@v2
         with:
@@ -71,7 +71,7 @@ jobs:
     name: lint and format
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Fetch pinned hlint and ormolu
         run: |
@@ -93,7 +93,7 @@ jobs:
     name: package independence
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: No mention of the application that uses this package
         run: |
           if grep -rIl --ignore-case --exclude-dir=.git --exclude-dir=dist-newstyle "ras[i]ka" .; then
