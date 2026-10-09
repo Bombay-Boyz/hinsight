@@ -149,10 +149,11 @@ build file bindings rs parts =
           explanationContext = ctx
         }
 
--- | The divergence is only worth showing when the detected sub-types differ
--- from each other and from the overall pair. Two sub-types that render
--- identically (they can differ only in invisible detail) give no divergence.
+-- | The divergence is only worth showing when it says more than the expected
+-- and actual types already do. The pair GHC could not match is the same pair
+-- as expected and actual, in either order, in the plain case; only when GHC
+-- matched deeper sub-types (a type synonym expanded, say) is there news.
 divergence :: TypeText -> TypeText -> TypeText -> TypeText -> Maybe Divergence
 divergence e a l r
-  | (l, r) == (e, a) = Nothing
+  | (l, r) == (e, a) || (l, r) == (a, e) = Nothing
   | otherwise = either (const Nothing) Just (mkDivergence l r)

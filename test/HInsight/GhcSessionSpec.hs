@@ -9,6 +9,7 @@
 module HInsight.GhcSessionSpec (spec) where
 
 import Control.Exception (IOException, try)
+import Data.Maybe (isJust)
 import Data.Text (Text)
 import HInsight
 import HInsight.Error (SessionError (..))
@@ -87,6 +88,8 @@ realGhcSpec libDir = do
         unTypeText (explanationExpected m) `shouldSatisfy` (`elem` ["String", "[Char]"])
         unLine (positionLine (spanStart (explanationSpan m))) `shouldBe` 4
         explanationContext m `shouldSatisfy` isSignedAs "greeting" 3 "String"
+        -- String expands to [Char], which is news, so the divergence is kept.
+        explanationDivergence m `shouldSatisfy` isJust
       other -> expectationFailure ("expected exactly one mismatch, found " <> show (length other))
   it "reports a binding without a signature as unsigned" $ do
     a <- analyseFixture libDir "UnsignedMismatch.hs" >>= succeeded
@@ -95,6 +98,8 @@ realGhcSpec libDir = do
         unTypeText (explanationExpected m) `shouldBe` "Bool"
         unTypeText (explanationActual m) `shouldBe` "Char"
         explanationContext m `shouldSatisfy` isUnsigned "flag"
+        -- The unmatched pair is just expected and actual again: no divergence.
+        explanationDivergence m `shouldBe` Nothing
       other -> expectationFailure ("expected exactly one mismatch, found " <> show (length other))
   it "reports ranked fits for a typed hole" $ do
     a <- analyseFixture libDir "Hole.hs" >>= succeeded
