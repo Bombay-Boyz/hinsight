@@ -47,7 +47,7 @@ data DomainError
     -- end column. Raised by 'HInsight.Source.mkSpan'.
     SpanEndsBeforeStart Int Int Int Int
   | -- | A rendered type or identifier was empty or only whitespace. Raised by
-    -- 'HInsight.Explanation.mkTypeText' and 'HInsight.Hole.mkIdentifier'; the
+    -- 'HInsight.Explanation.mkTypeText' and 'HInsight.Identifier.mkIdentifier'; the
     -- field names which input it was.
     BlankText Text
   | -- | A divergence between two identical types was requested. Raised by

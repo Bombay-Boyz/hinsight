@@ -4,6 +4,7 @@ import Data.Text qualified as T
 import HInsight.Analysis (Analysis (..), emptyAnalysis)
 import HInsight.Explanation (mkTypeText)
 import HInsight.Hole
+import HInsight.Identifier (mkIdentifier)
 import HInsight.Report
 import HInsight.Source
 import HInsight.Support (genAnalysis, genHoleReport, ok)

@@ -24,6 +24,8 @@ import GHC
   ( DynFlags (..),
     Ghc,
     GhcLink (NoLink),
+    ModSummary,
+    ParsedModule (..),
     depanal,
     getSessionDynFlags,
     guessTarget,
@@ -47,18 +49,25 @@ import GHC.Driver.Plugins
     StaticPlugin (..),
     defaultPlugin,
   )
+import GHC.Hs (HsModule (..))
 import GHC.Types.Error (MsgEnvelope (..), Severity (..), getMessages)
 import GHC.Types.SourceError (SourceError, srcErrorMessages)
+import GHC.Types.SrcLoc (unLoc)
 import GHC.Utils.Panic (GhcException)
 import HInsight.Analysis (Analysis (..), Insight (..))
 import HInsight.Config (LibDir, libDirPath)
 import HInsight.Error (InsightError (..), SessionError (..))
+import HInsight.Ghc.Bindings (Binding, collectBindings)
 import HInsight.Ghc.HoleCapture (CapturedHole, holePlugin)
 import HInsight.Ghc.Holes (holeReports)
 import HInsight.Ghc.Messages (Extracted (..), extractMessages)
 import HInsight.Hole (HoleReport)
 import HInsight.Source (SourceFile, sourceFilePath)
 import System.Directory (doesDirectoryExist, doesFileExist)
+
+-- | What one typecheck produced: the error diagnostics, and the top-level
+-- bindings of the parsed module (none when the module did not parse).
+data Outcome = Outcome [MsgEnvelope GhcMessage] [Binding]
 
 -- | The GHC-backed implementation of 'Insight'.
 ghcInsight :: LibDir -> Insight IO
@@ -105,12 +114,17 @@ runOnce dir file = do
     path :: FilePath
     path = sourceFilePath file
 
-typecheck :: IORef [CapturedHole] -> FilePath -> Ghc (Either SessionError [MsgEnvelope GhcMessage])
+typecheck :: IORef [CapturedHole] -> FilePath -> Ghc (Either SessionError Outcome)
 typecheck sink path = do
   configure sink
   target <- guessTarget path Nothing Nothing
   setTargets [target]
-  handleSourceError (pure . Right . errorsOf) (typecheckOnly path)
+  handleSourceError (pure . Right . unparsed) (typecheckOnly path)
+  where
+    -- The module could not be parsed or its imports resolved, so there are
+    -- errors but no bindings.
+    unparsed :: SourceError -> Outcome
+    unparsed err = Outcome (errorsOf err) []
 
 -- | No code generation and no linking: this session only typechecks.
 -- The hole-fit plugin is installed after the flags are set, because setting
@@ -130,14 +144,20 @@ installHolePlugin sink env =
     capturing :: Plugin
     capturing = defaultPlugin {holeFitPlugin = holePlugin sink}
 
-typecheckOnly :: FilePath -> Ghc (Either SessionError [MsgEnvelope GhcMessage])
+typecheckOnly :: FilePath -> Ghc (Either SessionError Outcome)
 typecheckOnly path = do
   graph <- depanal [] False
   case mgModSummaries graph of
-    [summary] -> do
-      _ <- parseModule summary >>= typecheckModule
-      pure (Right [])
+    [summary] -> Right <$> typecheckParsed summary
     others -> pure (Left (UnexpectedModuleCount path (length others)))
+
+-- | Parse first, so the bindings are known even if type checking then throws.
+typecheckParsed :: ModSummary -> Ghc Outcome
+typecheckParsed summary = do
+  parsed <- parseModule summary
+  let bindings = collectBindings (hsmodDecls (unLoc (pm_parsed_source parsed)))
+  errors <- handleSourceError (pure . errorsOf) ([] <$ typecheckModule parsed)
+  pure (Outcome errors bindings)
 
 -- | The error diagnostics inside a 'SourceError'; warnings are not analysed.
 errorsOf :: SourceError -> [MsgEnvelope GhcMessage]
@@ -150,12 +170,12 @@ isError env = case errMsgSeverity env of
 
 assemble ::
   FilePath ->
-  Either SessionError [MsgEnvelope GhcMessage] ->
+  Either SessionError Outcome ->
   [CapturedHole] ->
   Either InsightError Analysis
 assemble path outcome captured = do
-  envs <- first SessionFailure outcome
-  combine <$> extractMessages path envs <*> holeReports path (reverse captured)
+  Outcome envs bindings <- first SessionFailure outcome
+  combine <$> extractMessages path bindings envs <*> holeReports path (reverse captured)
   where
     combine :: Extracted -> [HoleReport] -> Analysis
     combine extracted holes =

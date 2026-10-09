@@ -16,6 +16,7 @@ module HInsight.Support
     genIdentifier,
     genHoleFit,
     genDivergence,
+    genContext,
     genExplanation,
     genHoleReport,
     genAnalysis,
@@ -26,6 +27,7 @@ import Data.Text qualified as T
 import HInsight.Analysis (Analysis (..))
 import HInsight.Explanation
 import HInsight.Hole
+import HInsight.Identifier
 import HInsight.Source
 import Test.QuickCheck
 
@@ -71,6 +73,14 @@ genHoleFit =
 genDivergence :: Gen Divergence
 genDivergence = suchThatMap ((,) <$> genTypeText <*> genTypeText) (rightToMaybe . uncurry mkDivergence)
 
+genContext :: Gen Context
+genContext =
+  oneof
+    [ InSignedBinding <$> genIdentifier <*> genSpan <*> genTypeText,
+      InUnsignedBinding <$> genIdentifier,
+      pure OutsideBinding
+    ]
+
 genExplanation :: Gen Explanation
 genExplanation =
   Explanation
@@ -78,7 +88,7 @@ genExplanation =
     <*> genTypeText
     <*> genTypeText
     <*> oneof [pure Nothing, Just <$> genDivergence]
-    <*> (Origin . unTypeText <$> genTypeText)
+    <*> genContext
 
 genHoleReport :: Gen HoleReport
 genHoleReport =

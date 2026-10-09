@@ -26,8 +26,8 @@ Early. Read this before relying on it.
 - The pure core and the GHC-facing modules under `HInsight.Ghc` build and pass
   their tests against a real GHC 9.10.3: type mismatches, typed-hole fits and
   out-of-scope errors are extracted from real files.
-- Whether the origin text GHC gives is useful to a reader has not been judged
-  yet (`docs/decisions.md`, item 5).
+- GHC's own origin text for a mismatch proved to be noise; the context line
+  comes from the parsed source instead (`docs/decisions.md`, item 4).
 - It analyses one module that imports only installed packages. A file that
   pulls in other modules of its own project is reported, not analysed.
 - It does not trace the constraint solver. GHC does not expose solver steps;
@@ -84,7 +84,8 @@ The paths are arguments: the library never searches for tools.
 | `HInsight` | public facade |
 | `HInsight.Analysis` | the result type and the `Insight` handle |
 | `HInsight.Source`, `Config` | validated positions, spans and paths |
-| `HInsight.Explanation` | a type mismatch as data, and its text rendering |
+| `HInsight.Explanation` | a type mismatch and where it sits, as data, and its text rendering |
+| `HInsight.Identifier` | a validated name as written in source |
 | `HInsight.Hole` | typed holes and fit ranking |
 | `HInsight.Report` | plain-text reports of an analysis |
 | `HInsight.Cli` | argument handling for the demo program |

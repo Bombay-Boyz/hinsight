@@ -6,6 +6,7 @@ import Data.Text qualified as T
 import HInsight.Error (DomainError (..))
 import HInsight.Explanation (mkTypeText)
 import HInsight.Hole
+import HInsight.Identifier (mkIdentifier)
 import HInsight.Support (genHoleFit, ok, rightToMaybe)
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
@@ -36,14 +37,6 @@ adjacentOk fs = and (zipWith pairOk fs (drop 1 fs))
 
 spec :: Spec
 spec = do
-  describe "mkIdentifier" $ do
-    it "rejects the empty text" $
-      mkIdentifier "" `shouldBe` Left (BlankText "identifier")
-    it "rejects spaces only" $
-      mkIdentifier "  " `shouldBe` Left (BlankText "identifier")
-    it "trims the ends" $
-      (unIdentifier <$> mkIdentifier " map ") `shouldBe` Right "map"
-
   describe "mkRefinementLevel" $ do
     it "rejects the value just below zero" $
       mkRefinementLevel (-1) `shouldBe` Left (NegativeRefinement (-1))

@@ -2,15 +2,16 @@
 -- Module      : HInsight.Explanation
 -- Description : Why GHC reported a type mismatch, as plain data.
 --
--- An 'Explanation' states what GHC expected, what it found, where the two
--- types first differ, and where the expectation came from. It is built from
--- what GHC records about a mismatch; it is not a trace of the constraint
--- solver's steps, which GHC does not expose.
+-- An 'Explanation' states what GHC expected, what it found, which two
+-- sub-types it could not match, and where in the source the mismatch sits.
+-- It is built from what GHC records about a mismatch and from the parsed
+-- source; it is not a trace of the constraint solver's steps, which GHC does
+-- not expose.
 module HInsight.Explanation
   ( TypeText,
     mkTypeText,
     unTypeText,
-    Origin (..),
+    Context (..),
     Divergence,
     mkDivergence,
     divergenceLeft,
@@ -23,6 +24,7 @@ where
 import Data.Text (Text)
 import Data.Text qualified as T
 import HInsight.Error (DomainError (..))
+import HInsight.Identifier (Identifier, unIdentifier)
 import HInsight.Source (Span, renderPosition, spanStart)
 
 -- | A type as GHC printed it. Invariants: not blank, and on a single line with
@@ -45,15 +47,24 @@ mkTypeText t
 unTypeText :: TypeText -> Text
 unTypeText (UnsafeTypeText t) = t
 
--- | Where GHC says the expectation came from, as GHC phrased it.
+-- | Where in the program a mismatch sits: the top-level binding around it and
+-- what that binding declares. This is a statement of fact about the source,
+-- not a claim that the declared type caused the mismatch.
 --
--- Deliberately opaque text: GHC's origin type has dozens of cases and it is
--- not yet known which ones help a reader. The choice is recorded in
--- @docs/decisions.md@ and revisited once real mismatches have been surveyed.
-newtype Origin = Origin Text
-  deriving stock (Eq, Ord, Show)
+-- Closed by design (Standard 0.2): adding a case is a compile error at every
+-- site that renders one.
+data Context
+  = -- | Inside a binding that has a type signature: its name, where the
+    -- signature starts, and the type the signature declares.
+    InSignedBinding !Identifier !Span !TypeText
+  | -- | Inside a binding with no type signature, so GHC inferred its type.
+    InUnsignedBinding !Identifier
+  | -- | Not inside any top-level function or variable binding.
+    OutsideBinding
+  deriving stock (Eq, Show)
 
--- | The two sub-types at which an expected and an actual type first differ.
+-- | The two sub-types GHC could not match, in the order GHC states them. Which
+-- side is the expected one varies, so the order carries no meaning.
 -- Invariant: the two sides are different.
 data Divergence = UnsafeDivergence !TypeText !TypeText
   deriving stock (Eq, Ord, Show)
@@ -64,11 +75,11 @@ mkDivergence l r
   | l == r = Left (IdenticalDivergence (unTypeText l))
   | otherwise = Right (UnsafeDivergence l r)
 
--- | The expected side of a 'Divergence'.
+-- | The first side of a 'Divergence', as GHC states it.
 divergenceLeft :: Divergence -> TypeText
 divergenceLeft (UnsafeDivergence l _) = l
 
--- | The actual side of a 'Divergence'.
+-- | The second side of a 'Divergence', as GHC states it.
 divergenceRight :: Divergence -> TypeText
 divergenceRight (UnsafeDivergence _ r) = r
 
@@ -78,11 +89,13 @@ data Explanation = Explanation
     explanationExpected :: !TypeText,
     explanationActual :: !TypeText,
     explanationDivergence :: !(Maybe Divergence),
-    explanationOrigin :: !Origin
+    explanationContext :: !Context
   }
   deriving stock (Eq, Show)
 
 -- | Render an explanation as plain lines of text, starting with the position.
+-- After the expected and actual types come, when present: the types GHC could
+-- not match, and the context line.
 renderExplanation :: Explanation -> Text
 renderExplanation e =
   T.unlines
@@ -91,15 +104,27 @@ renderExplanation e =
         "    actual: " <> unTypeText (explanationActual e)
       ]
         <> foldMap divergenceLines (explanationDivergence e)
-        <> ["  because: " <> originText (explanationOrigin e)]
+        <> contextLines (explanationContext e)
     )
   where
     divergenceLines :: Divergence -> [Text]
     divergenceLines d =
-      [ "  differs where: "
+      [ "  could not match: "
           <> unTypeText (divergenceLeft d)
-          <> " versus "
+          <> " with "
           <> unTypeText (divergenceRight d)
       ]
-    originText :: Origin -> Text
-    originText (Origin t) = t
+
+contextLines :: Context -> [Text]
+contextLines = \case
+  InSignedBinding name sp declared ->
+    [ "  context: in "
+        <> unIdentifier name
+        <> ", declared at "
+        <> renderPosition (spanStart sp)
+        <> " as "
+        <> unTypeText declared
+    ]
+  InUnsignedBinding name ->
+    ["  context: in " <> unIdentifier name <> ", which has no type signature"]
+  OutsideBinding -> []

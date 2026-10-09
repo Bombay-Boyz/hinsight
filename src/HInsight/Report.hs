@@ -18,8 +18,8 @@ import HInsight.Hole
   ( HoleFit (..),
     HoleReport (..),
     Locality (..),
-    unIdentifier,
   )
+import HInsight.Identifier (unIdentifier)
 import HInsight.Source (renderPosition, spanStart)
 
 -- | One typed hole: a header line, then either "no fits found" or a

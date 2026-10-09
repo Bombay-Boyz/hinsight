@@ -7,6 +7,7 @@
 module HInsight.Ghc.Convert
   ( convertSpan,
     convertText,
+    fromDomain,
     renderGhcType,
     renderGhc,
   )
@@ -24,7 +25,7 @@ import HInsight.Source (Position, Span, mkColumn, mkLine, mkPosition, mkSpan)
 -- | Convert a GHC span. Lines and columns are 1-based and the end column is
 -- exclusive, which matches "HInsight.Source".
 convertSpan :: FilePath -> RealSrcSpan -> Either InsightError Span
-convertSpan file rs = first (invalid file) (start >>= \s -> end >>= mkSpan s)
+convertSpan file rs = fromDomain file (start >>= \s -> end >>= mkSpan s)
   where
     start :: Either DomainError Position
     start = position (srcSpanStartLine rs) (srcSpanStartCol rs)
@@ -36,7 +37,7 @@ position l c = mkPosition <$> mkLine l <*> mkColumn c
 
 -- | Convert text GHC rendered into a 'TypeText'.
 convertText :: FilePath -> String -> Either InsightError TypeText
-convertText file = first (invalid file) . mkTypeText . T.pack
+convertText file = fromDomain file . mkTypeText . T.pack
 
 -- | Render a GHC type on one line with default settings.
 renderGhcType :: Type -> String
@@ -46,5 +47,6 @@ renderGhcType = renderGhc . ppr
 renderGhc :: SDoc -> String
 renderGhc = showSDocOneLine defaultSDocContext
 
-invalid :: FilePath -> DomainError -> InsightError
-invalid file = ExtractionFailure . InvalidFromGhc file
+-- | Tag a failed construction with the file GHC was reporting on.
+fromDomain :: FilePath -> Either DomainError a -> Either InsightError a
+fromDomain file = first (ExtractionFailure . InvalidFromGhc file)

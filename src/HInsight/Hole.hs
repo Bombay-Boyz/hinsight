@@ -2,10 +2,7 @@
 -- Module      : HInsight.Hole
 -- Description : Typed holes and their candidate fits, ranked.
 module HInsight.Hole
-  ( Identifier,
-    mkIdentifier,
-    unIdentifier,
-    RefinementLevel,
+  ( RefinementLevel,
     mkRefinementLevel,
     unRefinementLevel,
     Locality (..),
@@ -16,25 +13,10 @@ module HInsight.Hole
 where
 
 import Data.List (sortOn)
-import Data.Text (Text)
-import Data.Text qualified as T
 import HInsight.Error (DomainError (..))
 import HInsight.Explanation (TypeText)
+import HInsight.Identifier (Identifier)
 import HInsight.Source (Span)
-
--- | A name as written in source. Invariant: not blank.
-newtype Identifier = UnsafeIdentifier Text
-  deriving stock (Eq, Ord, Show)
-
--- | Build an 'Identifier'; the text must contain a non-space character.
-mkIdentifier :: Text -> Either DomainError Identifier
-mkIdentifier t
-  | T.null (T.strip t) = Left (BlankText "identifier")
-  | otherwise = Right (UnsafeIdentifier (T.strip t))
-
--- | The text inside an 'Identifier'.
-unIdentifier :: Identifier -> Text
-unIdentifier (UnsafeIdentifier t) = t
 
 -- | How many further holes a fit introduces. Zero means the fit fills the hole
 -- on its own. Invariant: not negative.

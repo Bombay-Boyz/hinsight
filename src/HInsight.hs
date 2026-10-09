@@ -18,6 +18,10 @@ module HInsight
     emptyAnalysis,
     Insight (..),
     Explanation (..),
+    Context (..),
+    Identifier,
+    mkIdentifier,
+    unIdentifier,
     renderExplanation,
     HoleReport (..),
     HoleFit (..),
@@ -32,6 +36,7 @@ where
 import HInsight.Analysis (Analysis (..), Insight (..), emptyAnalysis)
 import HInsight.Config (LibDir, libDirPath, mkLibDir)
 import HInsight.Error (InsightError (..), renderError)
-import HInsight.Explanation (Explanation (..), renderExplanation)
+import HInsight.Explanation (Context (..), Explanation (..), renderExplanation)
 import HInsight.Hole (HoleFit (..), HoleReport (..), rankFits)
+import HInsight.Identifier (Identifier, mkIdentifier, unIdentifier)
 import HInsight.Source (SourceFile, mkSourceFile, sourceFilePath)

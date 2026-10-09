@@ -9,11 +9,12 @@
 module HInsight.GhcSessionSpec (spec) where
 
 import Control.Exception (IOException, try)
+import Data.Text (Text)
 import HInsight
 import HInsight.Error (SessionError (..))
 import HInsight.Explanation (unTypeText)
 import HInsight.Ghc.Session (ghcInsight)
-import HInsight.Hole (Locality (..), unIdentifier, unRefinementLevel)
+import HInsight.Hole (Locality (..), unRefinementLevel)
 import HInsight.Source (positionLine, spanStart, unLine)
 import HInsight.Support (ok)
 import System.Environment (lookupEnv)
@@ -48,6 +49,21 @@ spec = describe "ghcInsight" $ do
     realGhcSpec
     libDir
 
+-- | A context for a binding with this name, declared at this line as this type.
+isSignedAs :: Text -> Int -> Text -> Context -> Bool
+isSignedAs name line declared = \case
+  InSignedBinding n sp t ->
+    unIdentifier n == name
+      && unLine (positionLine (spanStart sp)) == line
+      && unTypeText t == declared
+  _ -> False
+
+-- | A context for a binding with this name and no signature.
+isUnsigned :: Text -> Context -> Bool
+isUnsigned name = \case
+  InUnsignedBinding n -> unIdentifier n == name
+  _ -> False
+
 -- | Failures that are detected before GHC starts, so they need no GHC.
 preflightSpec :: Spec
 preflightSpec = do
@@ -70,6 +86,15 @@ realGhcSpec libDir = do
         unTypeText (explanationActual m) `shouldBe` "Int"
         unTypeText (explanationExpected m) `shouldSatisfy` (`elem` ["String", "[Char]"])
         unLine (positionLine (spanStart (explanationSpan m))) `shouldBe` 4
+        explanationContext m `shouldSatisfy` isSignedAs "greeting" 3 "String"
+      other -> expectationFailure ("expected exactly one mismatch, found " <> show (length other))
+  it "reports a binding without a signature as unsigned" $ do
+    a <- analyseFixture libDir "UnsignedMismatch.hs" >>= succeeded
+    case analysisMismatches a of
+      [m] -> do
+        unTypeText (explanationExpected m) `shouldBe` "Bool"
+        unTypeText (explanationActual m) `shouldBe` "Char"
+        explanationContext m `shouldSatisfy` isUnsigned "flag"
       other -> expectationFailure ("expected exactly one mismatch, found " <> show (length other))
   it "reports ranked fits for a typed hole" $ do
     a <- analyseFixture libDir "Hole.hs" >>= succeeded

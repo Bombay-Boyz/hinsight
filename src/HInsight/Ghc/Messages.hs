@@ -13,32 +13,29 @@ module HInsight.Ghc.Messages
   )
 where
 
-import Data.Text qualified as T
 import GHC.Core.Type (Type)
 import GHC.Driver.Errors.Types (GhcMessage (..))
 import GHC.Tc.Errors.Types
-  ( ErrorItem,
-    HoleError (..),
+  ( HoleError (..),
     MismatchEA (..),
     MismatchMsg (..),
     SolverReportWithCtxt (..),
     TcRnMessage (..),
     TcRnMessageDetailed (..),
     TcSolverReportMsg (..),
-    errorItemOrigin,
   )
-import GHC.Tc.Types.Origin (pprCtOrigin)
 import GHC.Types.Error (MsgEnvelope (..))
 import GHC.Types.SrcLoc (RealSrcSpan, SrcSpan (..))
 import HInsight.Error (InsightError)
 import HInsight.Explanation
-  ( Divergence,
+  ( Context,
+    Divergence,
     Explanation (..),
-    Origin (..),
     TypeText,
     mkDivergence,
   )
-import HInsight.Ghc.Convert (convertSpan, convertText, renderGhc, renderGhcType)
+import HInsight.Ghc.Bindings (Binding, contextAt)
+import HInsight.Ghc.Convert (convertSpan, convertText, renderGhcType)
 import HInsight.Source (Span)
 
 -- | The explained mismatches, the number of errors left unexplained, and the
@@ -60,8 +57,7 @@ data Classified
 
 -- | The pieces of a mismatch GHC reported with an expected and an actual type.
 data MismatchParts = MismatchParts
-  { partsItem :: ErrorItem,
-    partsExpected :: Type,
+  { partsExpected :: Type,
     partsActual :: Type,
     -- | The two sub-types at which the mismatch was detected.
     partsLeft :: Type,
@@ -69,8 +65,8 @@ data MismatchParts = MismatchParts
   }
 
 -- | Classify and explain a list of error diagnostics from one file.
-extractMessages :: FilePath -> [MsgEnvelope GhcMessage] -> Either InsightError Extracted
-extractMessages file envs = tally <$> traverse (classify file) envs
+extractMessages :: FilePath -> [Binding] -> [MsgEnvelope GhcMessage] -> Either InsightError Extracted
+extractMessages file bindings envs = tally <$> traverse (classify file bindings) envs
 
 -- | Count by outcome. List comprehensions with a refutable pattern are the
 -- filter-and-map here; 'length' is strict, so nothing accumulates lazily.
@@ -82,11 +78,11 @@ tally cs =
       extractedHoleDiagnostics = length [() | HoleDiagnostic <- cs]
     }
 
-classify :: FilePath -> MsgEnvelope GhcMessage -> Either InsightError Classified
-classify file env = case typecheckerMessage (errMsgDiagnostic env) of
+classify :: FilePath -> [Binding] -> MsgEnvelope GhcMessage -> Either InsightError Classified
+classify file bindings env = case typecheckerMessage (errMsgDiagnostic env) of
   Just (TcRnSolverReport (SolverReportWithCtxt _ content) _) -> case content of
     ReportHoleError _ holeError -> Right (classifyHole holeError)
-    Mismatch {mismatchMsg = mm} -> maybe (Right Unexplained) (explain file (errMsgSpan env)) (mismatchParts mm)
+    Mismatch {mismatchMsg = mm} -> maybe (Right Unexplained) (explain file bindings (errMsgSpan env)) (mismatchParts mm)
     _ -> Right Unexplained
   _ -> Right Unexplained
 
@@ -117,40 +113,40 @@ unwrap = \case
 mismatchParts :: MismatchMsg -> Maybe MismatchParts
 mismatchParts = \case
   TypeEqMismatch
-    { teq_mismatch_item = item,
-      teq_mismatch_ty1 = l,
+    { teq_mismatch_ty1 = l,
       teq_mismatch_ty2 = r,
       teq_mismatch_expected = e,
       teq_mismatch_actual = a
-    } -> Just (MismatchParts item e a l r)
-  BasicMismatch {mismatch_ea = EA _, mismatch_item = item, mismatch_ty1 = e, mismatch_ty2 = a} ->
-    Just (MismatchParts item e a e a)
+    } -> Just (MismatchParts e a l r)
+  BasicMismatch {mismatch_ea = EA _, mismatch_ty1 = e, mismatch_ty2 = a} ->
+    Just (MismatchParts e a e a)
   _ -> Nothing
 
-explain :: FilePath -> SrcSpan -> MismatchParts -> Either InsightError Classified
-explain file loc parts = case loc of
-  RealSrcSpan rs _ -> Explained <$> build file rs parts
+explain :: FilePath -> [Binding] -> SrcSpan -> MismatchParts -> Either InsightError Classified
+explain file bindings loc parts = case loc of
+  RealSrcSpan rs _ -> Explained <$> build file bindings rs parts
   UnhelpfulSpan _ -> Right Unexplained
 
-build :: FilePath -> RealSrcSpan -> MismatchParts -> Either InsightError Explanation
-build file rs parts =
+build :: FilePath -> [Binding] -> RealSrcSpan -> MismatchParts -> Either InsightError Explanation
+build file bindings rs parts =
   make
     <$> convertSpan file rs
     <*> text (partsExpected parts)
     <*> text (partsActual parts)
     <*> text (partsLeft parts)
     <*> text (partsRight parts)
+    <*> contextAt file bindings rs
   where
     text :: Type -> Either InsightError TypeText
     text = convertText file . renderGhcType
-    make :: Span -> TypeText -> TypeText -> TypeText -> TypeText -> Explanation
-    make sp e a l r =
+    make :: Span -> TypeText -> TypeText -> TypeText -> TypeText -> Context -> Explanation
+    make sp e a l r ctx =
       Explanation
         { explanationSpan = sp,
           explanationExpected = e,
           explanationActual = a,
           explanationDivergence = divergence e a l r,
-          explanationOrigin = origin (partsItem parts)
+          explanationContext = ctx
         }
 
 -- | The divergence is only worth showing when the detected sub-types differ
@@ -160,6 +156,3 @@ divergence :: TypeText -> TypeText -> TypeText -> TypeText -> Maybe Divergence
 divergence e a l r
   | (l, r) == (e, a) = Nothing
   | otherwise = either (const Nothing) Just (mkDivergence l r)
-
-origin :: ErrorItem -> Origin
-origin = Origin . T.pack . renderGhc . pprCtOrigin . errorItemOrigin

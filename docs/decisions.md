@@ -27,11 +27,17 @@ diagnostic.
 produce it. Another plugin could. They are skipped rather than ranked.
 Revisit if a real case appears.
 
-## 4. Origin is opaque text
+## 4. Context comes from the parsed source, not from GHC's origin
 
-GHC's constraint-origin type has many cases and it is not yet known which help
-a reader. `Origin` holds GHC's own rendering. Revisit after surveying real
-mismatches, then replace it with a closed sum (Standard 1.4).
+GHC's origin for a type-equality mismatch only restates the two types
+("arising from a type equality Int ~ String"), so it is not used. Instead the
+top-level binding around the error is found in the parsed module, and its
+signature, if any, is reported as a fact about the source ("in greeting,
+declared at 3:1 as String"), never as the cause of the mismatch. A binding
+with no signature is reported as such. Only top-level function and variable
+bindings are considered; an error inside an instance method or a pattern
+binding gets no context. Revisit when project loading is added, and consider
+GHC's own "In the expression" context lines as a further source.
 
 ## 5. Record fields carry a type prefix
 

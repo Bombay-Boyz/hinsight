@@ -6,21 +6,19 @@ module HInsight.Ghc.Holes
   )
 where
 
-import Data.Bifunctor (first)
 import Data.Text qualified as T
-import HInsight.Error (DomainError, ExtractionError (..), InsightError (..))
-import HInsight.Ghc.Convert (convertSpan, convertText)
+import HInsight.Error (InsightError)
+import HInsight.Ghc.Convert (convertSpan, convertText, fromDomain)
 import HInsight.Ghc.HoleCapture (CapturedFit (..), CapturedHole (..))
 import HInsight.Hole
   ( HoleFit (..),
     HoleReport (..),
-    Identifier,
     Locality (..),
     RefinementLevel,
-    mkIdentifier,
     mkRefinementLevel,
     rankFits,
   )
+import HInsight.Identifier (Identifier, mkIdentifier)
 
 -- | Convert every captured hole; the first invalid value stops the conversion
 -- and names the file.
@@ -48,10 +46,7 @@ locality :: Bool -> Locality
 locality isLocal = if isLocal then Local else Imported
 
 identifier :: FilePath -> String -> Either InsightError Identifier
-identifier file = invalid file . mkIdentifier . T.pack
+identifier file = fromDomain file . mkIdentifier . T.pack
 
 refinement :: FilePath -> Int -> Either InsightError RefinementLevel
-refinement file = invalid file . mkRefinementLevel
-
-invalid :: FilePath -> Either DomainError a -> Either InsightError a
-invalid file = first (ExtractionFailure . InvalidFromGhc file)
+refinement file = fromDomain file . mkRefinementLevel

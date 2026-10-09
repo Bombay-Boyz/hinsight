@@ -5,20 +5,29 @@ import Data.Maybe (isJust)
 import Data.Text qualified as T
 import HInsight.Error (DomainError (..))
 import HInsight.Explanation
+import HInsight.Identifier (mkIdentifier)
 import HInsight.Source
 import HInsight.Support (genExplanation, genTypeText, ok)
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck
 
-sampleExplanation :: Maybe Divergence -> IO Explanation
-sampleExplanation divergence = do
-  start <- mkPosition <$> ok (mkLine 3) <*> ok (mkColumn 5)
-  end <- mkPosition <$> ok (mkLine 3) <*> ok (mkColumn 9)
+sampleExplanation :: Maybe Divergence -> Context -> IO Explanation
+sampleExplanation divergence ctx = do
+  start <- mkPosition <$> ok (mkLine 4) <*> ok (mkColumn 12)
+  end <- mkPosition <$> ok (mkLine 4) <*> ok (mkColumn 25)
   sp <- ok (mkSpan start end)
   expected <- ok (mkTypeText "String")
   actual <- ok (mkTypeText "Int")
-  pure (Explanation sp expected actual divergence (Origin "a type signature"))
+  pure (Explanation sp expected actual divergence ctx)
+
+signedContext :: IO Context
+signedContext = do
+  name <- ok (mkIdentifier "greeting")
+  start <- mkPosition <$> ok (mkLine 3) <*> ok (mkColumn 1)
+  sp <- ok (mkSpan start start)
+  declared <- ok (mkTypeText "String")
+  pure (InSignedBinding name sp declared)
 
 spec :: Spec
 spec = do
@@ -55,27 +64,49 @@ spec = do
       (divergenceLeft d, divergenceRight d) `shouldBe` (l, r)
 
   describe "renderExplanation" $ do
-    it "renders every part, without a divergence" $ do
-      e <- sampleExplanation Nothing
+    it "renders only the types when there is no divergence or context" $ do
+      e <- sampleExplanation Nothing OutsideBinding
       T.lines (renderExplanation e)
-        `shouldBe` [ "type mismatch at 3:5",
+        `shouldBe` [ "type mismatch at 4:12",
                      "  expected: String",
-                     "    actual: Int",
-                     "  because: a type signature"
+                     "    actual: Int"
                    ]
-    it "renders the divergence before the origin" $ do
-      l <- ok (mkTypeText "[Char]")
-      r <- ok (mkTypeText "Int")
+    it "says which two types could not be matched, in GHC's order" $ do
+      l <- ok (mkTypeText "Int")
+      r <- ok (mkTypeText "[Char]")
       d <- ok (mkDivergence l r)
-      e <- sampleExplanation (Just d)
+      e <- sampleExplanation (Just d) OutsideBinding
       T.lines (renderExplanation e)
-        `shouldBe` [ "type mismatch at 3:5",
+        `shouldContain` ["  could not match: Int with [Char]"]
+    it "names the binding and its declared type" $ do
+      c <- signedContext
+      e <- sampleExplanation Nothing c
+      T.lines (renderExplanation e)
+        `shouldContain` ["  context: in greeting, declared at 3:1 as String"]
+    it "says when the binding has no signature" $ do
+      name <- ok (mkIdentifier "flag")
+      e <- sampleExplanation Nothing (InUnsignedBinding name)
+      T.lines (renderExplanation e)
+        `shouldContain` ["  context: in flag, which has no type signature"]
+    it "puts the divergence before the context" $ do
+      l <- ok (mkTypeText "Int")
+      r <- ok (mkTypeText "[Char]")
+      d <- ok (mkDivergence l r)
+      c <- signedContext
+      e <- sampleExplanation (Just d) c
+      T.lines (renderExplanation e)
+        `shouldBe` [ "type mismatch at 4:12",
                      "  expected: String",
                      "    actual: Int",
-                     "  differs where: [Char] versus Int",
-                     "  because: a type signature"
+                     "  could not match: Int with [Char]",
+                     "  context: in greeting, declared at 3:1 as String"
                    ]
-    prop "has four lines, or five when there is a divergence" $
+    prop "has three lines, plus one for a divergence and one for a context" $
       forAll genExplanation $ \e ->
         length (T.lines (renderExplanation e))
-          === (if isJust (explanationDivergence e) then 5 else 4)
+          === 3 + fromEnum (isJust (explanationDivergence e)) + contextLineCount (explanationContext e)
+  where
+    contextLineCount :: Context -> Int
+    contextLineCount = \case
+      OutsideBinding -> 0
+      _ -> 1
