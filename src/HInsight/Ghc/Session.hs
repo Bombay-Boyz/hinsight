@@ -83,19 +83,31 @@ import HInsight.Flow (Pipeline)
 import HInsight.Ghc.Bindings (Binding, collectBindings)
 import HInsight.Ghc.Convert (renderGhc)
 import HInsight.Ghc.Flow (RawPipeline, collect, pipelines)
+import HInsight.Ghc.Graph (RawModule, collectGraph, projectGraph)
 import HInsight.Ghc.HoleCapture (CapturedHole, holePlugin)
 import HInsight.Ghc.Holes (holeReports)
 import HInsight.Ghc.Messages (Extracted (..), extractMessages)
+import HInsight.Graph (ProjectGraph)
 import HInsight.Hole (HoleReport)
 import HInsight.Project (sourceRoot)
 import HInsight.Source (SourceFile, sourceFilePath)
 import System.Directory (canonicalizePath, doesDirectoryExist, doesFileExist)
 import System.FilePath (takeDirectory)
 
--- | What one typecheck produced: the error diagnostics, the top-level
--- bindings of the parsed module (none when the module did not parse), and the
--- pipelines in the typechecked module (none when it did not typecheck).
-data Outcome = Outcome [MsgEnvelope GhcMessage] [Binding] [RawPipeline]
+-- | What one typecheck produced.
+data Outcome = Outcome
+  { -- | The error diagnostics.
+    outcomeErrors :: [MsgEnvelope GhcMessage],
+    -- | The top-level bindings of the parsed module (none when it did not
+    -- parse).
+    outcomeBindings :: [Binding],
+    -- | The pipelines in the typechecked module (none when it did not
+    -- typecheck).
+    outcomePipelines :: [RawPipeline],
+    -- | The project's modules and their imports (none when the file's imports
+    -- did not resolve).
+    outcomeModules :: [RawModule]
+  }
 
 -- | The GHC-backed implementation of 'Insight'.
 ghcInsight :: LibDir -> Insight IO
@@ -153,7 +165,7 @@ typecheck sink logged path = do
     -- The module could not be parsed or its imports resolved, so there are
     -- errors but no bindings.
     unparsed :: SourceError -> Outcome
-    unparsed err = Outcome (errorsOf err) [] []
+    unparsed err = Outcome (errorsOf err) [] [] []
 
 -- | No code generation and no linking: this session only typechecks.
 --
@@ -213,7 +225,7 @@ loadProject sink logged path = do
         Just why -> pure (Left (DependencyFailed path why))
         Nothing -> do
           modifySession (installHolePlugin sink)
-          Right <$> typecheckParsed sink path summary
+          Right . (\outcome -> outcome {outcomeModules = collectGraph graph}) <$> typecheckParsed sink path summary
 
 setImportPath :: FilePath -> Ghc ()
 setImportPath root = do
@@ -272,8 +284,8 @@ typecheckParsed sink path summary = do
   let bindings = collectBindings (hsmodDecls (unLoc (pm_parsed_source parsed)))
   checked <- handleSourceError (pure . Left . errorsOf) (Right <$> typecheckModule parsed)
   case checked of
-    Left errors -> Outcome errors bindings <$> deferredPipelines sink path
-    Right typechecked -> pure (Outcome [] bindings (collect (tm_typechecked_source typechecked)))
+    Left errors -> (\flows -> Outcome errors bindings flows []) <$> deferredPipelines sink path
+    Right typechecked -> pure (Outcome [] bindings (collect (tm_typechecked_source typechecked)) [])
 
 -- | Typecheck the file again with type errors, typed holes and out-of-scope
 -- variables deferred, so GHC produces a typechecked tree for a file that has
@@ -315,18 +327,20 @@ assemble ::
   [CapturedHole] ->
   Either InsightError Analysis
 assemble path outcome captured = do
-  Outcome envs bindings raw <- first SessionFailure outcome
+  found <- first SessionFailure outcome
   combine
-    <$> extractMessages path bindings envs
+    <$> extractMessages path (outcomeBindings found) (outcomeErrors found)
     <*> holeReports path (reverse captured)
-    <*> pipelines path bindings raw
+    <*> pipelines path (outcomeBindings found) (outcomePipelines found)
+    <*> projectGraph path (outcomeModules found)
   where
-    combine :: Extracted -> [HoleReport] -> [Pipeline] -> Analysis
-    combine extracted holes flows =
+    combine :: Extracted -> [HoleReport] -> [Pipeline] -> ProjectGraph -> Analysis
+    combine extracted holes flows graph =
       Analysis
         { analysisMismatches = extractedMismatches extracted,
           analysisHoles = holes,
           analysisFlows = flows,
+          analysisGraph = graph,
           analysisUnexplained = extractedUnexplained extracted + unseen extracted holes
         }
 

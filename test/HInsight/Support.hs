@@ -21,6 +21,7 @@ module HInsight.Support
     genHoleReport,
     genStage,
     genPipeline,
+    genProjectGraph,
     genAnalysis,
   )
 where
@@ -30,6 +31,7 @@ import HInsight.Analysis (Analysis (..))
 import HInsight.Context
 import HInsight.Explanation
 import HInsight.Flow
+import HInsight.Graph
 import HInsight.Hole
 import HInsight.Identifier
 import HInsight.Source
@@ -118,10 +120,19 @@ genPipeline =
     )
     (\(sp, k, stages, whole, ctx) -> rightToMaybe (mkPipeline sp k stages whole ctx))
 
+-- | A graph of up to six modules with arbitrary imports, cycles included.
+genProjectGraph :: Gen ProjectGraph
+genProjectGraph = do
+  n <- chooseInt (0, 6)
+  names <- maybe (pure []) pure (traverse (rightToMaybe . mkModuleName . T.pack . ("M" <>) . show) [1 .. n])
+  entries <- traverse (\m -> (,) m <$> sublistOf names) names
+  maybe (pure emptyGraph) pure (rightToMaybe (mkProjectGraph entries))
+
 genAnalysis :: Gen Analysis
 genAnalysis =
   Analysis
     <$> resize 3 (listOf genExplanation)
     <*> resize 3 (listOf genHoleReport)
     <*> resize 3 (listOf genPipeline)
+    <*> genProjectGraph
     <*> chooseInt (0, 4)

@@ -15,6 +15,7 @@ import Data.Text qualified as T
 import HInsight
 import HInsight.Error (SessionError (..))
 import HInsight.Ghc.Session (ghcInsight)
+import HInsight.Graph (emptyGraph)
 import HInsight.Hole (Locality (..), unRefinementLevel)
 import HInsight.Source (positionLine, spanStart, unLine)
 import HInsight.Support (ok)
@@ -62,6 +63,11 @@ isSignedAs name line declared = \case
       && unTypeText t == declared
   _ -> False
 
+-- | An analysis with its module graph cleared: a file that imports nothing
+-- still has a graph with one module in it.
+withoutGraph :: Analysis -> Analysis
+withoutGraph a = a {analysisGraph = emptyGraph}
+
 stageTexts :: Pipeline -> [Text]
 stageTexts = map (unStageText . stageText) . pipelineStages
 
@@ -88,7 +94,7 @@ realGhcSpec :: FilePath -> Spec
 realGhcSpec libDir = do
   it "finds nothing in a correct file" $ do
     a <- analyseFixture libDir "Ok.hs" >>= succeeded
-    a `shouldBe` emptyAnalysis
+    withoutGraph a `shouldBe` emptyAnalysis
   it "explains a type mismatch" $ do
     a <- analyseFixture libDir "TypeMismatch.hs" >>= succeeded
     case analysisMismatches a of
@@ -162,13 +168,20 @@ projectSpec libDir = describe "a file that imports modules of its own project" $
         unTypeText (explanationActual m) `shouldBe` "Int"
         unTypeText (explanationExpected m) `shouldSatisfy` (`elem` ["String", "[Char]"])
       other -> expectationFailure ("expected exactly one mismatch, found " <> show (length other))
+  it "reports the module graph with only the modules the file reaches" $ do
+    a <- analyseFixture libDir "project/App.hs" >>= succeeded
+    let graph = analysisGraph a
+    map unModuleName (graphModules graph) `shouldBe` ["App", "Lib.Base", "Lib.Util"]
+    map (map unModuleName) (dependencyOrder graph) `shouldBe` [["Lib.Base"], ["Lib.Util"], ["App"]]
+    importCycles graph `shouldBe` []
   it "does not load modules that the file does not import" $ do
     -- Unrelated.hs sits next to App.hs and has a type error of its own.
     a <- analyseFixture libDir "project/App.hs" >>= succeeded
     length (analysisMismatches a) `shouldBe` 1
   it "finds the source folder of a file inside a module hierarchy" $ do
     a <- analyseFixture libDir "project/Lib/Util.hs" >>= succeeded
-    a `shouldBe` emptyAnalysis
+    (analysisMismatches a, analysisHoles a, analysisUnexplained a) `shouldBe` ([], [], 0)
+    map unModuleName (graphModules (analysisGraph a)) `shouldBe` ["Lib.Base", "Lib.Util"]
   it "reports a dependency that does not compile instead of analysing against it" $ do
     r <- analyseFixture libDir "broken/Top.hs"
     case r of
@@ -193,7 +206,7 @@ projectSpec libDir = describe "a file that imports modules of its own project" $
       file <- ok (mkSourceFile (dir </> "Entry.hs"))
       dirOk <- ok (mkLibDir libDir)
       initial <- analyseFile (ghcInsight dirOk) file >>= succeeded
-      initial `shouldBe` emptyAnalysis
+      withoutGraph initial `shouldBe` emptyAnalysis
       writeFile (dir </> "Dep.hs") "module Dep (value) where\n\nvalue :: String\nvalue = \"one\"\n"
       edited <- analyseFile (ghcInsight dirOk) file >>= succeeded
       length (analysisMismatches edited) `shouldBe` 1

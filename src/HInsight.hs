@@ -30,6 +30,15 @@ module HInsight
     pipelineType,
     pipelineContext,
     renderPipeline,
+    ProjectGraph,
+    ModuleName,
+    unModuleName,
+    graphModules,
+    graphImportCount,
+    importsOf,
+    dependencyOrder,
+    importCycles,
+    renderGraph,
     Identifier,
     mkIdentifier,
     unIdentifier,
@@ -50,6 +59,7 @@ import HInsight.Context (Context (..))
 import HInsight.Error (InsightError (..), renderError)
 import HInsight.Explanation (Explanation (..), renderExplanation)
 import HInsight.Flow (FlowKind (..), Pipeline, Stage (..), StageText, pipelineContext, pipelineKind, pipelineSpan, pipelineStages, pipelineType, renderPipeline, unStageText)
+import HInsight.Graph (ModuleName, ProjectGraph, dependencyOrder, graphImportCount, graphModules, importCycles, importsOf, renderGraph, unModuleName)
 import HInsight.Hole (HoleFit (..), HoleReport (..), rankFits)
 import HInsight.Identifier (Identifier, mkIdentifier, unIdentifier)
 import HInsight.Source (SourceFile, mkSourceFile, sourceFilePath)

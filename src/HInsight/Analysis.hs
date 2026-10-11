@@ -19,6 +19,7 @@ where
 import HInsight.Error (InsightError)
 import HInsight.Explanation (Explanation)
 import HInsight.Flow (Pipeline)
+import HInsight.Graph (ProjectGraph, emptyGraph)
 import HInsight.Hole (HoleReport)
 import HInsight.Source (SourceFile)
 
@@ -33,6 +34,9 @@ data Analysis = Analysis
     -- from a second typecheck with the errors deferred, and some errors
     -- cannot be deferred, in which case there are no pipelines.
     analysisFlows :: ![Pipeline],
+    -- | The project modules reachable from the file and the imports between
+    -- them. Empty when the file's imports could not be resolved.
+    analysisGraph :: !ProjectGraph,
     -- | How many other diagnostics GHC reported that this version does not
     -- explain (for example scope errors). Never negative.
     analysisUnexplained :: !Int
@@ -41,7 +45,7 @@ data Analysis = Analysis
 
 -- | An analysis that found nothing.
 emptyAnalysis :: Analysis
-emptyAnalysis = Analysis [] [] [] 0
+emptyAnalysis = Analysis [] [] [] emptyGraph 0
 
 -- | The capability to analyse a file, over an effect @m@.
 newtype Insight m = Insight

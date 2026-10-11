@@ -4,13 +4,17 @@
 
 Answers questions about Haskell code that need GHC's own data.
 
-This first version does three things for a single Haskell module:
+This first version does four things for a Haskell module:
 
 - **Type mismatches.** For an error where GHC expected one type and found
   another, it returns the two types, the sub-types at which they first differ,
   the source span, and where GHC says the expectation came from.
 - **Typed holes.** For a `_` hole, it returns the candidate fits GHC found,
   ranked: fits that need no further holes first, then local before imported.
+- **Dependency graph.** The project modules reachable from the file and the
+  ordinary imports between them, in dependency order, with import cycles
+  named. `{-# SOURCE #-}` imports are left out, so a cycle that an `hs-boot`
+  file breaks is not reported.
 - **Type flow.** For a chain joined by `.`, `$` or `>>=`, it returns each stage
   with the type GHC gave it, in the order data flows through them, and the type
   of the whole chain. For a file with errors the types come from a second
@@ -109,6 +113,7 @@ The paths are arguments: the library never searches for tools.
 | `HInsight.Source`, `Config` | validated positions, spans and paths |
 | `HInsight.Explanation` | a type mismatch and where it sits, as data, and its text rendering |
 | `HInsight.TypeText`, `Context` | a validated rendered type; where in the program a finding sits |
+| `HInsight.Graph` | the project's modules and imports, as data, and their text rendering |
 | `HInsight.Flow` | pipelines and the type at each stage, as data, and their text rendering |
 | `HInsight.Identifier` | a validated name as written in source |
 | `HInsight.Hole` | typed holes and fit ranking |

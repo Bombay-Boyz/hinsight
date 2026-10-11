@@ -32,6 +32,12 @@ spec = describe "renderError" $ do
     rendered (DomainFailure (SpanEndsBeforeStart 3 7 3 6)) `shouldSatisfy` T.isInfixOf "3:7"
   it "names how many stages a pipeline was given" $
     rendered (DomainFailure (TooFewStages 1)) `shouldSatisfy` T.isInfixOf "1"
+  it "names the module that is listed twice" $
+    rendered (DomainFailure (DuplicateModule "App")) `shouldSatisfy` T.isInfixOf "App"
+  it "names both modules of an unknown import" $ do
+    let t = rendered (DomainFailure (UnknownImport "App" "Missing"))
+    t `shouldSatisfy` T.isInfixOf "App"
+    t `shouldSatisfy` T.isInfixOf "Missing"
   prop "always names the path it was given" $ \p ->
     T.pack p `T.isInfixOf` rendered (SessionFailure (SourceFileNotFound p))
   prop "always names the offending number" $ \n ->

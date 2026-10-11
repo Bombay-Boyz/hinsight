@@ -48,7 +48,8 @@ data DomainError
     SpanEndsBeforeStart Int Int Int Int
   | -- | A rendered type or identifier was empty or only whitespace. Raised by
     -- 'HInsight.TypeText.mkTypeText' and 'HInsight.Identifier.mkIdentifier' and
-    -- 'HInsight.Flow.mkStageText'; the field names which input it was.
+    -- 'HInsight.Flow.mkStageText' and 'HInsight.Graph.mkModuleName'; the field names
+    -- which input it was.
     BlankText Text
   | -- | A divergence between two identical types was requested. Raised by
     -- 'HInsight.Explanation.mkDivergence'; carries the shared text.
@@ -59,6 +60,13 @@ data DomainError
   | -- | A pipeline was built with fewer than two stages. Raised by
     -- 'HInsight.Flow.mkPipeline'; carries the number given.
     TooFewStages Int
+  | -- | A module was listed twice in a project graph. Raised by
+    -- 'HInsight.Graph.mkProjectGraph'; carries the module name.
+    DuplicateModule Text
+  | -- | A module imports a module that is not in the project graph. Raised by
+    -- 'HInsight.Graph.mkProjectGraph'; carries the importing module and the
+    -- missing one.
+    UnknownImport Text Text
   deriving stock (Eq, Show)
 
 -- | The GHC session failed. Raised by "HInsight.Ghc.Session".
@@ -111,6 +119,8 @@ renderDomainError = \case
   IdenticalDivergence t -> "cannot diverge: both types are identical (" <> t <> ")"
   NegativeRefinement n -> "refinement level " <> tshow n <> " is negative"
   TooFewStages n -> "a pipeline needs at least 2 stages but was given " <> tshow n
+  DuplicateModule m -> "module " <> m <> " is listed twice in the project graph"
+  UnknownImport m missing -> "module " <> m <> " imports " <> missing <> ", which is not in the project graph"
   where
     pos :: Int -> Int -> Text
     pos l c = tshow l <> ":" <> tshow c

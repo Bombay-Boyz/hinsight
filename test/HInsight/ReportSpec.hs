@@ -2,6 +2,7 @@ module HInsight.ReportSpec (spec) where
 
 import Data.Text qualified as T
 import HInsight.Analysis (Analysis (..), emptyAnalysis)
+import HInsight.Graph (mkModuleName, mkProjectGraph)
 import HInsight.Hole
 import HInsight.Identifier (mkIdentifier)
 import HInsight.Report
@@ -66,6 +67,17 @@ spec = do
     it "reports several unexplained errors in the plural" $
       renderAnalysis emptyAnalysis {analysisUnexplained = 3}
         `shouldBe` "3 other errors not explained by this version\n"
+    it "stays silent about a module graph without imports" $ do
+      a <- ok (mkModuleName "A")
+      g <- ok (mkProjectGraph [(a, [])])
+      renderAnalysis emptyAnalysis {analysisGraph = g}
+        `shouldBe` "nothing to report: no type mismatches, typed holes or pipelines found\n"
+    it "shows the module graph when a module imports another" $ do
+      a <- ok (mkModuleName "A")
+      b <- ok (mkModuleName "B")
+      g <- ok (mkProjectGraph [(a, [b]), (b, [])])
+      renderAnalysis emptyAnalysis {analysisGraph = g}
+        `shouldBe` "module graph: 2 modules, 1 import\n  B\n  A  imports B\n"
     it "separates sections with a blank line" $ do
       h <- holeAt []
       let out = renderAnalysis emptyAnalysis {analysisHoles = [h, h]}

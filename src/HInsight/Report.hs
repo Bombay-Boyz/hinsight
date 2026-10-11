@@ -15,6 +15,7 @@ import Data.Text qualified as T
 import HInsight.Analysis (Analysis (..))
 import HInsight.Explanation (renderExplanation)
 import HInsight.Flow (renderPipeline)
+import HInsight.Graph (graphImportCount, renderGraph)
 import HInsight.Hole
   ( HoleFit (..),
     HoleReport (..),
@@ -61,8 +62,9 @@ renderFit f =
     newHoles [] = ""
     newHoles _ = ", leaves new holes: " <> T.intercalate ", " (map unTypeText (fitMatches f))
 
--- | Every finding, sections separated by a blank line. An analysis that found
--- nothing says so rather than printing nothing.
+-- | Every finding, sections separated by a blank line. The module graph is
+-- shown only when some module imports another. An analysis that found nothing
+-- says so rather than printing nothing.
 renderAnalysis :: Analysis -> Text
 renderAnalysis a
   | null sections = "nothing to report: no type mismatches, typed holes or pipelines found\n"
@@ -73,6 +75,7 @@ renderAnalysis a
       map renderExplanation (analysisMismatches a)
         <> map renderHoleReport (analysisHoles a)
         <> map renderPipeline (analysisFlows a)
+        <> [renderGraph (analysisGraph a) | graphImportCount (analysisGraph a) > 0]
         <> unexplainedLine (analysisUnexplained a)
 
 unexplainedLine :: Int -> [Text]

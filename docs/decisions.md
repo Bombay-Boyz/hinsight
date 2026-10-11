@@ -100,6 +100,19 @@ truth. It costs a second typecheck of the file when there are errors. The module
 GHC 9.10.3's source and is checked by the real-GHC test in
 `GhcSessionSpec`, not by the pure test run.
 
+## 11. The module graph follows ordinary imports only
+
+The graph is read from the module summaries GHC produces while chasing the
+file's imports. It follows ordinary imports and leaves out `{-# SOURCE #-}`
+imports, so a cycle that an `hs-boot` file legally breaks is not reported as a
+cycle; `hs-boot` files are not modules of their own in the graph. Imports of
+modules outside the project are dropped, and a module that imports itself is
+reported as a cycle. The graph always contains the analysed file, so even a
+file with no imports has a one-module graph; the report shows the graph only
+when some module imports another. When the file's imports cannot be resolved
+the graph is empty. Revisit when package-level dependencies are wanted: those
+are not in this graph.
+
 ## Checks that run on every push
 
 Build with `-Werror`, tests (including those that run a real GHC 9.10.3),
