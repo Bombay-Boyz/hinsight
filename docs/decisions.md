@@ -11,7 +11,7 @@ project, and then analyses the file. Nothing is carried between analyses, which
 removes the stale-dependency class of bugs by construction (`docs/prior-art.md`,
 classes 1 and 3) at the cost of repeating the work each time. Packages are not
 resolved: imports from outside the project must be installed. Revisit the
-session lifetime when the benchmark owed by item 6 shows the cost matters, and
+session lifetime when the analysis benchmarks in item 6 show the cost matters, and
 package resolution when the library is used on projects with their own
 dependencies.
 
@@ -51,14 +51,20 @@ Fields are named `explanationSpan`, `fitName` and so on, instead of using
 with `map` and `traverse` and avoid ambiguous-update warnings. Revisit if
 dot syntax is adopted across the wider code base.
 
-## 6. No benchmark yet (Standard 5.6)
+## 6. Benchmarks: one machine-independent threshold, the rest reported
 
-The only code with a size-dependent cost is `rankFits`, which is a stable
-merge sort over the fits of one hole, and a test ranks 100,000 fits. A
-`criterion` benchmark with a CI threshold is still owed. Add it when
-`hinsight` is first used on a real project.
+`cabal bench` (tasty-bench) measures `rankFits` against the plain `sortOn` it
+wraps at 1,000, 10,000 and 100,000 fits, rendering of an analysis at 100 to
+10,000 holes, and two real analyses (one module; a module with two project
+imports). CI fails when `rankFits` is more than 100% slower than the sort it
+wraps; that ratio holds on any machine. The rendering and analysis timings are
+printed but have no threshold, because their absolute times depend on the
+machine; a threshold needs a stored baseline from a fixed runner, which does not
+exist yet. The analysis benchmarks are skipped when no GHC 9.10.3 is found.
+The library-directory lookup is now written three times (demo, tests,
+benchmark); move it to a shared place when a fourth copy is needed.
 
-## 7. Dead-code check is advisory; no benchmark yet
+## 7. Dead-code check is advisory
 
 `cabal.project.freeze` is committed. CI runs weeder, but its step is allowed
 to fail until the first real report has been read and the roots in
@@ -87,8 +93,10 @@ therefore finds chains by walking the typechecked tree with `Data.Data`
 `.`, `$` or `>>=` defined in base (module `GHC.Internal.Base` in 9.10), and reading each stage's type with
 `hsExprType`. A generic walk keeps the module independent of the many
 expression constructors, at the price of visiting every node. Limits: infix
-uses only, three operators, files that typecheck. Extending to files with
-errors needs deferred type errors and is not done. The module was written from
+uses only, three operators. A file with errors is typechecked a second time
+with the errors deferred, only to read its pipelines; the second pass's
+diagnostics and holes are discarded, so the first pass stays the source of
+truth. It costs a second typecheck of the file when there are errors. The module was written from
 GHC 9.10.3's source and is checked by the real-GHC test in
 `GhcSessionSpec`, not by the pure test run.
 

@@ -13,7 +13,8 @@ This first version does three things for a single Haskell module:
   ranked: fits that need no further holes first, then local before imported.
 - **Type flow.** For a chain joined by `.`, `$` or `>>=`, it returns each stage
   with the type GHC gave it, in the order data flows through them, and the type
-  of the whole chain. Only for files that typecheck.
+  of the whole chain. For a file with errors the types come from a second
+  typecheck with the errors deferred.
 
 Results are plain typed values. The library draws nothing. The GHC-backed
 implementation sits behind a record of functions (`HInsight.Insight`), so code
@@ -38,8 +39,10 @@ Early. Read this before relying on it.
   Packages are not resolved: imports from outside the project must be
   installed. Each analysis starts a fresh GHC session, so it is correct but
   not fast; see `docs/decisions.md`, item 1.
-- Type flow reads the typechecked program, so it appears only when the file
-  has no errors. It recognises the infix uses of the standard `(.)`, `($)` and
+- Type flow reads the typechecked program. For a file with errors it
+  typechecks again with type errors, typed holes and out-of-scope variables
+  deferred, so a chain next to an error is still shown; errors GHC cannot
+  defer leave no pipelines. It recognises the infix uses of the standard `(.)`, `($)` and
   `(>>=)` only: not `(.) f g`, backticks, other operators, or a user's own
   definitions of these names. Its integration test runs against GHC 9.10.3;
   see `docs/decisions.md`, item 10.
@@ -55,7 +58,12 @@ This package needs GHC **9.10.3** exactly. `cabal.project` pins it with
 ```sh
 cabal build all
 cabal test all
+cabal bench
 ```
+
+`cabal bench` times the ranking of hole fits against the plain sort it wraps,
+the rendering of large reports, and real analyses of two fixtures (the last
+only when `ghc-9.10.3` is found).
 
 The tests that run a real GHC ask `ghc-9.10.3` for its library directory. To
 use a different installation, set `HINSIGHT_GHC_LIBDIR` to its library
