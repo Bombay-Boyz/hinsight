@@ -142,9 +142,15 @@ realGhcSpec libDir = do
         stageTexts inner `shouldBe` ["reverse", "putStrLn"]
         pipelineContext composed `shouldSatisfy` isSignedAs "countWords" 3 "String -> Int"
       other -> expectationFailure ("expected four pipelines, found " <> show (length other))
-  it "finds no pipelines in a file that does not typecheck" $ do
-    a <- analyseFixture libDir "TypeMismatch.hs" >>= succeeded
-    analysisFlows a `shouldBe` []
+  it "still shows pipelines in a file that has a type error elsewhere" $ do
+    a <- analyseFixture libDir "PipelineMismatch.hs" >>= succeeded
+    length (analysisMismatches a) `shouldBe` 1
+    case analysisFlows a of
+      [composed] -> do
+        pipelineKind composed `shouldBe` Composition
+        stageTexts composed `shouldBe` ["words", "map length", "sum"]
+        drop 2 (stageTypes composed) `shouldBe` ["[Int] -> Int"]
+      other -> expectationFailure ("expected one pipeline, found " <> show (length other))
 
 -- | Project loading: a file is analysed together with the modules it imports.
 projectSpec :: FilePath -> Spec

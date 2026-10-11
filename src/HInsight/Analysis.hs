@@ -28,9 +28,10 @@ data Analysis = Analysis
     analysisMismatches :: ![Explanation],
     -- | Typed holes with their ranked fits.
     analysisHoles :: ![HoleReport],
-    -- | Pipelines of @.@, @$@ and @>>=@ with the type at each stage. Only
-    -- found when the file typechecks, since the types come from the
-    -- typechecked program.
+    -- | Pipelines of @.@, @$@ and @>>=@ with the type at each stage. The types
+    -- come from the typechecked program; for a file with errors they come
+    -- from a second typecheck with the errors deferred, and some errors
+    -- cannot be deferred, in which case there are no pipelines.
     analysisFlows :: ![Pipeline],
     -- | How many other diagnostics GHC reported that this version does not
     -- explain (for example scope errors). Never negative.

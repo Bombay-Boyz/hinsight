@@ -25,7 +25,7 @@ import Control.Monad (filterM)
 import Control.Monad.IO.Class (liftIO)
 import Data.Bifunctor (first)
 import Data.Containers.ListUtils (nubOrd)
-import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
+import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import Data.Maybe (listToMaybe)
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -54,8 +54,10 @@ import GHC
     typecheckModule,
   )
 import GHC.Data.Bag (bagToList)
+import GHC.Driver.DynFlags (gopt_set)
 import GHC.Driver.Env.Types (HscEnv (..))
 import GHC.Driver.Errors.Types (GhcMessage)
+import GHC.Driver.Flags (GeneralFlag (..))
 import GHC.Driver.Make (depanalPartial)
 import GHC.Driver.Monad (modifySession, pushLogHookM)
 import GHC.Driver.Plugins
@@ -211,7 +213,7 @@ loadProject sink logged path = do
         Just why -> pure (Left (DependencyFailed path why))
         Nothing -> do
           modifySession (installHolePlugin sink)
-          Right <$> typecheckParsed summary
+          Right <$> typecheckParsed sink path summary
 
 setImportPath :: FilePath -> Ghc ()
 setImportPath root = do
@@ -262,14 +264,41 @@ loadDependencies logged graph summary
     describe messages = T.intercalate "; " messages
 
 -- | Parse first, so the bindings are known even if type checking then throws.
-typecheckParsed :: ModSummary -> Ghc Outcome
-typecheckParsed summary = do
+-- When type checking fails, the pipelines are still read, from a second
+-- typecheck of the same file with its errors deferred.
+typecheckParsed :: IORef [CapturedHole] -> FilePath -> ModSummary -> Ghc Outcome
+typecheckParsed sink path summary = do
   parsed <- parseModule summary
   let bindings = collectBindings (hsmodDecls (unLoc (pm_parsed_source parsed)))
   checked <- handleSourceError (pure . Left . errorsOf) (Right <$> typecheckModule parsed)
-  pure $ case checked of
-    Left errors -> Outcome errors bindings []
-    Right typechecked -> Outcome [] bindings (collect (tm_typechecked_source typechecked))
+  case checked of
+    Left errors -> Outcome errors bindings <$> deferredPipelines sink path
+    Right typechecked -> pure (Outcome [] bindings (collect (tm_typechecked_source typechecked)))
+
+-- | Typecheck the file again with type errors, typed holes and out-of-scope
+-- variables deferred, so GHC produces a typechecked tree for a file that has
+-- errors. Only the pipelines are kept: the diagnostics of this second pass
+-- are the first pass's, and the holes it would report again are discarded.
+-- Errors GHC cannot defer leave no pipelines.
+--
+-- In a stage GHC could not type, the type shown is what GHC inferred around
+-- the error; that is where a chain's types stop lining up.
+deferredPipelines :: IORef [CapturedHole] -> FilePath -> Ghc [RawPipeline]
+deferredPipelines sink path = do
+  seen <- liftIO (readIORef sink)
+  flags <- getSessionDynFlags
+  setSessionDynFlags (foldl' gopt_set flags [Opt_DeferTypeErrors, Opt_DeferTypedHoles, Opt_DeferOutOfScopeVariables])
+  flows <- handleSourceError (const (pure [])) $ do
+    graph <- depanal [] False
+    found <- targetSummary path (mgModSummaries graph)
+    case found of
+      Nothing -> pure []
+      Just summary -> do
+        parsed <- parseModule summary
+        typechecked <- typecheckModule parsed
+        pure (collect (tm_typechecked_source typechecked))
+  liftIO (writeIORef sink seen)
+  pure flows
 
 -- | The error diagnostics inside a 'SourceError'; warnings are not analysed.
 errorsOf :: SourceError -> [MsgEnvelope GhcMessage]

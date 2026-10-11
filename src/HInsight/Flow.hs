@@ -4,8 +4,8 @@
 --
 -- A 'Pipeline' lists the stages of one chain in the order data flows through
 -- them, with the type GHC gave each stage once it had instantiated it. The
--- types are those of the typechecked program, so a pipeline is only available
--- for code that typechecks.
+-- types are those of the typechecked program; for code with errors they are
+-- what GHC inferred with the errors deferred.
 module HInsight.Flow
   ( FlowKind (..),
     StageText,
