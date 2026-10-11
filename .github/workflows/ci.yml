@@ -44,6 +44,12 @@ jobs:
       - name: Test, including the checks that run a real GHC
         run: cabal test all --test-show-details=direct
 
+      # The ranking benchmark is compared with the plain sort it wraps, so
+      # this threshold holds on any machine: fail if ranking is more than 100%
+      # slower than sorting the same list.
+      - name: Benchmarks
+        run: cabal bench --benchmark-options='--stdev 20 --fail-if-slower 100'
+
       # Weeder is advisory until its first real report has been read and its
       # roots tuned in weeder.toml. Remove continue-on-error then.
       - name: Install weeder
@@ -84,10 +90,10 @@ jobs:
           echo "$HOME/tools" >> "$GITHUB_PATH"
 
       - name: HLint (bans from the engineering standard are errors)
-        run: hlint src test
+        run: hlint src test bench
 
       - name: "Ormolu (fixtures excluded because their line numbers are asserted)"
-        run: ormolu --mode check $(find src test -name '*.hs' -not -path 'test/fixtures/*')
+        run: ormolu --mode check $(find src test bench -name '*.hs' -not -path 'test/fixtures/*')
 
   independence:
     name: package independence

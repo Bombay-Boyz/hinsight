@@ -79,6 +79,19 @@ executable hinsight-demo
     , process  >=1.6 && <1.7
     , text
 
+benchmark hinsight-bench
+  import:           warnings
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   bench
+  main-is:          Main.hs
+  build-depends:
+    , base
+    , deepseq      >=1.4 && <1.7
+    , hinsight
+    , process      >=1.6 && <1.7
+    , tasty-bench  >=0.3 && <0.5
+    , text
+
 test-suite hinsight-test
   import:           warnings
   type:             exitcode-stdio-1.0
