@@ -15,7 +15,7 @@ category:           Development, Language
 build-type:         Simple
 tested-with:        GHC ==9.10.3
 extra-doc-files:    README.md
-extra-source-files: test/fixtures/*.hs
+extra-source-files: test/fixtures/**/*.hs
 
 flag werror
   description: Treat warnings as errors (development and CI; off for consumers, so new GHCs cannot break them)
@@ -43,6 +43,7 @@ library
     , base        >=4.20 && <5
     , containers  >=0.6  && <0.8
     , directory  >=1.3  && <1.4
+    , filepath   >=1.4  && <1.6
     , ghc        ==9.10.3
     , text       >=2.1  && <2.2
   exposed-modules:
@@ -63,6 +64,7 @@ library
     HInsight.Ghc.Session
     HInsight.Hole
     HInsight.Identifier
+    HInsight.Project
     HInsight.Report
     HInsight.Source
     HInsight.TypeText
@@ -90,12 +92,15 @@ test-suite hinsight-test
     HInsight.GhcSessionSpec
     HInsight.HoleSpec
     HInsight.IdentifierSpec
+    HInsight.ProjectSpec
     HInsight.ReportSpec
     HInsight.SourceSpec
     HInsight.Support
   build-depends:
     , base
     , hinsight
+    , directory
+    , filepath
     , hspec       >=2.10 && <2.12
     , process     >=1.6  && <1.7
     , QuickCheck  >=2.14 && <2.16

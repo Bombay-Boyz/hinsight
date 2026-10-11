@@ -7,6 +7,7 @@ import HInsight.FlowSpec qualified
 import HInsight.GhcSessionSpec qualified
 import HInsight.HoleSpec qualified
 import HInsight.IdentifierSpec qualified
+import HInsight.ProjectSpec qualified
 import HInsight.ReportSpec qualified
 import HInsight.SourceSpec qualified
 import Test.Hspec (hspec)
@@ -18,6 +19,7 @@ main = hspec $ do
   HInsight.FlowSpec.spec
   HInsight.HoleSpec.spec
   HInsight.IdentifierSpec.spec
+  HInsight.ProjectSpec.spec
   HInsight.ErrorSpec.spec
   HInsight.ReportSpec.spec
   HInsight.CliSpec.spec

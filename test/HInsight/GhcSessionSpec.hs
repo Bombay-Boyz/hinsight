@@ -8,9 +8,10 @@
 -- pending rather than silently passing.
 module HInsight.GhcSessionSpec (spec) where
 
-import Control.Exception (IOException, try)
+import Control.Exception (IOException, finally, try)
 import Data.Maybe (isJust)
 import Data.Text (Text)
+import Data.Text qualified as T
 import HInsight
 import HInsight.Error (SessionError (..))
 import HInsight.Ghc.Session (ghcInsight)
@@ -18,8 +19,10 @@ import HInsight.Hole (Locality (..), unRefinementLevel)
 import HInsight.Source (positionLine, spanStart, unLine)
 import HInsight.Support (ok)
 import HInsight.TypeText (unTypeText)
+import System.Directory (createDirectoryIfMissing, getTemporaryDirectory, removeDirectoryRecursive)
 import System.Environment (lookupEnv)
-import System.Process (readProcess)
+import System.FilePath ((</>))
+import System.Process (getCurrentPid, readProcess)
 import Test.Hspec
 
 analyseFixture :: FilePath -> FilePath -> IO (Either InsightError Analysis)
@@ -47,7 +50,7 @@ spec = describe "ghcInsight" $ do
   libDir <- runIO findLibDir
   maybe
     (it "analyses real files" (pendingWith "ghc-9.10.3 was not found; install it or set HINSIGHT_GHC_LIBDIR"))
-    realGhcSpec
+    (\dir -> realGhcSpec dir *> projectSpec dir)
     libDir
 
 -- | A context for a binding with this name, declared at this line as this type.
@@ -142,3 +145,54 @@ realGhcSpec libDir = do
   it "finds no pipelines in a file that does not typecheck" $ do
     a <- analyseFixture libDir "TypeMismatch.hs" >>= succeeded
     analysisFlows a `shouldBe` []
+
+-- | Project loading: a file is analysed together with the modules it imports.
+projectSpec :: FilePath -> Spec
+projectSpec libDir = describe "a file that imports modules of its own project" $ do
+  it "explains a mismatch that depends on an imported module" $ do
+    a <- analyseFixture libDir "project/App.hs" >>= succeeded
+    case analysisMismatches a of
+      [m] -> do
+        unTypeText (explanationActual m) `shouldBe` "Int"
+        unTypeText (explanationExpected m) `shouldSatisfy` (`elem` ["String", "[Char]"])
+      other -> expectationFailure ("expected exactly one mismatch, found " <> show (length other))
+  it "does not load modules that the file does not import" $ do
+    -- Unrelated.hs sits next to App.hs and has a type error of its own.
+    a <- analyseFixture libDir "project/App.hs" >>= succeeded
+    length (analysisMismatches a) `shouldBe` 1
+  it "finds the source folder of a file inside a module hierarchy" $ do
+    a <- analyseFixture libDir "project/Lib/Util.hs" >>= succeeded
+    a `shouldBe` emptyAnalysis
+  it "reports a dependency that does not compile instead of analysing against it" $ do
+    r <- analyseFixture libDir "broken/Top.hs"
+    case r of
+      Left (SessionFailure (DependencyFailed file why)) -> do
+        file `shouldBe` "test/fixtures/broken/Top.hs"
+        why `shouldSatisfy` T.isInfixOf "Bad"
+      other -> expectationFailure ("expected DependencyFailed, got " <> show other)
+  it "reports something for an import cycle" $ do
+    r <- analyseFixture libDir "cycle/A.hs"
+    r `shouldSatisfy` reportsSomething
+  it "counts an import of a module that does not exist" $ do
+    a <- analyseFixture libDir "missing/UsesMissing.hs" >>= succeeded
+    analysisUnexplained a `shouldSatisfy` (>= 1)
+  it "sees an edit to an imported module on the next analysis" $ do
+    base <- getTemporaryDirectory
+    pid <- getCurrentPid
+    let dir = base </> ("hinsight-edit-" <> show pid)
+    createDirectoryIfMissing True dir
+    (`finally` removeDirectoryRecursive dir) $ do
+      writeFile (dir </> "Dep.hs") "module Dep (value) where\n\nvalue :: Int\nvalue = 1\n"
+      writeFile (dir </> "Entry.hs") "module Entry (n) where\n\nimport Dep (value)\n\nn :: Int\nn = value\n"
+      file <- ok (mkSourceFile (dir </> "Entry.hs"))
+      dirOk <- ok (mkLibDir libDir)
+      initial <- analyseFile (ghcInsight dirOk) file >>= succeeded
+      initial `shouldBe` emptyAnalysis
+      writeFile (dir </> "Dep.hs") "module Dep (value) where\n\nvalue :: String\nvalue = \"one\"\n"
+      edited <- analyseFile (ghcInsight dirOk) file >>= succeeded
+      length (analysisMismatches edited) `shouldBe` 1
+  where
+    reportsSomething :: Either InsightError Analysis -> Bool
+    reportsSomething = \case
+      Left _ -> True
+      Right a -> analysisUnexplained a > 0 || not (null (analysisMismatches a))

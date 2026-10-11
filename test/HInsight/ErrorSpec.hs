@@ -18,10 +18,12 @@ spec = describe "renderError" $ do
     let t = rendered (SessionFailure (GhcThrew "a.hs" "panic"))
     t `shouldSatisfy` T.isInfixOf "a.hs"
     t `shouldSatisfy` T.isInfixOf "panic"
-  it "names the file and the count for an unexpected module count" $ do
-    let t = rendered (SessionFailure (UnexpectedModuleCount "a.hs" 3))
+  it "names the file and what GHC said when a dependency failed" $ do
+    let t = rendered (SessionFailure (DependencyFailed "a.hs" "Bad.hs:3:1: error"))
     t `shouldSatisfy` T.isInfixOf "a.hs"
-    t `shouldSatisfy` T.isInfixOf "3"
+    t `shouldSatisfy` T.isInfixOf "Bad.hs:3:1: error"
+  it "names the file that is missing from the module graph" $
+    rendered (SessionFailure (TargetNotInGraph "a.hs")) `shouldSatisfy` T.isInfixOf "a.hs"
   it "names the file and the cause of an invalid value from GHC" $ do
     let t = rendered (ExtractionFailure (InvalidFromGhc "a.hs" (NonPositiveLine 0)))
     t `shouldSatisfy` T.isInfixOf "a.hs"

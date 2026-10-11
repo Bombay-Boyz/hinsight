@@ -6,31 +6,45 @@
 -- and converted into 'InsightError' immediately (Standard 1.6); nothing above
 -- this module sees a GHC exception.
 --
--- Limitation of this version: the file must be a single module that imports
--- only installed packages. A file that pulls in other modules of its own
--- project is reported as 'UnexpectedModuleCount'; project loading is a later
--- piece of work.
+-- The file is analysed together with the modules it imports from its own
+-- project: the source folder is worked out from the file's header and place
+-- ("HInsight.Project"), its dependencies are typechecked first, and a
+-- dependency that does not compile is reported as 'DependencyFailed' instead
+-- of analysing the file against broken imports. Every analysis runs in a
+-- fresh GHC session, so nothing is carried over from an earlier edit.
+--
+-- Limitation of this version: packages are not resolved, so the imports that
+-- are not the project's own must be installed.
 module HInsight.Ghc.Session
   ( ghcInsight,
   )
 where
 
 import Control.Exception (Handler (..), IOException, catches, evaluate)
+import Control.Monad (filterM)
+import Control.Monad.IO.Class (liftIO)
 import Data.Bifunctor (first)
-import Data.IORef (IORef, newIORef, readIORef)
+import Data.Containers.ListUtils (nubOrd)
+import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
 import Data.Maybe (listToMaybe)
+import Data.Text (Text)
 import Data.Text qualified as T
 import GHC
   ( DynFlags (..),
     Ghc,
     GhcLink (NoLink),
-    ModSummary,
+    LoadHowMuch (..),
+    ModLocation (..),
+    ModSummary (..),
+    ModuleGraph,
     ParsedModule (..),
+    SuccessFlag (..),
     TypecheckedModule (..),
     depanal,
     getSessionDynFlags,
     guessTarget,
     handleSourceError,
+    load,
     mgModSummaries,
     noBackend,
     parseModule,
@@ -42,7 +56,8 @@ import GHC
 import GHC.Data.Bag (bagToList)
 import GHC.Driver.Env.Types (HscEnv (..))
 import GHC.Driver.Errors.Types (GhcMessage)
-import GHC.Driver.Monad (modifySession)
+import GHC.Driver.Make (depanalPartial)
+import GHC.Driver.Monad (modifySession, pushLogHookM)
 import GHC.Driver.Plugins
   ( Plugin (..),
     PluginWithArgs (..),
@@ -51,22 +66,29 @@ import GHC.Driver.Plugins
     defaultPlugin,
   )
 import GHC.Hs (HsModule (..))
-import GHC.Types.Error (MsgEnvelope (..), Severity (..), getMessages)
+import GHC.Types.Error (MessageClass (..), MsgEnvelope (..), Severity (..), getMessages)
 import GHC.Types.SourceError (SourceError, srcErrorMessages)
 import GHC.Types.SrcLoc (unLoc)
+import GHC.Unit.Module (moduleNameString)
+import GHC.Unit.Module.ModSummary (ms_mod_name)
+import GHC.Utils.Logger (LogAction)
+import GHC.Utils.Outputable (ppr, (<+>))
 import GHC.Utils.Panic (GhcException)
 import HInsight.Analysis (Analysis (..), Insight (..))
 import HInsight.Config (LibDir, libDirPath)
 import HInsight.Error (InsightError (..), SessionError (..))
 import HInsight.Flow (Pipeline)
 import HInsight.Ghc.Bindings (Binding, collectBindings)
+import HInsight.Ghc.Convert (renderGhc)
 import HInsight.Ghc.Flow (RawPipeline, collect, pipelines)
 import HInsight.Ghc.HoleCapture (CapturedHole, holePlugin)
 import HInsight.Ghc.Holes (holeReports)
 import HInsight.Ghc.Messages (Extracted (..), extractMessages)
 import HInsight.Hole (HoleReport)
+import HInsight.Project (sourceRoot)
 import HInsight.Source (SourceFile, sourceFilePath)
-import System.Directory (doesDirectoryExist, doesFileExist)
+import System.Directory (canonicalizePath, doesDirectoryExist, doesFileExist)
+import System.FilePath (takeDirectory)
 
 -- | What one typecheck produced: the error diagnostics, the top-level
 -- bindings of the parsed module (none when the module did not parse), and the
@@ -111,19 +133,20 @@ catchSession file act = act `catches` [Handler onGhc, Handler onIo]
 runOnce :: LibDir -> SourceFile -> IO (Either InsightError Analysis)
 runOnce dir file = do
   sink <- newIORef []
-  outcome <- runGhc (Just (libDirPath dir)) (typecheck sink path)
+  logged <- newIORef []
+  outcome <- runGhc (Just (libDirPath dir)) (typecheck sink logged path)
   captured <- readIORef sink
   evaluate (assemble path outcome captured)
   where
     path :: FilePath
     path = sourceFilePath file
 
-typecheck :: IORef [CapturedHole] -> FilePath -> Ghc (Either SessionError Outcome)
-typecheck sink path = do
-  configure sink
+typecheck :: IORef [CapturedHole] -> IORef [Text] -> FilePath -> Ghc (Either SessionError Outcome)
+typecheck sink logged path = do
+  configure logged
   target <- guessTarget path Nothing Nothing
   setTargets [target]
-  handleSourceError (pure . Right . unparsed) (typecheckOnly path)
+  handleSourceError (pure . Right . unparsed) (loadProject sink logged path)
   where
     -- The module could not be parsed or its imports resolved, so there are
     -- errors but no bindings.
@@ -131,14 +154,34 @@ typecheck sink path = do
     unparsed err = Outcome (errorsOf err) [] []
 
 -- | No code generation and no linking: this session only typechecks.
--- The hole-fit plugin is installed after the flags are set, because setting
--- flags can reinitialise plugins.
-configure :: IORef [CapturedHole] -> Ghc ()
-configure sink = do
+--
+-- GHC reports the errors of dependency modules to its log rather than by
+-- throwing, so a log hook that records them, and prints nothing, is installed
+-- for the whole session.
+configure :: IORef [Text] -> Ghc ()
+configure logged = do
   flags <- getSessionDynFlags
   setSessionDynFlags flags {backend = noBackend, ghcLink = NoLink}
-  modifySession (installHolePlugin sink)
+  pushLogHookM (recordErrors logged)
 
+-- | Keep the text of every error GHC logs; drop everything else.
+recordErrors :: IORef [Text] -> LogAction -> LogAction
+recordErrors logged _original _flags messageClass location doc
+  | isErrorClass messageClass = message `seq` modifyIORef' logged (message :)
+  | otherwise = pure ()
+  where
+    message :: Text
+    message = T.pack (renderGhc (ppr location <+> doc))
+
+isErrorClass :: MessageClass -> Bool
+isErrorClass = \case
+  MCFatal -> True
+  MCDiagnostic SevError _ _ -> True
+  _ -> False
+
+-- | The hole-fit plugin is installed after the dependencies are loaded: only
+-- holes in the analysed file are reported, and loading may reinitialise
+-- plugins.
 installHolePlugin :: IORef [CapturedHole] -> HscEnv -> HscEnv
 installHolePlugin sink env =
   env {hsc_plugins = current {staticPlugins = staticPlugins current <> [StaticPlugin (PluginWithArgs capturing [])]}}
@@ -148,12 +191,75 @@ installHolePlugin sink env =
     capturing :: Plugin
     capturing = defaultPlugin {holeFitPlugin = holePlugin sink}
 
-typecheckOnly :: FilePath -> Ghc (Either SessionError Outcome)
-typecheckOnly path = do
+-- | Find the source folder, check the module graph, typecheck the file's
+-- dependencies and then the file itself.
+loadProject :: IORef [CapturedHole] -> IORef [Text] -> FilePath -> Ghc (Either SessionError Outcome)
+loadProject sink logged path = do
+  -- The first pass only learns the file's module name; its dependencies may
+  -- not resolve yet because the source folder is still a guess.
+  setImportPath (takeDirectory path)
+  (_, guess) <- depanalPartial [] False
+  guessed <- targetSummary path (mgModSummaries guess)
+  setImportPath (maybe (takeDirectory path) (sourceRoot path . moduleNameString . ms_mod_name) guessed)
   graph <- depanal [] False
-  case mgModSummaries graph of
-    [summary] -> Right <$> typecheckParsed summary
-    others -> pure (Left (UnexpectedModuleCount path (length others)))
+  found <- targetSummary path (mgModSummaries graph)
+  case found of
+    Nothing -> pure (Left (TargetNotInGraph path))
+    Just summary -> do
+      failure <- loadDependencies logged graph summary
+      case failure of
+        Just why -> pure (Left (DependencyFailed path why))
+        Nothing -> do
+          modifySession (installHolePlugin sink)
+          Right <$> typecheckParsed summary
+
+setImportPath :: FilePath -> Ghc ()
+setImportPath root = do
+  flags <- getSessionDynFlags
+  setSessionDynFlags flags {importPaths = [root]}
+
+-- | The summary of the file being analysed, matched by its real path so that
+-- spelling differences do not matter.
+targetSummary :: FilePath -> [ModSummary] -> Ghc (Maybe ModSummary)
+targetSummary path summaries = liftIO $ do
+  wanted <- canonicalizePath path
+  matching <- filterM (isFile wanted) summaries
+  pure (listToMaybe matching)
+  where
+    isFile :: FilePath -> ModSummary -> IO Bool
+    isFile wanted summary =
+      maybe (pure False) (fmap (== wanted) . canonicalizePath) (ml_hs_file (ms_location summary))
+
+-- | Typecheck everything the file imports from its own project. 'Just' says
+-- what went wrong when a dependency did not compile.
+--
+-- The dependencies are loaded as the targets of their own load, rather than
+-- with 'LoadDependenciesOf': in GHC 9.10.3 that also compiles the module it is
+-- given, which would report the analysed file's own errors as a failed
+-- dependency. The file itself is typechecked afterwards by the caller, so the
+-- full module graph is put back for it.
+loadDependencies :: IORef [Text] -> ModuleGraph -> ModSummary -> Ghc (Maybe Text)
+loadDependencies logged graph summary
+  | null names = pure Nothing
+  | otherwise = do
+      traverse (\name -> guessTarget name Nothing Nothing) names >>= setTargets
+      outcome <- load LoadAllTargets
+      modifySession (\env -> env {hsc_mod_graph = graph})
+      errors <- liftIO (readIORef logged)
+      pure $ case outcome of
+        Succeeded -> Nothing
+        Failed -> Just (describe (reverse errors))
+  where
+    names :: [String]
+    names =
+      nubOrd
+        [ moduleNameString (ms_mod_name s)
+        | s <- mgModSummaries graph,
+          ms_mod_name s /= ms_mod_name summary
+        ]
+    describe :: [Text] -> Text
+    describe [] = "GHC reported no details"
+    describe messages = T.intercalate "; " messages
 
 -- | Parse first, so the bindings are known even if type checking then throws.
 typecheckParsed :: ModSummary -> Ghc Outcome

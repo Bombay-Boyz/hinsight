@@ -71,10 +71,14 @@ data SessionError
     -- The first field is the file, the second the exception rendered by its
     -- own 'Show' instance.
     GhcThrew FilePath Text
-  | -- | The file's dependency analysis produced a number of modules other than
-    -- one. This version analyses a single module that imports only installed
-    -- packages. The fields are the file and the number of modules found.
-    UnexpectedModuleCount FilePath Int
+  | -- | The file was not among the modules GHC found when it chased the
+    -- file's imports. The field is the file. This should not happen for a file
+    -- GHC accepted as a target.
+    TargetNotInGraph FilePath
+  | -- | A module the file imports from its own project did not compile, so the
+    -- file was not analysed. The first field is the file; the second is what
+    -- GHC reported, on one line.
+    DependencyFailed FilePath Text
   deriving stock (Eq, Show)
 
 -- | GHC's data could not be turned into a domain value.
@@ -116,12 +120,9 @@ renderSession = \case
   LibDirNotFound p -> "the GHC library directory does not exist: " <> T.pack p
   SourceFileNotFound p -> "the file to analyse does not exist: " <> T.pack p
   GhcThrew p msg -> "GHC threw while analysing " <> T.pack p <> ": " <> msg
-  UnexpectedModuleCount p n ->
-    "expected exactly one module for "
-      <> T.pack p
-      <> " but found "
-      <> tshow n
-      <> "; this version analyses a single module that imports only installed packages"
+  TargetNotInGraph p -> "GHC did not list " <> T.pack p <> " among the modules it found for it"
+  DependencyFailed p why ->
+    "a module imported by " <> T.pack p <> " did not compile, so it was not analysed: " <> why
 
 renderExtraction :: ExtractionError -> Text
 renderExtraction = \case

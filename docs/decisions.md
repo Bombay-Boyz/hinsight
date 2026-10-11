@@ -3,12 +3,17 @@
 Each entry records a rule that was relaxed or a choice that is not obvious,
 what was tried first, and when to revisit it (Standard 5.9).
 
-## 1. One module per analysis
+## 1. A fresh session per analysis; no package resolution
 
-The session analyses a single file that imports only installed packages. A
-file whose dependency graph has more than one module returns
-`UnexpectedModuleCount`. Loading a whole project is separate work. Revisit
-when project loading is added.
+Each analysis starts its own GHC session, finds the file's source folder from
+its header and place, typechecks the modules the file imports from its own
+project, and then analyses the file. Nothing is carried between analyses, which
+removes the stale-dependency class of bugs by construction (`docs/prior-art.md`,
+classes 1 and 3) at the cost of repeating the work each time. Packages are not
+resolved: imports from outside the project must be installed. Revisit the
+session lifetime when the benchmark owed by item 6 shows the cost matters, and
+package resolution when the library is used on projects with their own
+dependencies.
 
 ## 2. A mutable cell to receive hole fits
 
@@ -61,10 +66,11 @@ to fail until the first real report has been read and the roots in
 
 ## 8. Prior-art review not done (Standard 5.7)
 
-The known bug classes of comparable projects (language-server typecheck
-sessions, hole-fit tooling) have not been reviewed. Before extending this to
-project loading, review their issue trackers and add a named regression test
-for each applicable class.
+A first review for project loading is in `docs/prior-art.md`: nine classes,
+each with the regression test that ships with the loader. It read two sources
+in full and relies on experience for the rest, so a deeper pass over the
+`ghcide` and `hie-bios` issue trackers is still owed. Hole-fit tooling has not
+been reviewed.
 
 ## 9. Ranking uses fit and locality only
 
