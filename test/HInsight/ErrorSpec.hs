@@ -28,6 +28,8 @@ spec = describe "renderError" $ do
     t `shouldSatisfy` T.isInfixOf "line number 0"
   it "names both ends of a span that ends before it starts" $
     rendered (DomainFailure (SpanEndsBeforeStart 3 7 3 6)) `shouldSatisfy` T.isInfixOf "3:7"
+  it "names how many stages a pipeline was given" $
+    rendered (DomainFailure (TooFewStages 1)) `shouldSatisfy` T.isInfixOf "1"
   prop "always names the path it was given" $ \p ->
     T.pack p `T.isInfixOf` rendered (SessionFailure (SourceFileNotFound p))
   prop "always names the offending number" $ \n ->

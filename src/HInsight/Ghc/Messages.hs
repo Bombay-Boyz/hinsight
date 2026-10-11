@@ -26,17 +26,17 @@ import GHC.Tc.Errors.Types
   )
 import GHC.Types.Error (MsgEnvelope (..))
 import GHC.Types.SrcLoc (RealSrcSpan, SrcSpan (..))
+import HInsight.Context (Context)
 import HInsight.Error (InsightError)
 import HInsight.Explanation
-  ( Context,
-    Divergence,
+  ( Divergence,
     Explanation (..),
-    TypeText,
     mkDivergence,
   )
 import HInsight.Ghc.Bindings (Binding, contextAt)
 import HInsight.Ghc.Convert (convertSpan, convertText, renderGhcType)
 import HInsight.Source (Span)
+import HInsight.TypeText (TypeText)
 
 -- | The explained mismatches, the number of errors left unexplained, and the
 -- number of typed-hole errors GHC reported (which the hole-fit plugin is

@@ -18,6 +18,7 @@ where
 
 import HInsight.Error (InsightError)
 import HInsight.Explanation (Explanation)
+import HInsight.Flow (Pipeline)
 import HInsight.Hole (HoleReport)
 import HInsight.Source (SourceFile)
 
@@ -27,6 +28,10 @@ data Analysis = Analysis
     analysisMismatches :: ![Explanation],
     -- | Typed holes with their ranked fits.
     analysisHoles :: ![HoleReport],
+    -- | Pipelines of @.@, @$@ and @>>=@ with the type at each stage. Only
+    -- found when the file typechecks, since the types come from the
+    -- typechecked program.
+    analysisFlows :: ![Pipeline],
     -- | How many other diagnostics GHC reported that this version does not
     -- explain (for example scope errors). Never negative.
     analysisUnexplained :: !Int
@@ -35,7 +40,7 @@ data Analysis = Analysis
 
 -- | An analysis that found nothing.
 emptyAnalysis :: Analysis
-emptyAnalysis = Analysis [] [] 0
+emptyAnalysis = Analysis [] [] [] 0
 
 -- | The capability to analyse a file, over an effect @m@.
 newtype Insight m = Insight

@@ -3,6 +3,7 @@ module Main (main) where
 import HInsight.CliSpec qualified
 import HInsight.ErrorSpec qualified
 import HInsight.ExplanationSpec qualified
+import HInsight.FlowSpec qualified
 import HInsight.GhcSessionSpec qualified
 import HInsight.HoleSpec qualified
 import HInsight.IdentifierSpec qualified
@@ -14,6 +15,7 @@ main :: IO ()
 main = hspec $ do
   HInsight.SourceSpec.spec
   HInsight.ExplanationSpec.spec
+  HInsight.FlowSpec.spec
   HInsight.HoleSpec.spec
   HInsight.IdentifierSpec.spec
   HInsight.ErrorSpec.spec

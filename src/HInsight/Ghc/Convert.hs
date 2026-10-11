@@ -10,6 +10,7 @@ module HInsight.Ghc.Convert
     fromDomain,
     renderGhcType,
     renderGhc,
+    renderUser,
   )
 where
 
@@ -17,10 +18,10 @@ import Data.Bifunctor (first)
 import Data.Text qualified as T
 import GHC.Core.Type (Type)
 import GHC.Types.SrcLoc (RealSrcSpan, srcSpanEndCol, srcSpanEndLine, srcSpanStartCol, srcSpanStartLine)
-import GHC.Utils.Outputable (SDoc, defaultSDocContext, ppr, showSDocOneLine)
+import GHC.Utils.Outputable (Outputable, SDoc, SDocContext (..), defaultSDocContext, defaultUserStyle, ppr, showSDocOneLine)
 import HInsight.Error (DomainError, ExtractionError (..), InsightError (..))
-import HInsight.Explanation (TypeText, mkTypeText)
 import HInsight.Source (Position, Span, mkColumn, mkLine, mkPosition, mkSpan)
+import HInsight.TypeText (TypeText, mkTypeText)
 
 -- | Convert a GHC span. Lines and columns are 1-based and the end column is
 -- exclusive, which matches "HInsight.Source".
@@ -46,6 +47,11 @@ renderGhcType = renderGhc . ppr
 -- | Render any GHC document on one line with default settings.
 renderGhc :: SDoc -> String
 renderGhc = showSDocOneLine defaultSDocContext
+
+-- | Render any printable GHC value on one line in the style GHC uses for
+-- people: local names carry no unique suffix.
+renderUser :: (Outputable a) => a -> String
+renderUser = showSDocOneLine defaultSDocContext {sdocStyle = defaultUserStyle} . ppr
 
 -- | Tag a failed construction with the file GHC was reporting on.
 fromDomain :: FilePath -> Either DomainError a -> Either InsightError a

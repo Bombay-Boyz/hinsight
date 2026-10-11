@@ -4,10 +4,10 @@ import Data.List (sort)
 import Data.Maybe (mapMaybe)
 import Data.Text qualified as T
 import HInsight.Error (DomainError (..))
-import HInsight.Explanation (mkTypeText)
 import HInsight.Hole
 import HInsight.Identifier (mkIdentifier)
 import HInsight.Support (genHoleFit, ok, rightToMaybe)
+import HInsight.TypeText (mkTypeText)
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck

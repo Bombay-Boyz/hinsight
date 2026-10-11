@@ -19,16 +19,21 @@ module HInsight.Support
     genContext,
     genExplanation,
     genHoleReport,
+    genStage,
+    genPipeline,
     genAnalysis,
   )
 where
 
 import Data.Text qualified as T
 import HInsight.Analysis (Analysis (..))
+import HInsight.Context
 import HInsight.Explanation
+import HInsight.Flow
 import HInsight.Hole
 import HInsight.Identifier
 import HInsight.Source
+import HInsight.TypeText
 import Test.QuickCheck
 
 -- | Discard the error of an 'Either'.
@@ -98,9 +103,25 @@ genHoleReport =
     <*> genTypeText
     <*> resize 5 (listOf genHoleFit)
 
+genStage :: Gen Stage
+genStage = Stage <$> suchThatMap (T.pack <$> listOf1 (elements "abc xyz.$")) (rightToMaybe . mkStageText) <*> genTypeText
+
+genPipeline :: Gen Pipeline
+genPipeline =
+  suchThatMap
+    ( (,,,,)
+        <$> genSpan
+        <*> elements [minBound .. maxBound]
+        <*> resize 5 (listOf genStage)
+        <*> genTypeText
+        <*> genContext
+    )
+    (\(sp, k, stages, whole, ctx) -> rightToMaybe (mkPipeline sp k stages whole ctx))
+
 genAnalysis :: Gen Analysis
 genAnalysis =
   Analysis
     <$> resize 3 (listOf genExplanation)
     <*> resize 3 (listOf genHoleReport)
+    <*> resize 3 (listOf genPipeline)
     <*> chooseInt (0, 4)

@@ -14,9 +14,9 @@ where
 
 import Data.List (sortOn)
 import HInsight.Error (DomainError (..))
-import HInsight.Explanation (TypeText)
 import HInsight.Identifier (Identifier)
 import HInsight.Source (Span)
+import HInsight.TypeText (TypeText)
 
 -- | How many further holes a fit introduces. Zero means the fit fills the hole
 -- on its own. Invariant: not negative.

@@ -72,6 +72,20 @@ The module document names a third signal, usage. Nothing in the current
 extraction can supply it, so it is not in the type. Add it in the change that
 makes it available.
 
+## 10. Type flow walks the typechecked tree generically
+
+GHC rewrites `a op b` into `(op) a b` inside an expansion node while
+typechecking, and keeps the original only as renamer output. `HInsight.Ghc.Flow`
+therefore finds chains by walking the typechecked tree with `Data.Data`
+(`gmapQ`), recognising the expansion of an infix application whose operator is
+`.`, `$` or `>>=` defined in base (module `GHC.Internal.Base` in 9.10), and reading each stage's type with
+`hsExprType`. A generic walk keeps the module independent of the many
+expression constructors, at the price of visiting every node. Limits: infix
+uses only, three operators, files that typecheck. Extending to files with
+errors needs deferred type errors and is not done. The module was written from
+GHC 9.10.3's source and is checked by the real-GHC test in
+`GhcSessionSpec`, not by the pure test run.
+
 ## Checks that run on every push
 
 Build with `-Werror`, tests (including those that run a real GHC 9.10.3),

@@ -3,11 +3,13 @@ module HInsight.ExplanationSpec (spec) where
 import Data.Either (isRight)
 import Data.Maybe (isJust)
 import Data.Text qualified as T
+import HInsight.Context
 import HInsight.Error (DomainError (..))
 import HInsight.Explanation
 import HInsight.Identifier (mkIdentifier)
 import HInsight.Source
 import HInsight.Support (genExplanation, genTypeText, ok)
+import HInsight.TypeText
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck

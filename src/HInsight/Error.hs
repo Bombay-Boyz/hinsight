@@ -47,8 +47,8 @@ data DomainError
     -- end column. Raised by 'HInsight.Source.mkSpan'.
     SpanEndsBeforeStart Int Int Int Int
   | -- | A rendered type or identifier was empty or only whitespace. Raised by
-    -- 'HInsight.Explanation.mkTypeText' and 'HInsight.Identifier.mkIdentifier'; the
-    -- field names which input it was.
+    -- 'HInsight.TypeText.mkTypeText' and 'HInsight.Identifier.mkIdentifier' and
+    -- 'HInsight.Flow.mkStageText'; the field names which input it was.
     BlankText Text
   | -- | A divergence between two identical types was requested. Raised by
     -- 'HInsight.Explanation.mkDivergence'; carries the shared text.
@@ -56,6 +56,9 @@ data DomainError
   | -- | A refinement level was negative. Raised by
     -- 'HInsight.Hole.mkRefinementLevel'.
     NegativeRefinement Int
+  | -- | A pipeline was built with fewer than two stages. Raised by
+    -- 'HInsight.Flow.mkPipeline'; carries the number given.
+    TooFewStages Int
   deriving stock (Eq, Show)
 
 -- | The GHC session failed. Raised by "HInsight.Ghc.Session".
@@ -103,6 +106,7 @@ renderDomainError = \case
   BlankText what -> "the " <> what <> " is empty or only whitespace"
   IdenticalDivergence t -> "cannot diverge: both types are identical (" <> t <> ")"
   NegativeRefinement n -> "refinement level " <> tshow n <> " is negative"
+  TooFewStages n -> "a pipeline needs at least 2 stages but was given " <> tshow n
   where
     pos :: Int -> Int -> Text
     pos l c = tshow l <> ":" <> tshow c

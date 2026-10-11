@@ -19,6 +19,17 @@ module HInsight
     Insight (..),
     Explanation (..),
     Context (..),
+    Pipeline,
+    FlowKind (..),
+    StageText,
+    unStageText,
+    Stage (..),
+    pipelineSpan,
+    pipelineKind,
+    pipelineStages,
+    pipelineType,
+    pipelineContext,
+    renderPipeline,
     Identifier,
     mkIdentifier,
     unIdentifier,
@@ -35,8 +46,10 @@ where
 
 import HInsight.Analysis (Analysis (..), Insight (..), emptyAnalysis)
 import HInsight.Config (LibDir, libDirPath, mkLibDir)
+import HInsight.Context (Context (..))
 import HInsight.Error (InsightError (..), renderError)
-import HInsight.Explanation (Context (..), Explanation (..), renderExplanation)
+import HInsight.Explanation (Explanation (..), renderExplanation)
+import HInsight.Flow (FlowKind (..), Pipeline, Stage (..), StageText, pipelineContext, pipelineKind, pipelineSpan, pipelineStages, pipelineType, renderPipeline, unStageText)
 import HInsight.Hole (HoleFit (..), HoleReport (..), rankFits)
 import HInsight.Identifier (Identifier, mkIdentifier, unIdentifier)
 import HInsight.Source (SourceFile, mkSourceFile, sourceFilePath)

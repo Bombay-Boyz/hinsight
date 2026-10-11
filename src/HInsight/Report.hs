@@ -13,7 +13,8 @@ where
 import Data.Text (Text)
 import Data.Text qualified as T
 import HInsight.Analysis (Analysis (..))
-import HInsight.Explanation (renderExplanation, unTypeText)
+import HInsight.Explanation (renderExplanation)
+import HInsight.Flow (renderPipeline)
 import HInsight.Hole
   ( HoleFit (..),
     HoleReport (..),
@@ -21,6 +22,7 @@ import HInsight.Hole
   )
 import HInsight.Identifier (unIdentifier)
 import HInsight.Source (renderPosition, spanStart)
+import HInsight.TypeText (unTypeText)
 
 -- | One typed hole: a header line, then either "no fits found" or a
 -- "fits, best first" line followed by one line per fit, in the order given.
@@ -63,13 +65,14 @@ renderFit f =
 -- nothing says so rather than printing nothing.
 renderAnalysis :: Analysis -> Text
 renderAnalysis a
-  | null sections = "nothing to report: no type mismatches or typed holes found\n"
+  | null sections = "nothing to report: no type mismatches, typed holes or pipelines found\n"
   | otherwise = T.intercalate "\n" sections
   where
     sections :: [Text]
     sections =
       map renderExplanation (analysisMismatches a)
         <> map renderHoleReport (analysisHoles a)
+        <> map renderPipeline (analysisFlows a)
         <> unexplainedLine (analysisUnexplained a)
 
 unexplainedLine :: Int -> [Text]

@@ -4,13 +4,16 @@
 
 Answers questions about Haskell code that need GHC's own data.
 
-This first version does two things for a single Haskell module:
+This first version does three things for a single Haskell module:
 
 - **Type mismatches.** For an error where GHC expected one type and found
   another, it returns the two types, the sub-types at which they first differ,
   the source span, and where GHC says the expectation came from.
 - **Typed holes.** For a `_` hole, it returns the candidate fits GHC found,
   ranked: fits that need no further holes first, then local before imported.
+- **Type flow.** For a chain joined by `.`, `$` or `>>=`, it returns each stage
+  with the type GHC gave it, in the order data flows through them, and the type
+  of the whole chain. Only for files that typecheck.
 
 Results are plain typed values. The library draws nothing. The GHC-backed
 implementation sits behind a record of functions (`HInsight.Insight`), so code
@@ -30,6 +33,11 @@ Early. Read this before relying on it.
   comes from the parsed source instead (`docs/decisions.md`, item 4).
 - It analyses one module that imports only installed packages. A file that
   pulls in other modules of its own project is reported, not analysed.
+- Type flow reads the typechecked program, so it appears only when the file
+  has no errors. It recognises the infix uses of the standard `(.)`, `($)` and
+  `(>>=)` only: not `(.) f g`, backticks, other operators, or a user's own
+  definitions of these names. Its integration test runs against GHC 9.10.3;
+  see `docs/decisions.md`, item 10.
 - It does not trace the constraint solver. GHC does not expose solver steps;
   the explanation is built from the mismatch GHC records.
 
@@ -55,6 +63,7 @@ A small demo program prints what hinsight finds in a file:
 ```sh
 cabal run hinsight-demo -- test/fixtures/TypeMismatch.hs
 cabal run hinsight-demo -- test/fixtures/Hole.hs
+cabal run hinsight-demo -- test/fixtures/Pipeline.hs
 ```
 
 It asks `ghc-9.10.3` for its library directory, or uses
@@ -85,6 +94,8 @@ The paths are arguments: the library never searches for tools.
 | `HInsight.Analysis` | the result type and the `Insight` handle |
 | `HInsight.Source`, `Config` | validated positions, spans and paths |
 | `HInsight.Explanation` | a type mismatch and where it sits, as data, and its text rendering |
+| `HInsight.TypeText`, `Context` | a validated rendered type; where in the program a finding sits |
+| `HInsight.Flow` | pipelines and the type at each stage, as data, and their text rendering |
 | `HInsight.Identifier` | a validated name as written in source |
 | `HInsight.Hole` | typed holes and fit ranking |
 | `HInsight.Report` | plain-text reports of an analysis |

@@ -2,12 +2,12 @@ module HInsight.ReportSpec (spec) where
 
 import Data.Text qualified as T
 import HInsight.Analysis (Analysis (..), emptyAnalysis)
-import HInsight.Explanation (mkTypeText)
 import HInsight.Hole
 import HInsight.Identifier (mkIdentifier)
 import HInsight.Report
 import HInsight.Source
 import HInsight.Support (genAnalysis, genHoleReport, ok)
+import HInsight.TypeText (mkTypeText)
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck
@@ -59,7 +59,7 @@ spec = do
   describe "renderAnalysis" $ do
     it "says so when nothing was found" $
       renderAnalysis emptyAnalysis
-        `shouldBe` "nothing to report: no type mismatches or typed holes found\n"
+        `shouldBe` "nothing to report: no type mismatches, typed holes or pipelines found\n"
     it "reports a single unexplained error in the singular" $
       renderAnalysis emptyAnalysis {analysisUnexplained = 1}
         `shouldBe` "1 other error not explained by this version\n"
@@ -73,6 +73,9 @@ spec = do
     prop "never produces empty output" $
       forAll genAnalysis $
         \a -> not (T.null (renderAnalysis a))
+    prop "mentions every pipeline it was given" $
+      forAll genAnalysis $ \a ->
+        length (T.breakOnAll "type flow at " (renderAnalysis a)) === length (analysisFlows a)
     prop "mentions every hole it was given" $
       forAll genAnalysis $ \a ->
         length (T.breakOnAll "typed hole " (renderAnalysis a)) === length (analysisHoles a)

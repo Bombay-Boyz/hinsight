@@ -15,7 +15,7 @@ module HInsight.Ghc.Session
   )
 where
 
-import Control.Exception (Handler (..), IOException, catches)
+import Control.Exception (Handler (..), IOException, catches, evaluate)
 import Data.Bifunctor (first)
 import Data.IORef (IORef, newIORef, readIORef)
 import Data.Maybe (listToMaybe)
@@ -26,6 +26,7 @@ import GHC
     GhcLink (NoLink),
     ModSummary,
     ParsedModule (..),
+    TypecheckedModule (..),
     depanal,
     getSessionDynFlags,
     guessTarget,
@@ -57,7 +58,9 @@ import GHC.Utils.Panic (GhcException)
 import HInsight.Analysis (Analysis (..), Insight (..))
 import HInsight.Config (LibDir, libDirPath)
 import HInsight.Error (InsightError (..), SessionError (..))
+import HInsight.Flow (Pipeline)
 import HInsight.Ghc.Bindings (Binding, collectBindings)
+import HInsight.Ghc.Flow (RawPipeline, collect, pipelines)
 import HInsight.Ghc.HoleCapture (CapturedHole, holePlugin)
 import HInsight.Ghc.Holes (holeReports)
 import HInsight.Ghc.Messages (Extracted (..), extractMessages)
@@ -65,9 +68,10 @@ import HInsight.Hole (HoleReport)
 import HInsight.Source (SourceFile, sourceFilePath)
 import System.Directory (doesDirectoryExist, doesFileExist)
 
--- | What one typecheck produced: the error diagnostics, and the top-level
--- bindings of the parsed module (none when the module did not parse).
-data Outcome = Outcome [MsgEnvelope GhcMessage] [Binding]
+-- | What one typecheck produced: the error diagnostics, the top-level
+-- bindings of the parsed module (none when the module did not parse), and the
+-- pipelines in the typechecked module (none when it did not typecheck).
+data Outcome = Outcome [MsgEnvelope GhcMessage] [Binding] [RawPipeline]
 
 -- | The GHC-backed implementation of 'Insight'.
 ghcInsight :: LibDir -> Insight IO
@@ -109,7 +113,7 @@ runOnce dir file = do
   sink <- newIORef []
   outcome <- runGhc (Just (libDirPath dir)) (typecheck sink path)
   captured <- readIORef sink
-  pure (assemble path outcome captured)
+  evaluate (assemble path outcome captured)
   where
     path :: FilePath
     path = sourceFilePath file
@@ -124,7 +128,7 @@ typecheck sink path = do
     -- The module could not be parsed or its imports resolved, so there are
     -- errors but no bindings.
     unparsed :: SourceError -> Outcome
-    unparsed err = Outcome (errorsOf err) []
+    unparsed err = Outcome (errorsOf err) [] []
 
 -- | No code generation and no linking: this session only typechecks.
 -- The hole-fit plugin is installed after the flags are set, because setting
@@ -156,8 +160,10 @@ typecheckParsed :: ModSummary -> Ghc Outcome
 typecheckParsed summary = do
   parsed <- parseModule summary
   let bindings = collectBindings (hsmodDecls (unLoc (pm_parsed_source parsed)))
-  errors <- handleSourceError (pure . errorsOf) ([] <$ typecheckModule parsed)
-  pure (Outcome errors bindings)
+  checked <- handleSourceError (pure . Left . errorsOf) (Right <$> typecheckModule parsed)
+  pure $ case checked of
+    Left errors -> Outcome errors bindings []
+    Right typechecked -> Outcome [] bindings (collect (tm_typechecked_source typechecked))
 
 -- | The error diagnostics inside a 'SourceError'; warnings are not analysed.
 errorsOf :: SourceError -> [MsgEnvelope GhcMessage]
@@ -174,14 +180,18 @@ assemble ::
   [CapturedHole] ->
   Either InsightError Analysis
 assemble path outcome captured = do
-  Outcome envs bindings <- first SessionFailure outcome
-  combine <$> extractMessages path bindings envs <*> holeReports path (reverse captured)
+  Outcome envs bindings raw <- first SessionFailure outcome
+  combine
+    <$> extractMessages path bindings envs
+    <*> holeReports path (reverse captured)
+    <*> pipelines path bindings raw
   where
-    combine :: Extracted -> [HoleReport] -> Analysis
-    combine extracted holes =
+    combine :: Extracted -> [HoleReport] -> [Pipeline] -> Analysis
+    combine extracted holes flows =
       Analysis
         { analysisMismatches = extractedMismatches extracted,
           analysisHoles = holes,
+          analysisFlows = flows,
           analysisUnexplained = extractedUnexplained extracted + unseen extracted holes
         }
 
