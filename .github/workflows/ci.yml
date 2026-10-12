@@ -35,6 +35,7 @@ jobs:
           path: |
             ~/.cabal/store
             dist-newstyle
+            .hie
           key: ${{ runner.os }}-ghc-${{ env.GHC_VERSION }}-${{ hashFiles('hinsight.cabal', 'cabal.project', 'cabal.project.freeze') }}
           restore-keys: ${{ runner.os }}-ghc-${{ env.GHC_VERSION }}-
 
@@ -50,8 +51,8 @@ jobs:
       - name: Benchmarks
         run: cabal bench --benchmark-options='--stdev 20 --fail-if-slower 100'
 
-      # Weeder is advisory until its first real report has been read and its
-      # roots tuned in weeder.toml. Remove continue-on-error then.
+      # Weeder fails the build on any dead code. Its first report was empty
+      # and a deliberately unused function was reported, so it can be trusted.
       - name: Install weeder
         id: weeder-cache
         uses: actions/cache@v4
@@ -61,7 +62,6 @@ jobs:
 
       - name: Build weeder
         if: steps.weeder-cache.outputs.cache-hit != 'true'
-        continue-on-error: true
         run: |
           # Run outside the project so its freeze file does not constrain weeder.
           cd "$RUNNER_TEMP"
@@ -69,8 +69,10 @@ jobs:
             --installdir="$HOME/.local/bin" --overwrite-policy=always
 
       - name: Find dead code with weeder
-        continue-on-error: true
         run: |
+          # With no .hie files weeder finds nothing and passes, which would
+          # hide dead code. A fully cached build can leave none behind.
+          test "$(find .hie -name '*.hie' | wc -l)" -gt 0 || { echo "no .hie files: nothing for weeder to read"; exit 1; }
           "$HOME/.local/bin/weeder" --hie-directory .hie
 
   lint:

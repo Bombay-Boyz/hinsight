@@ -64,11 +64,16 @@ exist yet. The analysis benchmarks are skipped when no GHC 9.10.3 is found.
 The library-directory lookup is now written three times (demo, tests,
 benchmark); move it to a shared place when a fourth copy is needed.
 
-## 7. Dead-code check is advisory
+## 7. Dead-code check is enforced, with a guard against an empty report
 
-`cabal.project.freeze` is committed. CI runs weeder, but its step is allowed
-to fail until the first real report has been read and the roots in
-`weeder.toml` tuned; then remove `continue-on-error` in the workflow.
+`cabal.project.freeze` is committed. CI runs weeder and fails on any weed. The
+first real report was empty, and a deliberately unused function was reported
+by weeder before it was removed, so the check is known to see dead code.
+Weeder passes silently when it has no `.hie` files to read, and a fully cached
+build can leave none, so the step fails when `.hie` holds no files, and `.hie`
+is cached with the build it belongs to. The roots in `weeder.toml` are the
+`main` functions only; revisit them if a library export that only a consumer
+outside this repository uses starts to be reported.
 
 ## 8. Prior-art review not done (Standard 5.7)
 
@@ -117,6 +122,6 @@ are not in this graph.
 
 Build with `-Werror`, tests (including those that run a real GHC 9.10.3),
 HLint with the standard's bans as errors, Ormolu 0.9.0.0 in check mode, a
-no-mention-of-the-application check, and weeder (advisory). Tool versions are
+no-mention-of-the-application check, and weeder. Tool versions are
 pinned in the workflow's `env` block. Dependabot proposes updates to the
 actions weekly.
