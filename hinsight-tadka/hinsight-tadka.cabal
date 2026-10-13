@@ -1,0 +1,82 @@
+cabal-version:      3.0
+name:               hinsight-tadka
+version:            0.1.0.0
+synopsis:           Show hinsight findings as Tadka diagnostics
+description:
+  Turns what hinsight finds (type mismatches, typed holes and type flow) into
+  Tadka diagnostics, so they can be drawn as annotated source, read aloud by a
+  screen reader or emitted as JSON. A separate package so that hinsight itself
+  depends on no renderer.
+license:            MIT
+license-file:       LICENSE
+author:             Bombay-Boyz
+maintainer:         Bombay-Boyz <https://github.com/Bombay-Boyz>
+category:           Development, Language
+build-type:         Simple
+tested-with:        GHC ==9.10.3
+
+flag werror
+  description: Treat warnings as errors (development and CI; off for consumers, so new GHCs cannot break them)
+  default:     False
+  manual:      True
+
+common warnings
+  default-language:   GHC2021
+  default-extensions:
+    DerivingStrategies
+    LambdaCase
+    OverloadedStrings
+  ghc-options:
+    -Wall -Wcompat -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wmissing-export-lists -Wunused-imports -Wunused-top-binds
+    -Wunused-local-binds -Wunused-matches -Wredundant-constraints
+    -Wpartial-fields -Widentities
+  if flag(werror)
+    ghc-options: -Werror
+
+library
+  import:           warnings
+  hs-source-dirs:   src
+  build-depends:
+    , base           >=4.20 && <5
+    , hinsight       >=0.1  && <0.2
+    , prettyprinter  >=1.7  && <1.8
+    , tadka          >=2.0  && <2.1
+    , text           >=2.1  && <2.2
+  exposed-modules:
+    HInsight.Tadka
+    HInsight.Tadka.Cli
+    HInsight.Tadka.Locate
+
+executable hinsight-tadka-demo
+  import:           warnings
+  hs-source-dirs:   app
+  main-is:          Main.hs
+  build-depends:
+    , base
+    , bytestring          >=0.11 && <0.13
+    , hinsight
+    , hinsight:hinsight-toolchain
+    , hinsight-tadka
+    , tadka
+    , text
+
+test-suite hinsight-tadka-test
+  import:           warnings
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   test
+  main-is:          Main.hs
+  other-modules:
+    HInsight.Tadka.AdapterSpec
+    HInsight.Tadka.CliSpec
+    HInsight.Tadka.LocateSpec
+    HInsight.Tadka.Support
+  build-depends:
+    , aeson       >=2.1  && <2.4
+    , base
+    , hinsight
+    , hinsight-tadka
+    , hspec       >=2.10 && <2.12
+    , QuickCheck  >=2.14 && <2.16
+    , tadka
+    , text

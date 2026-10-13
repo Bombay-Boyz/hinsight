@@ -1,4 +1,6 @@
-packages: .
+packages:
+  .
+  hinsight-tadka
 tests: True
 benchmarks: True
 with-compiler: ghc-9.10.3
@@ -6,4 +8,8 @@ with-compiler: ghc-9.10.3
 package hinsight
   flags: +werror
   -- HIE files let weeder find dead code; they are build output, not source.
+  ghc-options: -fwrite-ide-info -hiedir=.hie
+
+package hinsight-tadka
+  flags: +werror
   ghc-options: -fwrite-ide-info -hiedir=.hie

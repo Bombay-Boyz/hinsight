@@ -87,6 +87,21 @@ It asks `ghc-9.10.3` for its library directory, or uses
 `HINSIGHT_GHC_LIBDIR` if set. The file may import other modules of its own
 project; imports from packages must be installed.
 
+## Draw the findings with Tadka
+
+`hinsight-tadka/` is a second package in this repository. It turns an analysis
+into [Tadka](https://hackage.haskell.org/package/tadka) diagnostics, so the
+findings can be drawn as annotated source, read aloud by a screen reader, or
+emitted as JSON. hinsight itself depends on no renderer.
+
+```sh
+cabal run hinsight-tadka-demo -- test/fixtures/TypeMismatch.hs
+cabal run hinsight-tadka-demo -- --format narratable test/fixtures/Hole.hs
+cabal run hinsight-tadka-demo -- --format json test/fixtures/Pipeline.hs
+```
+
+See `hinsight-tadka/README.md` and `docs/decisions.md`, item 12.
+
 ## Use
 
 ```haskell
@@ -121,6 +136,7 @@ The paths are arguments: the library never searches for tools.
 | `HInsight.Cli` | argument handling for the demo program |
 | `HInsight.Error` | every failure, in one place |
 | `HInsight.Ghc.*` | the GHC-facing edge: session, message and hole conversion |
+| `HInsight.Toolchain` | finds GHC 9.10.3's library directory (public sub-library `hinsight-toolchain`) |
 
 Dependencies point inward: `HInsight.Ghc.*` imports the domain modules, never
 the reverse.
