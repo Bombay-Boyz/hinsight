@@ -61,8 +61,10 @@ wraps; that ratio holds on any machine. The rendering and analysis timings are
 printed but have no threshold, because their absolute times depend on the
 machine; a threshold needs a stored baseline from a fixed runner, which does not
 exist yet. The analysis benchmarks are skipped when no GHC 9.10.3 is found.
-The library-directory lookup is now written three times (demo, tests,
-benchmark); move it to a shared place when a fourth copy is needed.
+The library-directory lookup used to be written three times (demo, tests,
+benchmark); a fourth copy was due with the Tadka demo, so it now lives in the
+public sub-library `hinsight-toolchain` (`HInsight.Toolchain`). An empty
+`HINSIGHT_GHC_LIBDIR` counts as unset.
 
 ## 7. Dead-code check is enforced, with a guard against an empty report
 
@@ -117,6 +119,30 @@ file with no imports has a one-module graph; the report shows the graph only
 when some module imports another. When the file's imports cannot be resolved
 the graph is empty. Revisit when package-level dependencies are wanted: those
 are not in this graph.
+
+## 12. Tadka is a separate package, and GHC positions are converted, not copied
+
+The Tadka demo is the package `hinsight-tadka` in this repository, not a
+module of `hinsight`. hinsight stays free of any renderer, so a consumer that
+draws differently pays for nothing it does not use. Both packages build in one
+project and are checked by the same CI.
+
+Positions need a conversion. GHC gives a line and a column, and a tab advances
+the column to the next multiple of eight plus one (`advance_tabstop` in
+`GHC.Types.SrcLoc`). Tadka locates a span by the character offset of its first
+character and its length. Tadka's own interop module for GHC treats a column
+as a character index, which is wrong after a tab, so `HInsight.Tadka.Locate`
+does the conversion itself and is tested with GHC's counting written
+independently. A span that is not a position of the text (the file changed
+after it was analysed) is an error, not a guess.
+
+Tadka's `help` is one sentence and the graphical renderer flattens line
+breaks, so a list (hole fits, pipeline stages) is drawn as one related note per
+item. Pipeline stages are not yet labelled in the source, because `Stage`
+carries no span; the whole chain is. Add a span to `Stage` when per-stage
+labels are wanted. The tests pin one narratable rendering, so a Tadka release
+that rewords it fails a test instead of changing output unnoticed; the package
+bounds are `tadka >=2.0 && <2.1`.
 
 ## Checks that run on every push
 

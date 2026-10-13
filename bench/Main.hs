@@ -10,7 +10,6 @@
 module Main (main) where
 
 import Control.DeepSeq (NFData (..))
-import Control.Exception (IOException, try)
 import Data.List (sortOn)
 import Data.Maybe (mapMaybe)
 import Data.Text qualified as T
@@ -19,14 +18,13 @@ import HInsight.Ghc.Session (ghcInsight)
 import HInsight.Hole (Locality (..), mkRefinementLevel)
 import HInsight.Report (renderAnalysis)
 import HInsight.Source (mkColumn, mkLine, mkPosition, mkSpan)
+import HInsight.Toolchain (findGhcLibDir)
 import HInsight.TypeText (mkTypeText)
-import System.Environment (lookupEnv)
-import System.Process (readProcess)
 import Test.Tasty.Bench
 
 main :: IO ()
 main = do
-  libDir <- findLibDir
+  libDir <- findGhcLibDir
   defaultMain
     ( [rankingGroup, renderingGroup]
         <> maybe [] (pure . analysisGroup) libDir
@@ -83,16 +81,6 @@ analysisGroup libDir =
       dir <- orFail (mkLibDir libDir)
       file <- orFail (mkSourceFile path)
       analyseFile (ghcInsight dir) file
-
--- | The library directory: the environment variable if set, otherwise what
--- the pinned compiler reports. 'Nothing' skips the analysis benchmarks.
-findLibDir :: IO (Maybe FilePath)
-findLibDir = lookupEnv "HINSIGHT_GHC_LIBDIR" >>= maybe fromPinnedGhc (pure . Just)
-  where
-    fromPinnedGhc :: IO (Maybe FilePath)
-    fromPinnedGhc = do
-      result <- try @IOException (readProcess "ghc-9.10.3" ["--print-libdir"] "")
-      pure (either (const Nothing) (Just . takeWhile (/= '\n')) result)
 
 orFail :: (Show e) => Either e a -> IO a
 orFail = either (fail . show) pure

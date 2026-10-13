@@ -71,6 +71,19 @@ library
     HInsight.Source
     HInsight.TypeText
 
+-- The one place that finds the GHC 9.10.3 library directory. Public so that
+-- other packages built on hinsight (and its own demo, tests and benchmark)
+-- share the rule instead of copying it.
+library hinsight-toolchain
+  import:           warnings
+  visibility:       public
+  hs-source-dirs:   toolchain
+  exposed-modules:  HInsight.Toolchain
+  build-depends:
+    , base     >=4.20 && <5
+    , process  >=1.6  && <1.7
+    , text     >=2.1  && <2.2
+
 executable hinsight-demo
   import:           warnings
   hs-source-dirs:   app
@@ -78,7 +91,7 @@ executable hinsight-demo
   build-depends:
     , base
     , hinsight
-    , process  >=1.6 && <1.7
+    , hinsight-toolchain
     , text
 
 benchmark hinsight-bench
@@ -90,7 +103,7 @@ benchmark hinsight-bench
     , base
     , deepseq      >=1.4 && <1.7
     , hinsight
-    , process      >=1.6 && <1.7
+    , hinsight-toolchain
     , tasty-bench  >=0.3 && <0.5
     , text
 
@@ -115,6 +128,7 @@ test-suite hinsight-test
   build-depends:
     , base
     , hinsight
+    , hinsight-toolchain
     , directory
     , filepath
     , hspec       >=2.10 && <2.12

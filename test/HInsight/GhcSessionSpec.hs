@@ -8,7 +8,7 @@
 -- pending rather than silently passing.
 module HInsight.GhcSessionSpec (spec) where
 
-import Control.Exception (IOException, finally, try)
+import Control.Exception (finally)
 import Data.Maybe (isJust)
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -19,11 +19,11 @@ import HInsight.Graph (emptyGraph)
 import HInsight.Hole (Locality (..), unRefinementLevel)
 import HInsight.Source (positionLine, spanStart, unLine)
 import HInsight.Support (ok)
+import HInsight.Toolchain (findGhcLibDir)
 import HInsight.TypeText (unTypeText)
 import System.Directory (createDirectoryIfMissing, getTemporaryDirectory, removeDirectoryRecursive)
-import System.Environment (lookupEnv)
 import System.FilePath ((</>))
-import System.Process (getCurrentPid, readProcess)
+import System.Process (getCurrentPid)
 import Test.Hspec
 
 analyseFixture :: FilePath -> FilePath -> IO (Either InsightError Analysis)
@@ -35,20 +35,10 @@ analyseFixture libDir name = do
 succeeded :: Either InsightError Analysis -> IO Analysis
 succeeded = either (fail . show) pure
 
--- | The library directory to analyse with: the environment variable if set,
--- otherwise what the pinned compiler reports.
-findLibDir :: IO (Maybe FilePath)
-findLibDir = lookupEnv "HINSIGHT_GHC_LIBDIR" >>= maybe fromPinnedGhc (pure . Just)
-  where
-    fromPinnedGhc :: IO (Maybe FilePath)
-    fromPinnedGhc = do
-      result <- try @IOException (readProcess "ghc-9.10.3" ["--print-libdir"] "")
-      pure (either (const Nothing) (Just . takeWhile (/= '\n')) result)
-
 spec :: Spec
 spec = describe "ghcInsight" $ do
   preflightSpec
-  libDir <- runIO findLibDir
+  libDir <- runIO findGhcLibDir
   maybe
     (it "analyses real files" (pendingWith "ghc-9.10.3 was not found; install it or set HINSIGHT_GHC_LIBDIR"))
     (\dir -> realGhcSpec dir *> projectSpec dir)

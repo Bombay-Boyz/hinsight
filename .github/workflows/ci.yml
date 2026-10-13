@@ -36,7 +36,8 @@ jobs:
             ~/.cabal/store
             dist-newstyle
             .hie
-          key: ${{ runner.os }}-ghc-${{ env.GHC_VERSION }}-${{ hashFiles('hinsight.cabal', 'cabal.project', 'cabal.project.freeze') }}
+            hinsight-tadka/.hie
+          key: ${{ runner.os }}-ghc-${{ env.GHC_VERSION }}-${{ hashFiles('hinsight.cabal', 'hinsight-tadka/hinsight-tadka.cabal', 'cabal.project', 'cabal.project.freeze') }}
           restore-keys: ${{ runner.os }}-ghc-${{ env.GHC_VERSION }}-
 
       - name: Build with warnings as errors
@@ -72,8 +73,10 @@ jobs:
         run: |
           # With no .hie files weeder finds nothing and passes, which would
           # hide dead code. A fully cached build can leave none behind.
-          test "$(find .hie -name '*.hie' | wc -l)" -gt 0 || { echo "no .hie files: nothing for weeder to read"; exit 1; }
-          "$HOME/.local/bin/weeder" --hie-directory .hie
+          for dir in .hie hinsight-tadka/.hie; do
+            test "$(find "$dir" -name '*.hie' | wc -l)" -gt 0 || { echo "no .hie files in $dir: nothing for weeder to read"; exit 1; }
+          done
+          "$HOME/.local/bin/weeder" --hie-directory .hie --hie-directory hinsight-tadka/.hie
 
   lint:
     name: lint and format
@@ -92,10 +95,10 @@ jobs:
           echo "$HOME/tools" >> "$GITHUB_PATH"
 
       - name: HLint (bans from the engineering standard are errors)
-        run: hlint src test bench
+        run: hlint src test bench app toolchain hinsight-tadka
 
       - name: "Ormolu (fixtures excluded because their line numbers are asserted)"
-        run: ormolu --mode check $(find src test bench -name '*.hs' -not -path 'test/fixtures/*')
+        run: ormolu --mode check $(find src test bench app toolchain hinsight-tadka -name '*.hs' -not -path 'test/fixtures/*')
 
   independence:
     name: package independence
