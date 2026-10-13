@@ -38,6 +38,7 @@ common warnings
 
 library
   import:           warnings
+  ghc-options:      -hiedir=.hie/lib
   hs-source-dirs:   src
   build-depends:
     , base        >=4.20 && <5
@@ -76,6 +77,7 @@ library
 -- share the rule instead of copying it.
 library hinsight-toolchain
   import:           warnings
+  ghc-options:      -hiedir=.hie/toolchain
   visibility:       public
   hs-source-dirs:   toolchain
   exposed-modules:  HInsight.Toolchain
@@ -86,6 +88,7 @@ library hinsight-toolchain
 
 executable hinsight-demo
   import:           warnings
+  ghc-options:      -hiedir=.hie/demo
   hs-source-dirs:   app
   main-is:          Main.hs
   build-depends:
@@ -96,6 +99,7 @@ executable hinsight-demo
 
 benchmark hinsight-bench
   import:           warnings
+  ghc-options:      -hiedir=.hie/bench
   type:             exitcode-stdio-1.0
   hs-source-dirs:   bench
   main-is:          Main.hs
@@ -109,6 +113,7 @@ benchmark hinsight-bench
 
 test-suite hinsight-test
   import:           warnings
+  ghc-options:      -hiedir=.hie/test
   type:             exitcode-stdio-1.0
   hs-source-dirs:   test
   main-is:          Main.hs

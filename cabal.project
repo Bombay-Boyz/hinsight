@@ -8,8 +8,11 @@ with-compiler: ghc-9.10.3
 package hinsight
   flags: +werror
   -- HIE files let weeder find dead code; they are build output, not source.
-  ghc-options: -fwrite-ide-info -hiedir=.hie
+  -- Each component names its own folder in its cabal file (-hiedir), because
+  -- HIE files are named after modules and every executable, test suite and
+  -- benchmark is a module called Main: one shared folder keeps only one.
+  ghc-options: -fwrite-ide-info
 
 package hinsight-tadka
   flags: +werror
-  ghc-options: -fwrite-ide-info -hiedir=.hie
+  ghc-options: -fwrite-ide-info

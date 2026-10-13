@@ -36,6 +36,7 @@ common warnings
 
 library
   import:           warnings
+  ghc-options:      -hiedir=.hie/lib
   hs-source-dirs:   src
   build-depends:
     , base           >=4.20 && <5
@@ -50,6 +51,7 @@ library
 
 executable hinsight-tadka-demo
   import:           warnings
+  ghc-options:      -hiedir=.hie/demo
   hs-source-dirs:   app
   main-is:          Main.hs
   build-depends:
@@ -63,6 +65,7 @@ executable hinsight-tadka-demo
 
 test-suite hinsight-tadka-test
   import:           warnings
+  ghc-options:      -hiedir=.hie/test
   type:             exitcode-stdio-1.0
   hs-source-dirs:   test
   main-is:          Main.hs
