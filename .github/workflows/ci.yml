@@ -54,20 +54,23 @@ jobs:
 
       # Weeder fails the build on any dead code. Its first report was empty
       # and a deliberately unused function was reported, so it can be trusted.
-      - name: Install weeder
-        id: weeder-cache
+      # The cache can restore an empty entry and still report a hit, so build
+      # whenever the binary is not actually there.
+      - name: Restore weeder
         uses: actions/cache@v4
         with:
           path: ~/.local/bin/weeder
-          key: weeder-${{ env.WEEDER_VERSION }}-ghc-${{ env.GHC_VERSION }}
+          key: weeder-v2-${{ env.WEEDER_VERSION }}-ghc-${{ env.GHC_VERSION }}
 
-      - name: Build weeder
-        if: steps.weeder-cache.outputs.cache-hit != 'true'
+      - name: Build weeder if it is missing
         run: |
-          # Run outside the project so its freeze file does not constrain weeder.
-          cd "$RUNNER_TEMP"
-          cabal install "weeder-$WEEDER_VERSION" --with-compiler="ghc-$GHC_VERSION" \
-            --installdir="$HOME/.local/bin" --overwrite-policy=always
+          if [ ! -f "$HOME/.local/bin/weeder" ]; then
+            # Run outside the project so its freeze file does not constrain weeder.
+            cd "$RUNNER_TEMP"
+            cabal install "weeder-$WEEDER_VERSION" --with-compiler="ghc-$GHC_VERSION" \
+              --installdir="$HOME/.local/bin" --overwrite-policy=always
+          fi
+          test -f "$HOME/.local/bin/weeder"
 
       - name: Find dead code with weeder
         run: |
