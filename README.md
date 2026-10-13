@@ -41,7 +41,8 @@ Early. Read this before relying on it.
   place, and those modules are typechecked first. A dependency that does not
   compile is reported as such and the file is not analysed against it.
   Packages are not resolved: imports from outside the project must be
-  installed. Each analysis starts a fresh GHC session, so it is correct but
+  installed. The phase that resolves them is planned in
+  `docs/phase-environment.md`. Each analysis starts a fresh GHC session, so it is correct but
   not fast; see `docs/decisions.md`, item 1.
 - Type flow reads the typechecked program. For a file with errors it
   typechecks again with type errors, typed holes and out-of-scope variables

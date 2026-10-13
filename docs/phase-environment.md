@@ -1,0 +1,195 @@
+# Next phase: the project environment (package resolution)
+
+Status: **planned, not started.** Nothing in this document is built. It follows
+the engineering standard: prior art first (5.7), one canonical representation
+(2.1), effects behind a handle (0.5), and a named test for every claim (5.5).
+
+## 1. The gap
+
+Today `hinsight` analyses a file with one piece of project knowledge: the
+source folder, worked out from the module header and the file's place. A real
+project tells GHC much more, and none of it reaches the session:
+
+| What a project says | Where it lives | Today |
+|---|---|---|
+| Packages the code imports | `build-depends`, resolved by cabal into package databases | Not resolved; the import must be installed globally |
+| Language extensions | `default-extensions`, `default-language`, `{-# LANGUAGE #-}` | Only the pragmas in the file; cabal's defaults are missing |
+| Compiler options | `ghc-options`, `cpp-options`, `-D` flags | Missing |
+| Which component owns the file | library, executable, test suite, each with its own folders and dependencies | Guessed from the header |
+| Generated modules | `Paths_pkg`, alex, happy, hsc2hs | Not found |
+
+The sharpest consequence is a concrete one, which I expect but have not run:
+`hinsight` cannot analyse its own source, because its modules rely on
+`LambdaCase`, `OverloadedStrings` and `DerivingStrategies` set as cabal
+defaults. Making that work is the phase's first acceptance test.
+
+## 2. Goal and non-goals
+
+**Goal.** Given a file in a cabal project, analyse it in the same environment
+cabal would compile it in, and say which environment that was. When no
+environment can be found, say so with a typed error and fall back to today's
+behaviour only when asked.
+
+**Not in this phase:** stack, bios or other build tools (the design leaves a
+place for them, nothing more); building or generating modules; several roots in
+one workspace; Backpack; a long-lived session (it is the phase after, on
+evidence from the benchmark); semantic refactoring.
+
+## 3. Design
+
+### 3.1 One representation, one handle
+
+A new domain type, `Environment`, is the single value every source of project
+knowledge funnels into: the component's name, an absolute root, and the GHC
+flags that component is compiled with. It is built only through a smart
+constructor, and it carries the compiler it was captured for.
+
+```haskell
+newtype EnvironmentSource m = EnvironmentSource
+  { environmentFor :: SourceFile -> m (Either EnvironmentError Environment)
+  }
+```
+
+This axis is open by design (Standard 0.2, 2.7): another consumer may supply
+stack or a custom build, so it is a record of functions, not a closed sum. The
+current behaviour becomes one implementation of it, `headerEnvironment`, so
+nothing is special-cased.
+
+### 3.2 How the flags are obtained
+
+Three options were weighed.
+
+| Option | For | Against |
+|---|---|---|
+| **A. Read `plan.json` and the `.cabal` file ourselves** | No process to run | `plan.json` names units and databases but not extensions or options, so we would re-implement cabal's own flag computation. That is duplicated knowledge (0.6) and drifts from cabal. **Rejected.** |
+| **B. Ask cabal: run `cabal repl` with a stand-in compiler that records its arguments** (the method of `hie-bios`' cabal cradle) | Exactly what cabal would pass, including CPP, preprocessors and package databases | Needs `cabal` on the path; costs a process start and cabal's lock on `dist-newstyle` |
+| **C. Depend on the `hie-bios` library** | Maintained, used by every language server (2.11, 4.7) | Heavy dependency with tight `ghc` bounds; must support GHC 9.10.3 |
+
+**Recommendation: B, through C if C is viable.** Step 0 below decides it on
+evidence: does `hie-bios` build against GHC 9.10.3 and expose flags and root?
+If yes, depend on it. If no, write B ourselves, small and tested.
+
+Either way the implementation lives in a **separate adapter package**, the same
+shape as `hinsight-tadka`. `hinsight` core defines `Environment`, the handle
+and the code that applies flags to a session. The adapter supplies a handle
+that talks to cabal. Core stays free of process and build-tool code, and the
+dependency points inward (2.6).
+
+### 3.3 Applying the flags to the session
+
+The GHC edge parses the flags with GHC's own flag parser (`parseDynamicFlags`;
+the exact signature is to be read from 9.10.3's source in step 2) and sets the
+result on the session. Three rules, each with a test:
+
+1. **Our own settings win, and are applied last.** No code generation and no
+   linking, whatever the project says.
+2. **Warnings stay warnings.** A project's `-Werror` must not turn warnings
+   into errors, or the count of "errors not explained" would be wrong.
+3. **Unknown or rejected flags are typed errors**, naming the flag, never
+   dropped silently.
+
+Paths in flags are made absolute against the component root. The process's
+working directory is never changed (it is global state, 1.8, and the library
+may be used from several threads).
+
+### 3.4 Errors
+
+The error vocabulary gains one closed sum, `EnvironmentError`, in
+`HInsight.Error` (2.15). Every constructor is added in the change that reaches
+it, not before (1.5). The ones the design already expects:
+
+- no cabal project found above the file;
+- the file belongs to no component, or to more than one (the message lists them);
+- cabal could not be run or exited with an error (its output is kept);
+- the plan was built with a different compiler than GHC 9.10.3. This matters
+  here: your default compiler in ghcup is 9.14.1, so a plan built by it holds
+  interface files this GHC cannot read;
+- a flag GHC rejected.
+
+### 3.5 What the user sees
+
+`Analysis` gains a summary of the environment used (component, root, number of
+flags), shown in the plain report and in the Tadka demo, so an unexpected
+result can be traced to the environment rather than guessed at. A new demo
+option chooses `--environment cabal` or `--environment header` (today's
+behaviour); the default is decided after step 4 from how reliable cabal mode
+proves.
+
+## 4. Steps, in order
+
+Each step ends with the verification practice used so far: formatted, linted,
+built with `-Werror`, pure tests run here, and the GHC and cabal parts run on
+your machine.
+
+**Step 0 — prior art (Standard 5.7).** Read `hie-bios`' cabal cradle and its
+issue tracker, and the `ghcide` and `haskell-language-server` trackers, for how
+projects fail to load. Extend `docs/prior-art.md` with numbered classes, each
+with a named regression test, **before any code**. This also answers the open
+question in 3.2. The existing prior-art note says plainly that this deeper pass
+is still owed. Failure classes I expect to find, from general knowledge and to
+be verified, not assumed:
+
+- the wrong component chosen when a file sits in several (library and tests);
+- flags with paths relative to a directory that is not the current one;
+- `-Werror` in a project's options changing what counts as an error;
+- a plan stale after the `.cabal` file changed;
+- cabal's lock on `dist-newstyle` blocking a second invocation;
+- generated modules (`Paths_pkg`, preprocessor output) missing;
+- Template Haskell, which needs more than "no code generation" to run a splice.
+
+The last is the one most likely to force a design change, so it gets its own
+real-GHC experiment in this step, before the design is frozen.
+
+**Step 1 — the pure core.** `Environment`, its smart constructor, the handle,
+`headerEnvironment`, and the new errors. Property tests for the invariants
+(absolute root, non-empty component, flags preserved in order); no GHC needed.
+
+**Step 2 — the GHC edge.** Apply flags to a session, with rules 3.3.1 to 3.3.3.
+Real-GHC tests with fixtures: a file that needs a default extension; a file
+that needs a `-D` flag; an unknown flag; a project `-Werror` that must not
+change the error count. First dogfood check: `hinsight` analyses one of its own
+modules.
+
+**Step 3 — the cabal adapter.** The separate package. Fixture projects with
+real `.cabal` files: one component; library plus tests; a file in no component;
+a plan from another compiler. Tests are reported pending, not passed, when
+`cabal` is missing, as the GHC tests already are.
+
+**Step 4 — wire it through.** CLI and demo options, the environment summary in
+reports, and the Tadka demo. Acceptance: `hinsight-demo --environment cabal`
+on `hinsight`'s own modules, and on the `hinsight-tadka` package, which imports
+`tadka` and `prettyprinter` from outside the project.
+
+**Step 5 — cost and a baseline.** Benchmark the environment capture, which is
+a process start and will likely be seconds, and report it beside the existing
+analysis benchmarks. The ratio-based CI threshold stays the only enforced one;
+a stored absolute baseline needs a fixed runner, which does not exist (decisions
+item 6). Whether a long-lived session is now worth its stale-state bugs is
+judged from these numbers, not before.
+
+**Step 6 — documentation.** `docs/decisions.md` gets the entries for 3.1 to 3.3;
+the README status loses "packages are not resolved" only once step 4's
+acceptance runs pass.
+
+## 5. Acceptance, in one list
+
+1. `hinsight` analyses its own modules.
+2. `hinsight-tadka`'s modules analyse with `tadka` resolved from the cabal store.
+3. A plan from a different compiler is a typed error, not a wrong answer.
+4. A project `-Werror` does not change the count of unexplained errors.
+5. Nothing is printed by GHC or cabal during an analysis; their output is kept
+   and reported as data.
+6. `weeder`, `hlint`, `ormolu` and `-Werror` stay green, with every new export
+   used.
+
+## 6. Risks
+
+- **I cannot run GHC 9.10.3 or cabal where I write the code.** As in earlier
+  phases, every GHC-facing and cabal-facing step is written from source and
+  confirmed by your runs. Pure steps are confirmed here.
+- **Template Haskell may not work with a session that generates no code.** That
+  is common to language servers and has a known cost; step 0 measures it.
+- **Per-analysis cost rises** by a cabal invocation. This is why step 5 exists
+  and why the fresh-session rule is not touched in this phase.
+- **`hie-bios` may not support GHC 9.10.3**, in which case the adapter is
+  ours. That is a decision for step 0, not a risk to the phase.
