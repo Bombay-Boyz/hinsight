@@ -72,11 +72,15 @@ environmentSpec libDir = do
     defined <- environmentIn "test/fixtures/env/cpp" ["-i.", "-DBROKEN"] >>= \env -> analyseIn libDir env file >>= succeeded
     counts plain `shouldBe` (0, 0)
     counts defined `shouldBe` (1, 0)
-  it "reports a flag GHC refuses as a typed error" $ do
+  it "reports a flag GHC does not know as a typed error, naming it" $ do
     env <- environmentIn "test/fixtures/env/ext" ["-i.", "-fnot-a-real-flag"]
     result <- analyseIn libDir env "test/fixtures/env/ext/NeedsExt.hs"
+    result `shouldBe` Left (EnvironmentFailure (UnrecognisedArguments ["-fnot-a-real-flag"]))
+  it "reports a flag GHC refuses as a typed error, naming it" $ do
+    env <- environmentIn "test/fixtures/env/ext" ["-i.", "-fmax-relevant-binds=abc"]
+    result <- analyseIn libDir env "test/fixtures/env/ext/NeedsExt.hs"
     result `shouldSatisfy` \case
-      Left (EnvironmentFailure (FlagRejected why)) -> "not-a-real-flag" `T.isInfixOf` why
+      Left (EnvironmentFailure (FlagRejected why)) -> "max-relevant-binds" `T.isInfixOf` why
       _ -> False
   it "reports an argument GHC takes for a file name as a typed error" $ do
     env <- environmentIn "test/fixtures/env/ext" ["-i.", "Elsewhere.hs"]

@@ -59,6 +59,7 @@ library
     HInsight.Flow
     HInsight.Ghc.Bindings
     HInsight.Ghc.Convert
+    HInsight.Ghc.Environment
     HInsight.Ghc.Flow
     HInsight.Ghc.Graph
     HInsight.Ghc.HoleCapture
@@ -125,6 +126,7 @@ test-suite hinsight-test
     HInsight.ExplanationSpec
     HInsight.FlowSpec
     HInsight.GraphSpec
+    HInsight.GhcEnvironmentSpec
     HInsight.GhcSessionSpec
     HInsight.HoleSpec
     HInsight.IdentifierSpec

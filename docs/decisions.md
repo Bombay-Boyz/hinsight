@@ -155,6 +155,19 @@ dependency set and the handle `EnvironmentSource` stays open to other build
 tools. Status: **not yet built**; whether `hie-bios` builds against GHC 9.10.3 is
 unverified. Revisit if it does not.
 
+## 14. Environment flags go through GHC's own parser, and ours are applied last
+
+Decided in step 2 of the project-environment phase. The flags of a project
+component are parsed by `parseDynamicFlags`, so each means what it means to
+`ghc`; a refused flag or an argument taken for a file name is a typed
+`EnvironmentFailure`, never ignored. `-working-dir` carries the root, so no path
+is rewritten and the process's directory is never changed; `-package-env=-`
+keeps `.ghc.environment` files out. `noBackend` and `NoLink` are set after the
+flags. `-Werror` and the `-fdefer-*` flags are dropped (and reported by
+`sessionFlags`) because they change which errors there are to explain. Status:
+the GHC-facing parts are written from the 9.10.3 source and verified only when
+the real-GHC tests run.
+
 ## Checks that run on every push
 
 Build with `-Werror`, tests (including those that run a real GHC 9.10.3),

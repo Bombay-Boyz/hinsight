@@ -161,11 +161,41 @@ class 16). New errors: `CompilerMismatch`, and three construction errors. All of
 it is pure and tested here, with properties that nothing is lost or reordered
 and that a second pass drops nothing. It is not yet connected to anything.
 
-**Step 2 — the GHC edge.** Apply flags to a session, with rules 3.3.1 to 3.3.3.
-Real-GHC tests with fixtures: a file that needs a default extension; a file
-that needs a `-D` flag; an unknown flag; a project `-Werror` that must not
-change the error count. First dogfood check: `hinsight` analyses one of its own
-modules.
+**Step 2 — the GHC edge. Written; GHC-facing parts unverified until built.**
+`HInsight.Ghc.Environment.applyEnvironment` hands `sessionArguments` to GHC's
+own `parseDynamicFlags` (9.10.3: `Logger -> DynFlags -> [Located String] ->
+m (DynFlags, [Located String], [Warn])`). A thrown `GhcException` becomes
+`FlagRejected` (a flag with a value it cannot read); leftover arguments become
+`UnrecognisedArguments`. Measured on real GHC: an *unknown* flag is a leftover,
+not a thrown exception; both are in `InsightError` as `EnvironmentFailure`.
+`HInsight.Ghc.Session` gains `ghcInsightIn :: LibDir -> Environment -> Insight
+IO`. In that mode the environment's flags are applied first, then `noBackend`
+and `NoLink` last, so no project flag can switch code generation back on
+(rule 3.3.1). The header-based source-root guess is skipped, because `-i` comes
+from the flags, and the target is given to GHC as an absolute path because GHC
+resolves relative targets against `-working-dir`. `sessionFlags` now also
+passes `-package-env=-`, so a `.ghc.environment` file in the process's directory
+cannot add packages (prior-art class 15).
+
+`-package-db`, the open question of 3.3: GHC 9.10.3's `GHC.Unit.State` maps
+`offsetPackageDb (workingDirectory dflags)` over the package database flags, so
+relative `-package-db` paths are offset by `-working-dir` like `-i`. Read from
+source, not run; a package-database fixture is left to step 3, where a real
+cabal store exists.
+
+Real-GHC tests (`test/HInsight/GhcEnvironmentSpec.hs`, fixtures in
+`test/fixtures/env`): a default extension (`-XLambdaCase`; without it the file
+does not parse), a `-D` definition under CPP, an unknown flag, a flag with an unreadable value, a stray
+file-name argument, `projectWerrorKeepsErrorCount`, `templateHaskellInProjectModule`,
+and a dogfood check that analyses `src/HInsight/Environment.hs` with the
+library's own flags.
+
+The Template Haskell experiment is the one most likely to force a change. The
+dependency (`Gen`) is loaded as a target with `noBackend`, and `UsesTh` splices
+a function from it; `enableCodeGenForTH` in `GHC.Driver.Make.load` should give
+`Gen` bytecode, but only if the graph that `load` sees contains the TH-using
+module, which hinsight's two-step load may not arrange. If the test fails, the
+fix is to be chosen from its message, not guessed.
 
 **Step 3 — the cabal adapter.** The separate package. Fixture projects with
 real `.cabal` files: one component; library plus tests; a file in no component;

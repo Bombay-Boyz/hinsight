@@ -119,11 +119,12 @@ data EnvironmentError
     -- cannot be read. The first field is the version found, the second the
     -- version supported.
     CompilerMismatch Text Text
-  | -- | GHC refused a flag of the environment (for example an unknown flag).
-    -- The field is GHC's message, on one line.
+  | -- | GHC refused a flag of the environment, for example one with a value it
+    -- cannot read. The field is GHC's message, on one line.
     FlagRejected Text
-  | -- | GHC took some of the environment's arguments for file names rather
-    -- than flags, so they were not applied. The field lists them.
+  | -- | GHC did not take some of the environment's arguments for flags: a flag
+    -- it does not know, or a file name. They were not applied. The field lists
+    -- them.
     UnrecognisedArguments [Text]
   deriving stock (Eq, Show)
 
@@ -187,4 +188,4 @@ renderEnvironmentError = \case
       <> expected
   FlagRejected why -> "GHC refused a flag of the project environment: " <> why
   UnrecognisedArguments args ->
-    "GHC did not take these arguments of the project environment for flags: " <> T.intercalate " " args
+    "GHC did not recognise these arguments of the project environment as flags: " <> T.intercalate " " args
