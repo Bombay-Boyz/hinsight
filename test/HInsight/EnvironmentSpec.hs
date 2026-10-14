@@ -95,19 +95,19 @@ spec = describe "HInsight.Environment" $ do
           version <- ok (mkGhcVersion parts)
           pure (either (const True) (const False) (mkEnvironment component root version []))
   describe "sessionFlags" $ do
-    it "starts with the working directory, written with GHC's own flag" $ do
+    it "starts with the working directory, written with GHC's own flag, then ignores environment files" $ do
       env <- environmentWith ["-XLambdaCase"]
-      map unGhcFlag (sessionArguments (sessionFlags env)) `shouldBe` ["-working-dir", "/work/pkg", "-XLambdaCase"]
+      map unGhcFlag (sessionArguments (sessionFlags env)) `shouldBe` ["-working-dir", "/work/pkg", "-package-env=-", "-XLambdaCase"]
     it "keeps warnings as warnings by dropping -Werror in both forms, and reports them" $ do
       env <- environmentWith ["-Wall", "-Werror", "-Werror=incomplete-patterns", "-Wwarn"]
       let result = sessionFlags env
-      map unGhcFlag (sessionArguments result) `shouldBe` ["-working-dir", "/work/pkg", "-Wall", "-Wwarn"]
+      map unGhcFlag (sessionArguments result) `shouldBe` ["-working-dir", "/work/pkg", "-package-env=-", "-Wall", "-Wwarn"]
       map unGhcFlag (sessionDropped result) `shouldBe` ["-Werror", "-Werror=incomplete-patterns"]
     it "drops the flags that defer errors, and keeps the ones that undo it" $ do
       env <- environmentWith ["-fdefer-type-errors", "-fdefer-typed-holes", "-fdefer-out-of-scope-variables", "-fno-defer-type-errors"]
       let result = sessionFlags env
       map unGhcFlag (sessionDropped result) `shouldBe` ["-fdefer-type-errors", "-fdefer-typed-holes", "-fdefer-out-of-scope-variables"]
-      map unGhcFlag (drop 2 (sessionArguments result)) `shouldBe` ["-fno-defer-type-errors"]
+      map unGhcFlag (drop 3 (sessionArguments result)) `shouldBe` ["-fno-defer-type-errors"]
     it "does not treat a similar flag as -Werror" $ do
       env <- environmentWith ["-Werror-like", "-Wno-error=unused-imports"]
       sessionDropped (sessionFlags env) `shouldBe` []
@@ -117,17 +117,17 @@ spec = describe "HInsight.Environment" $ do
     it "passes a very long flag list on whole" $ do
       let flags = replicate 20_000 "-XLambdaCase"
       env <- environmentWith flags
-      length (sessionArguments (sessionFlags env)) `shouldBe` 20_002
+      length (sessionArguments (sessionFlags env)) `shouldBe` 20_003
     prop "loses nothing and reorders nothing: kept and dropped are the input" $
       forAll (listOf genFlagText) $ \texts -> ioProperty $ do
         env <- environmentWith texts
         let result = sessionFlags env
-            kept = drop 2 (sessionArguments result)
+            kept = drop 3 (sessionArguments result)
         pure (length kept + length (sessionDropped result) === length texts)
     prop "leaves no flag behind that changes diagnostics, and a second pass drops nothing" $
       forAll (listOf genFlagText) $ \texts -> ioProperty $ do
         env <- environmentWith texts
-        let kept = map unGhcFlag (drop 2 (sessionArguments (sessionFlags env)))
+        let kept = map unGhcFlag (drop 3 (sessionArguments (sessionFlags env)))
         second <- environmentWith kept
         pure
           ( all (`notElem` ["-Werror", "-fdefer-type-errors", "-fdefer-typed-holes", "-fdefer-out-of-scope-variables"]) kept
@@ -137,7 +137,7 @@ spec = describe "HInsight.Environment" $ do
     prop "keeps the relative order of the flags it keeps" $
       forAll (listOf genFlagText) $ \texts -> ioProperty $ do
         env <- environmentWith texts
-        let kept = map unGhcFlag (drop 2 (sessionArguments (sessionFlags env)))
+        let kept = map unGhcFlag (drop 3 (sessionArguments (sessionFlags env)))
         pure (kept === filter (`notElem` droppedTexts) texts)
   where
     droppedTexts :: [Text]

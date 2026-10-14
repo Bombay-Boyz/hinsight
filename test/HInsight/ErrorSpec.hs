@@ -48,6 +48,12 @@ spec = describe "renderError" $ do
     let t = renderEnvironmentError (CompilerMismatch "9.14.1" "9.10.3")
     t `shouldSatisfy` T.isInfixOf "9.14.1"
     t `shouldSatisfy` T.isInfixOf "ghc-9.10.3"
+  it "names the flag GHC refused, through the top-level renderer" $
+    rendered (EnvironmentFailure (FlagRejected "unknown flag: -fnope")) `shouldSatisfy` T.isInfixOf "-fnope"
+  it "names every argument GHC did not take for a flag" $ do
+    let t = rendered (EnvironmentFailure (UnrecognisedArguments ["Foo.hs", "bar"]))
+    t `shouldSatisfy` T.isInfixOf "Foo.hs"
+    t `shouldSatisfy` T.isInfixOf "bar"
   prop "always names the path it was given" $ \p ->
     T.pack p `T.isInfixOf` rendered (SessionFailure (SourceFileNotFound p))
   prop "always names the offending number" $ \n ->

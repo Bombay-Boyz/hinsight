@@ -170,6 +170,10 @@ data SessionFlags = SessionFlags
 -- * @-fdefer-type-errors@, @-fdefer-typed-holes@ and
 --   @-fdefer-out-of-scope-variables@, which hide the errors that are explained.
 --
+-- The arguments start with @-package-env=-@ after the working directory, so a
+-- @.ghc.environment@ file in the directory the process runs in cannot add
+-- packages to the session.
+--
 -- The working directory is given with GHC's own @-working-dir@, which offsets
 -- every relative path in the flags (@-i@, @-I@, output folders and input
 -- files), so no path is rewritten and the process's directory is never changed.
@@ -182,12 +186,16 @@ data SessionFlags = SessionFlags
 sessionFlags :: Environment -> SessionFlags
 sessionFlags env =
   SessionFlags
-    { sessionArguments = workingDir <> kept,
+    { sessionArguments = workingDir <> isolation <> kept,
       sessionDropped = dropped
     }
   where
     workingDir :: [GhcFlag]
     workingDir = [UnsafeGhcFlag "-working-dir", UnsafeGhcFlag (T.pack (projectRootPath (environmentRoot env)))]
+    -- GHC reads @.ghc.environment@ files from the process's directory unless
+    -- told not to, which would add packages the project never asked for.
+    isolation :: [GhcFlag]
+    isolation = [UnsafeGhcFlag "-package-env=-"]
     kept, dropped :: [GhcFlag]
     (dropped, kept) = partition changesDiagnostics (environmentFlags env)
 

@@ -5,6 +5,7 @@ import HInsight.EnvironmentSpec qualified
 import HInsight.ErrorSpec qualified
 import HInsight.ExplanationSpec qualified
 import HInsight.FlowSpec qualified
+import HInsight.GhcEnvironmentSpec qualified
 import HInsight.GhcSessionSpec qualified
 import HInsight.GraphSpec qualified
 import HInsight.HoleSpec qualified
@@ -28,3 +29,4 @@ main = hspec $ do
   HInsight.ReportSpec.spec
   HInsight.CliSpec.spec
   HInsight.GhcSessionSpec.spec
+  HInsight.GhcEnvironmentSpec.spec

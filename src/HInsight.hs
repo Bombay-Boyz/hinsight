@@ -49,6 +49,7 @@ module HInsight
 
     -- * Failures
     InsightError (..),
+    EnvironmentError (..),
     renderError,
   )
 where
@@ -56,7 +57,7 @@ where
 import HInsight.Analysis (Analysis (..), Insight (..), emptyAnalysis)
 import HInsight.Config (LibDir, libDirPath, mkLibDir)
 import HInsight.Context (Context (..))
-import HInsight.Error (InsightError (..), renderError)
+import HInsight.Error (EnvironmentError (..), InsightError (..), renderError)
 import HInsight.Explanation (Explanation (..), renderExplanation)
 import HInsight.Flow (FlowKind (..), Pipeline, Stage (..), StageText, pipelineContext, pipelineKind, pipelineSpan, pipelineStages, pipelineType, renderPipeline, unStageText)
 import HInsight.Graph (ModuleName, ProjectGraph, dependencyOrder, graphImportCount, graphModules, importCycles, importsOf, renderGraph, unModuleName)

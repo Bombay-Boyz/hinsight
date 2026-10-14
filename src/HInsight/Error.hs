@@ -34,6 +34,8 @@ data InsightError
     SessionFailure SessionError
   | -- | GHC produced data that does not map onto a domain value.
     ExtractionFailure ExtractionError
+  | -- | The project environment could not be applied to the GHC session.
+    EnvironmentFailure EnvironmentError
   deriving stock (Eq, Show)
 
 -- | A smart constructor rejected its input. Raised by the pure domain layer.
@@ -110,15 +112,19 @@ data ExtractionError
   deriving stock (Eq, Show)
 
 -- | A project environment could not be used. Raised by
--- "HInsight.Environment". It joins 'InsightError' in the change that runs an
--- analysis in an environment, which is what makes it reachable from there
--- (Standard 1.5).
+-- "HInsight.Environment" and "HInsight.Ghc.Environment".
 data EnvironmentError
   = -- | The environment was captured for another compiler than the one this
     -- package supports. Interface files and package databases of another GHC
     -- cannot be read. The first field is the version found, the second the
     -- version supported.
     CompilerMismatch Text Text
+  | -- | GHC refused a flag of the environment (for example an unknown flag).
+    -- The field is GHC's message, on one line.
+    FlagRejected Text
+  | -- | GHC took some of the environment's arguments for file names rather
+    -- than flags, so they were not applied. The field lists them.
+    UnrecognisedArguments [Text]
   deriving stock (Eq, Show)
 
 -- | A message that names the specific thing that failed and where.
@@ -127,6 +133,7 @@ renderError = \case
   DomainFailure e -> renderDomainError e
   SessionFailure e -> renderSession e
   ExtractionFailure e -> renderExtraction e
+  EnvironmentFailure e -> renderEnvironmentError e
 
 -- | Render a 'DomainError'.
 renderDomainError :: DomainError -> Text
@@ -178,3 +185,6 @@ renderEnvironmentError = \case
       <> expected
       <> "; rebuild the project with ghc-"
       <> expected
+  FlagRejected why -> "GHC refused a flag of the project environment: " <> why
+  UnrecognisedArguments args ->
+    "GHC did not take these arguments of the project environment for flags: " <> T.intercalate " " args

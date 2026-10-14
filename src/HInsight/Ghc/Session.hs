@@ -13,15 +13,19 @@
 -- of analysing the file against broken imports. Every analysis runs in a
 -- fresh GHC session, so nothing is carried over from an earlier edit.
 --
--- Limitation of this version: packages are not resolved, so the imports that
--- are not the project's own must be installed.
+-- Two ways of placing the file are offered. 'ghcInsight' works it out from
+-- the file's header and place and resolves no packages, so the imports that
+-- are not the project's own must be installed. 'ghcInsightIn' takes the
+-- project's 'Environment' (its flags, packages and source folders as the
+-- build tool reports them), which replaces that guess.
 module HInsight.Ghc.Session
   ( ghcInsight,
+    ghcInsightIn,
   )
 where
 
 import Control.Exception (Handler (..), IOException, catches, evaluate)
-import Control.Monad (filterM)
+import Control.Monad (filterM, void)
 import Control.Monad.IO.Class (liftIO)
 import Data.Bifunctor (first)
 import Data.Containers.ListUtils (nubOrd)
@@ -78,10 +82,12 @@ import GHC.Utils.Outputable (ppr, (<+>))
 import GHC.Utils.Panic (GhcException)
 import HInsight.Analysis (Analysis (..), Insight (..))
 import HInsight.Config (LibDir, libDirPath)
-import HInsight.Error (InsightError (..), SessionError (..))
+import HInsight.Environment (Environment)
+import HInsight.Error (EnvironmentError, InsightError (..), SessionError (..))
 import HInsight.Flow (Pipeline)
 import HInsight.Ghc.Bindings (Binding, collectBindings)
 import HInsight.Ghc.Convert (renderGhc)
+import HInsight.Ghc.Environment (applyEnvironment)
 import HInsight.Ghc.Flow (RawPipeline, collect, pipelines)
 import HInsight.Ghc.Graph (RawModule, collectGraph, projectGraph)
 import HInsight.Ghc.HoleCapture (CapturedHole, holePlugin)
@@ -109,14 +115,27 @@ data Outcome = Outcome
     outcomeModules :: [RawModule]
   }
 
--- | The GHC-backed implementation of 'Insight'.
-ghcInsight :: LibDir -> Insight IO
-ghcInsight dir = Insight {analyseFile = analyse dir}
+-- | Where the analysed file's project is taken from.
+data Placement
+  = -- | Worked out from the file's header and place; no packages.
+    FromHeader
+  | -- | Given by the build tool's description of the project component.
+    FromEnvironment Environment
 
-analyse :: LibDir -> SourceFile -> IO (Either InsightError Analysis)
-analyse dir file = do
+-- | The GHC-backed implementation of 'Insight', placing the file by its
+-- header.
+ghcInsight :: LibDir -> Insight IO
+ghcInsight dir = Insight {analyseFile = analyse dir FromHeader}
+
+-- | The GHC-backed implementation of 'Insight' for a file of the project
+-- component the 'Environment' describes.
+ghcInsightIn :: LibDir -> Environment -> Insight IO
+ghcInsightIn dir env = Insight {analyseFile = analyse dir (FromEnvironment env)}
+
+analyse :: LibDir -> Placement -> SourceFile -> IO (Either InsightError Analysis)
+analyse dir placement file = do
   failure <- preflight dir file
-  maybe (guarded dir file) (pure . Left . SessionFailure) failure
+  maybe (guarded dir placement file) (pure . Left . SessionFailure) failure
 
 -- | Check the two facts about the machine that the value types cannot carry.
 preflight :: LibDir -> SourceFile -> IO (Maybe SessionError)
@@ -130,8 +149,8 @@ preflight dir file = do
         )
     )
 
-guarded :: LibDir -> SourceFile -> IO (Either InsightError Analysis)
-guarded dir file = catchSession (sourceFilePath file) (runOnce dir file)
+guarded :: LibDir -> Placement -> SourceFile -> IO (Either InsightError Analysis)
+guarded dir placement file = catchSession (sourceFilePath file) (runOnce dir placement file)
 
 -- | Convert the exceptions GHC and the file system can throw into a value.
 catchSession :: forall a. FilePath -> IO (Either InsightError a) -> IO (Either InsightError a)
@@ -144,39 +163,56 @@ catchSession file act = act `catches` [Handler onGhc, Handler onIo]
     failed :: String -> IO (Either InsightError a)
     failed msg = pure (Left (SessionFailure (GhcThrew file (T.pack msg))))
 
-runOnce :: LibDir -> SourceFile -> IO (Either InsightError Analysis)
-runOnce dir file = do
+runOnce :: LibDir -> Placement -> SourceFile -> IO (Either InsightError Analysis)
+runOnce dir placement file = do
   sink <- newIORef []
   logged <- newIORef []
-  outcome <- runGhc (Just (libDirPath dir)) (typecheck sink logged path)
+  outcome <- runGhc (Just (libDirPath dir)) (typecheck placement sink logged path)
   captured <- readIORef sink
   evaluate (assemble path outcome captured)
   where
     path :: FilePath
     path = sourceFilePath file
 
-typecheck :: IORef [CapturedHole] -> IORef [Text] -> FilePath -> Ghc (Either SessionError Outcome)
-typecheck sink logged path = do
-  configure logged
-  target <- guessTarget path Nothing Nothing
-  setTargets [target]
-  handleSourceError (pure . Right . unparsed) (loadProject sink logged path)
+typecheck :: Placement -> IORef [CapturedHole] -> IORef [Text] -> FilePath -> Ghc (Either InsightError Outcome)
+typecheck placement sink logged path = do
+  configured <- configure placement logged
+  case configured of
+    Left failure -> pure (Left (EnvironmentFailure failure))
+    Right () -> do
+      -- GHC resolves a relative target against the environment's working
+      -- directory, not the process's, so the target is given as an absolute
+      -- path; the path as the caller wrote it stays the label of the results.
+      located <- liftIO (targetPath placement path)
+      target <- guessTarget located Nothing Nothing
+      setTargets [target]
+      first SessionFailure <$> handleSourceError (pure . Right . unparsed) (loadProject placement sink logged path)
   where
     -- The module could not be parsed or its imports resolved, so there are
     -- errors but no bindings.
     unparsed :: SourceError -> Outcome
     unparsed err = Outcome (errorsOf err) [] [] []
 
--- | No code generation and no linking: this session only typechecks.
+-- | The path the target is given to GHC by.
+targetPath :: Placement -> FilePath -> IO FilePath
+targetPath FromHeader path = pure path
+targetPath (FromEnvironment _) path = canonicalizePath path
+
+-- | Apply the environment's flags, if there is one, then switch off code
+-- generation and linking: this session only typechecks. The two overrides come
+-- last so that no flag of the project can turn them back on.
 --
 -- GHC reports the errors of dependency modules to its log rather than by
 -- throwing, so a log hook that records them, and prints nothing, is installed
 -- for the whole session.
-configure :: IORef [Text] -> Ghc ()
-configure logged = do
-  flags <- getSessionDynFlags
-  setSessionDynFlags flags {backend = noBackend, ghcLink = NoLink}
+configure :: Placement -> IORef [Text] -> Ghc (Either EnvironmentError ())
+configure placement logged = do
   pushLogHookM (recordErrors logged)
+  initial <- getSessionDynFlags
+  applied <- case placement of
+    FromHeader -> pure (Right initial)
+    FromEnvironment env -> applyEnvironment env initial
+  traverse (\flags -> void (setSessionDynFlags flags {backend = noBackend, ghcLink = NoLink})) applied
 
 -- | Keep the text of every error GHC logs; drop everything else.
 recordErrors :: IORef [Text] -> LogAction -> LogAction
@@ -207,14 +243,17 @@ installHolePlugin sink env =
 
 -- | Find the source folder, check the module graph, typecheck the file's
 -- dependencies and then the file itself.
-loadProject :: IORef [CapturedHole] -> IORef [Text] -> FilePath -> Ghc (Either SessionError Outcome)
-loadProject sink logged path = do
-  -- The first pass only learns the file's module name; its dependencies may
-  -- not resolve yet because the source folder is still a guess.
-  setImportPath (takeDirectory path)
-  (_, guess) <- depanalPartial [] False
-  guessed <- targetSummary path (mgModSummaries guess)
-  setImportPath (maybe (takeDirectory path) (sourceRoot path . moduleNameString . ms_mod_name) guessed)
+loadProject :: Placement -> IORef [CapturedHole] -> IORef [Text] -> FilePath -> Ghc (Either SessionError Outcome)
+loadProject placement sink logged path = do
+  case placement of
+    FromEnvironment _ -> pure ()
+    FromHeader -> do
+      -- The first pass only learns the file's module name; its dependencies
+      -- may not resolve yet because the source folder is still a guess.
+      setImportPath (takeDirectory path)
+      (_, guess) <- depanalPartial [] False
+      guessed <- targetSummary path (mgModSummaries guess)
+      setImportPath (maybe (takeDirectory path) (sourceRoot path . moduleNameString . ms_mod_name) guessed)
   graph <- depanal [] False
   found <- targetSummary path (mgModSummaries graph)
   case found of
@@ -323,11 +362,11 @@ isError env = case errMsgSeverity env of
 
 assemble ::
   FilePath ->
-  Either SessionError Outcome ->
+  Either InsightError Outcome ->
   [CapturedHole] ->
   Either InsightError Analysis
 assemble path outcome captured = do
-  found <- first SessionFailure outcome
+  found <- outcome
   combine
     <$> extractMessages path (outcomeBindings found) (outcomeErrors found)
     <*> holeReports path (reverse captured)
