@@ -53,6 +53,7 @@ library
     HInsight.Cli
     HInsight.Config
     HInsight.Context
+    HInsight.Environment
     HInsight.Error
     HInsight.Explanation
     HInsight.Flow
@@ -119,6 +120,7 @@ test-suite hinsight-test
   main-is:          Main.hs
   other-modules:
     HInsight.CliSpec
+    HInsight.EnvironmentSpec
     HInsight.ErrorSpec
     HInsight.ExplanationSpec
     HInsight.FlowSpec

@@ -51,9 +51,14 @@ newtype EnvironmentSource m = EnvironmentSource
 ```
 
 This axis is open by design (Standard 0.2, 2.7): another consumer may supply
-stack or a custom build, so it is a record of functions, not a closed sum. The
-current behaviour becomes one implementation of it, `headerEnvironment`, so
-nothing is special-cased.
+stack or a custom build, so it is a record of functions, not a closed sum.
+
+**The handle is added in step 4, not step 1.** Nothing consumes it before the
+analysis is wired to take an environment, and a handle with no producer or
+consumer is speculative (Standard 0.7). For the same reason today's behaviour is
+not modelled as an `Environment` yet: its source folder is found from the
+module header, which needs a first GHC pass to read, so it cannot be a pure
+value. It stays in the session code until step 4 decides how the two meet.
 
 ### 3.2 How the flags are obtained
 
@@ -90,9 +95,13 @@ result on the session. Three rules, each with a test:
 3. **Unknown or rejected flags are typed errors**, naming the flag, never
    dropped silently.
 
-Paths in flags are made absolute against the component root. The process's
-working directory is never changed (it is global state, 1.8, and the library
-may be used from several threads).
+Relative paths in the flags are resolved with GHC's own `-working-dir` flag,
+which GHC 9.10.3's user guide says offsets every relative path the compiler
+uses: `-i`, `-I`, output folders and input files. So no path is rewritten, and
+the process's working directory is never changed (it is global state, 1.8, and
+the library may be used from several threads). Not confirmed by that text:
+`-package-db`. Build tools write package databases as absolute paths, and step 2
+tests it.
 
 ### 3.4 Errors
 
@@ -142,9 +151,15 @@ be verified, not assumed:
 The last is the one most likely to force a design change, so it gets its own
 real-GHC experiment in this step, before the design is frozen.
 
-**Step 1 — the pure core.** `Environment`, its smart constructor, the handle,
-`headerEnvironment`, and the new errors. Property tests for the invariants
-(absolute root, non-empty component, flags preserved in order); no GHC needed.
+**Step 1 — the pure core. Done.** `HInsight.Environment`: `ComponentName`,
+`ProjectRoot` (absolute), `GhcFlag`, `GhcVersion`, and `Environment`, whose
+smart constructor refuses flags captured for any compiler but 9.10.3 (prior-art
+class 14). `sessionFlags` turns an environment into session arguments: it puts
+`-working-dir` first and drops `-Werror`, `-Werror=...` and the three
+`-fdefer-*` flags, reporting what it dropped (rules 3.3.2 and 3.3.3, prior-art
+class 16). New errors: `CompilerMismatch`, and three construction errors. All of
+it is pure and tested here, with properties that nothing is lost or reordered
+and that a second pass drops nothing. It is not yet connected to anything.
 
 **Step 2 — the GHC edge.** Apply flags to a session, with rules 3.3.1 to 3.3.3.
 Real-GHC tests with fixtures: a file that needs a default extension; a file

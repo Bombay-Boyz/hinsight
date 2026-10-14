@@ -16,8 +16,10 @@ module HInsight.Error
     DomainError (..),
     SessionError (..),
     ExtractionError (..),
+    EnvironmentError (..),
     renderError,
     renderDomainError,
+    renderEnvironmentError,
   )
 where
 
@@ -67,6 +69,16 @@ data DomainError
     -- 'HInsight.Graph.mkProjectGraph'; carries the importing module and the
     -- missing one.
     UnknownImport Text Text
+  | -- | A project root was not an absolute path. Raised by
+    -- 'HInsight.Environment.mkProjectRoot'; carries the path given.
+    RelativeRoot FilePath
+  | -- | A compiler flag was empty or held a NUL character. Raised by
+    -- 'HInsight.Environment.mkGhcFlag'; carries the flag as given.
+    InvalidFlag Text
+  | -- | A compiler version was not dotted decimal numbers. Raised by
+    -- 'HInsight.Environment.mkGhcVersion' and 'parseGhcVersion'; carries the
+    -- text given.
+    MalformedVersion Text
   deriving stock (Eq, Show)
 
 -- | The GHC session failed. Raised by "HInsight.Ghc.Session".
@@ -97,6 +109,18 @@ data ExtractionError
     InvalidFromGhc FilePath DomainError
   deriving stock (Eq, Show)
 
+-- | A project environment could not be used. Raised by
+-- "HInsight.Environment". It joins 'InsightError' in the change that runs an
+-- analysis in an environment, which is what makes it reachable from there
+-- (Standard 1.5).
+data EnvironmentError
+  = -- | The environment was captured for another compiler than the one this
+    -- package supports. Interface files and package databases of another GHC
+    -- cannot be read. The first field is the version found, the second the
+    -- version supported.
+    CompilerMismatch Text Text
+  deriving stock (Eq, Show)
+
 -- | A message that names the specific thing that failed and where.
 renderError :: InsightError -> Text
 renderError = \case
@@ -121,6 +145,9 @@ renderDomainError = \case
   TooFewStages n -> "a pipeline needs at least 2 stages but was given " <> tshow n
   DuplicateModule m -> "module " <> m <> " is listed twice in the project graph"
   UnknownImport m missing -> "module " <> m <> " imports " <> missing <> ", which is not in the project graph"
+  RelativeRoot p -> "the project root " <> T.pack p <> " is not an absolute path"
+  InvalidFlag f -> "the compiler flag " <> T.pack (show f) <> " is empty or contains a NUL character"
+  MalformedVersion v -> "the compiler version " <> T.pack (show v) <> " is not dotted decimal numbers such as 9.10.3"
   where
     pos :: Int -> Int -> Text
     pos l c = tshow l <> ":" <> tshow c
@@ -140,3 +167,14 @@ renderExtraction = \case
 
 tshow :: Int -> Text
 tshow = T.pack . show
+
+-- | Render an 'EnvironmentError'.
+renderEnvironmentError :: EnvironmentError -> Text
+renderEnvironmentError = \case
+  CompilerMismatch found expected ->
+    "the project environment was captured for GHC "
+      <> found
+      <> " but this package supports only GHC "
+      <> expected
+      <> "; rebuild the project with ghc-"
+      <> expected

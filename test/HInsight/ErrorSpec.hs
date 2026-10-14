@@ -38,6 +38,16 @@ spec = describe "renderError" $ do
     let t = rendered (DomainFailure (UnknownImport "App" "Missing"))
     t `shouldSatisfy` T.isInfixOf "App"
     t `shouldSatisfy` T.isInfixOf "Missing"
+  it "names the root that is not absolute" $
+    rendered (DomainFailure (RelativeRoot "pkg/sub")) `shouldSatisfy` T.isInfixOf "pkg/sub"
+  it "names the flag that is unusable" $
+    rendered (DomainFailure (InvalidFlag "-DX\NUL")) `shouldSatisfy` T.isInfixOf "-DX"
+  it "names the version that is malformed" $
+    rendered (DomainFailure (MalformedVersion "9..3")) `shouldSatisfy` T.isInfixOf "9..3"
+  it "names both compilers of a mismatch and what to do" $ do
+    let t = renderEnvironmentError (CompilerMismatch "9.14.1" "9.10.3")
+    t `shouldSatisfy` T.isInfixOf "9.14.1"
+    t `shouldSatisfy` T.isInfixOf "ghc-9.10.3"
   prop "always names the path it was given" $ \p ->
     T.pack p `T.isInfixOf` rendered (SessionFailure (SourceFileNotFound p))
   prop "always names the offending number" $ \n ->
