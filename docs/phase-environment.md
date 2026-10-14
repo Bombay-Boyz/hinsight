@@ -65,9 +65,11 @@ Three options were weighed.
 | **B. Ask cabal: run `cabal repl` with a stand-in compiler that records its arguments** (the method of `hie-bios`' cabal cradle) | Exactly what cabal would pass, including CPP, preprocessors and package databases | Needs `cabal` on the path; costs a process start and cabal's lock on `dist-newstyle` |
 | **C. Depend on the `hie-bios` library** | Maintained, used by every language server (2.11, 4.7) | Heavy dependency with tight `ghc` bounds; must support GHC 9.10.3 |
 
-**Recommendation: B, through C if C is viable.** Step 0 below decides it on
-evidence: does `hie-bios` build against GHC 9.10.3 and expose flags and root?
-If yes, depend on it. If no, write B ourselves, small and tested.
+**Decision (step 0): C.** `hie-bios`' cabal capture has needed a fix for
+nearly every cabal release (prior-art class 10), which is the case for reusing
+it. It declares `ghc >=9.2.1 && <10.2`, so 9.10.3 is inside its bounds, but
+that it builds against 9.10.3 is **not verified** and is checked the first
+time the adapter is built. If it does not build, this is reopened.
 
 Either way the implementation lives in a **separate adapter package**, the same
 shape as `hinsight-tadka`. `hinsight` core defines `Environment`, the handle
@@ -121,7 +123,7 @@ Each step ends with the verification practice used so far: formatted, linted,
 built with `-Werror`, pure tests run here, and the GHC and cabal parts run on
 your machine.
 
-**Step 0 — prior art (Standard 5.7).** Read `hie-bios`' cabal cradle and its
+**Step 0 — prior art (Standard 5.7). Done at changelog level; see `docs/prior-art.md`, classes 10 to 22.** The issue trackers could not be read from here, which that document says plainly. Read `hie-bios`' cabal cradle and its
 issue tracker, and the `ghcide` and `haskell-language-server` trackers, for how
 projects fail to load. Extend `docs/prior-art.md` with numbered classes, each
 with a named regression test, **before any code**. This also answers the open

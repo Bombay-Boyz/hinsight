@@ -144,6 +144,17 @@ labels are wanted. The tests pin one narratable rendering, so a Tadka release
 that rewords it fails a test instead of changing output unnoticed; the package
 bounds are `tadka >=2.0 && <2.1`.
 
+## 13. Environment capture is delegated to hie-bios, in a separate package
+
+Decided in step 0 of the project-environment phase
+(`docs/phase-environment.md`, `docs/prior-art.md` classes 10 to 22). Capturing a
+component's flags from cabal has needed a fix in `hie-bios` for nearly every
+cabal release, so `hinsight` does not write it. The dependency (about two dozen
+packages) sits in an adapter package, so `hinsight` core keeps its small
+dependency set and the handle `EnvironmentSource` stays open to other build
+tools. Status: **not yet built**; whether `hie-bios` builds against GHC 9.10.3 is
+unverified. Revisit if it does not.
+
 ## Checks that run on every push
 
 Build with `-Werror`, tests (including those that run a real GHC 9.10.3),
