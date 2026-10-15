@@ -1,11 +1,13 @@
 module HInsight.Tadka.AdapterSpec (spec) where
 
 import Control.Monad (void)
+import Data.Bifunctor (first)
 import Data.Maybe (isJust)
 import Data.Text qualified as T
 import HInsight.Analysis (emptyAnalysis)
 import HInsight.Analysis qualified as A
 import HInsight.Context (Context (..))
+import HInsight.Environment (mkComponentName, mkEnvironment, mkGhcFlag, mkProjectRoot, pinnedGhcVersion, summarise)
 import HInsight.Flow (FlowKind (..))
 import HInsight.Hole (Locality (..))
 import HInsight.Tadka
@@ -115,6 +117,15 @@ spec = describe "findings" $ do
     it "counts errors it did not explain, in the singular and the plural" $ do
       renderExtras emptyAnalysis {A.analysisUnexplained = 1} `shouldBe` "1 other error not explained by this version\n"
       renderExtras emptyAnalysis {A.analysisUnexplained = 2} `shouldBe` "2 other errors not explained by this version\n"
+    it "names the environment the analysis ran in" $ do
+      summary <- either (fail . show) pure $ do
+        component <- first show (mkComponentName "lib:one")
+        root <- first show (mkProjectRoot "/work/one")
+        flag <- first show (mkGhcFlag "-Werror")
+        env <- first show (mkEnvironment component root pinnedGhcVersion [flag])
+        pure (summarise env)
+      renderExtras emptyAnalysis {A.analysisEnvironment = Just summary}
+        `shouldBe` "environment: component lib:one, 1 flag; left out of the session: -Werror\n"
   where
     isResolved :: Td.LabelState -> Bool
     isResolved = \case

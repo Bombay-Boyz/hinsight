@@ -48,7 +48,20 @@ library
   exposed-modules:
     HInsight.Cabal
     HInsight.Cabal.Capture
+    HInsight.Cabal.Cli
     HInsight.Cabal.Project
+
+executable hinsight-cabal-demo
+  import:           warnings
+  ghc-options:      -hiedir=.hie/demo
+  hs-source-dirs:   app
+  main-is:          Main.hs
+  build-depends:
+    , base
+    , hinsight
+    , hinsight:hinsight-toolchain
+    , hinsight-cabal
+    , text
 
 test-suite hinsight-cabal-test
   import:           warnings
@@ -58,6 +71,7 @@ test-suite hinsight-cabal-test
   main-is:          Main.hs
   other-modules:
     HInsight.Cabal.CabalSpec
+    HInsight.Cabal.CliSpec
     HInsight.Cabal.CaptureSpec
     HInsight.Cabal.ProjectSpec
   build-depends:

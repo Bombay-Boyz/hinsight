@@ -7,12 +7,14 @@
 module HInsight.Report
   ( renderHoleReport,
     renderAnalysis,
+    renderEnvironmentSummary,
   )
 where
 
 import Data.Text (Text)
 import Data.Text qualified as T
 import HInsight.Analysis (Analysis (..))
+import HInsight.Environment (EnvironmentSummary, summaryComponent, summaryDropped, summaryFlagCount, unComponentName, unGhcFlag)
 import HInsight.Explanation (renderExplanation)
 import HInsight.Flow (renderPipeline)
 import HInsight.Graph (graphImportCount, renderGraph)
@@ -66,10 +68,12 @@ renderFit f =
 -- shown only when some module imports another. An analysis that found nothing
 -- says so rather than printing nothing.
 renderAnalysis :: Analysis -> Text
-renderAnalysis a
-  | null sections = "nothing to report: no type mismatches, typed holes or pipelines found\n"
-  | otherwise = T.intercalate "\n" sections
+renderAnalysis a = T.intercalate "\n" (findings <> environment)
   where
+    findings :: [Text]
+    findings
+      | null sections = ["nothing to report: no type mismatches, typed holes or pipelines found\n"]
+      | otherwise = sections
     sections :: [Text]
     sections =
       map renderExplanation (analysisMismatches a)
@@ -77,6 +81,27 @@ renderAnalysis a
         <> map renderPipeline (analysisFlows a)
         <> [renderGraph (analysisGraph a) | graphImportCount (analysisGraph a) > 0]
         <> unexplainedLine (analysisUnexplained a)
+    environment :: [Text]
+    environment = maybe [] (pure . renderEnvironmentSummary) (analysisEnvironment a)
+
+-- | One line naming the environment an analysis ran in, its flag count, and
+-- the flags that were left out of the session, ending in a newline.
+renderEnvironmentSummary :: EnvironmentSummary -> Text
+renderEnvironmentSummary s =
+  "environment: component "
+    <> unComponentName (summaryComponent s)
+    <> ", "
+    <> T.pack (show n)
+    <> (if n == 1 then " flag" else " flags")
+    <> leftOut
+    <> "\n"
+  where
+    n :: Int
+    n = summaryFlagCount s
+    leftOut :: Text
+    leftOut = case summaryDropped s of
+      [] -> ""
+      dropped -> "; left out of the session: " <> T.intercalate ", " (map unGhcFlag dropped)
 
 unexplainedLine :: Int -> [Text]
 unexplainedLine n

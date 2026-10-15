@@ -33,6 +33,12 @@ module HInsight.Environment
     environmentFlags,
     SessionFlags (..),
     sessionFlags,
+    EnvironmentSummary,
+    summarise,
+    summaryComponent,
+    summaryFlagCount,
+    summaryDropped,
+    EnvironmentSource (..),
   )
 where
 
@@ -40,7 +46,8 @@ import Data.List (intercalate, partition)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Read qualified as TR
-import HInsight.Error (DomainError (..), EnvironmentError (..))
+import HInsight.Error (DomainError (..), EnvironmentError (..), InsightError)
+import HInsight.Source (SourceFile)
 import System.FilePath (isAbsolute)
 
 -- | The name of a build component, such as @hinsight:lib:hinsight@. It is
@@ -210,3 +217,32 @@ changesDiagnostics (UnsafeGhcFlag t) =
     || "-Werror=" `T.isPrefixOf` t
     || t `elem` ["-fdefer-type-errors", "-fdefer-typed-holes", "-fdefer-out-of-scope-variables"]
     || t `elem` ["-fwrite-ide-info", "-fwrite-interface", "-fwrite-if-simplified-core"]
+
+-- | What an analysis reports about the environment it ran in: which component,
+-- how many flags it was compiled with, and which flags were left out of the
+-- session and why that matters (see 'sessionFlags'). Built only by
+-- 'summarise', so the count cannot disagree with the flags.
+data EnvironmentSummary = UnsafeEnvironmentSummary
+  { summaryComponent :: !ComponentName,
+    summaryFlagCount :: !Int,
+    summaryDropped :: ![GhcFlag]
+  }
+  deriving stock (Eq, Show)
+
+-- | Summarise an environment: its component, how many flags it holds, and the
+-- flags 'sessionFlags' leaves out.
+summarise :: Environment -> EnvironmentSummary
+summarise env =
+  UnsafeEnvironmentSummary
+    { summaryComponent = environmentComponent env,
+      summaryFlagCount = length (environmentFlags env),
+      summaryDropped = sessionDropped (sessionFlags env)
+    }
+
+-- | Where the environment of a file comes from: a build tool, a configuration
+-- file, or a fixed value in a test. Open by design (Standard 0.2): another
+-- consumer may supply stack or a custom build, so this is a record of
+-- functions, not a closed sum.
+newtype EnvironmentSource m = EnvironmentSource
+  { environmentFor :: SourceFile -> m (Either InsightError Environment)
+  }

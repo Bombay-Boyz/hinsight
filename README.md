@@ -106,8 +106,10 @@ See `hinsight-tadka/README.md` and `docs/decisions.md`, item 12.
 `hinsight-cabal/` is a third package. It asks cabal, through
 [hie-bios](https://hackage.haskell.org/package/hie-bios), how the component a
 file belongs to is compiled, and returns that as an `Environment` for
-`HInsight.Ghc.Session.ghcInsightIn`. It is not yet wired into the command line;
-see `docs/phase-environment.md`, step 3, and `docs/decisions.md`, item 13.
+`HInsight.Ghc.Session.ghcInsightIn`, or through the handle `ghcInsightWith`. Try
+it with `cabal run hinsight-cabal-demo -- src/HInsight/Environment.hs`. See
+`docs/phase-environment.md`, steps 3 and 4, and `docs/decisions.md`, items 13
+and 15.
 
 ## Use
 

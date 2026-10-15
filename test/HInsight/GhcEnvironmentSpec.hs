@@ -17,6 +17,9 @@ import HInsight.Environment
     mkGhcFlag,
     mkProjectRoot,
     pinnedGhcVersion,
+    summaryDropped,
+    summaryFlagCount,
+    unGhcFlag,
   )
 import HInsight.Ghc.Session (ghcInsightIn)
 import HInsight.Support (ok)
@@ -93,6 +96,10 @@ environmentSpec libDir = do
     strict <- environmentIn "test/fixtures/env/werror" ["-i.", "-Wall", "-Werror"] >>= \env -> analyseIn libDir env file >>= succeeded
     counts plain `shouldBe` (1, 0)
     counts strict `shouldBe` counts plain
+    -- What was left out is said, not lost.
+    fmap (map unGhcFlag . summaryDropped) (analysisEnvironment strict) `shouldBe` Just ["-Werror"]
+    fmap summaryFlagCount (analysisEnvironment plain) `shouldBe` Just 1
+    fmap summaryDropped (analysisEnvironment plain) `shouldBe` Just []
   it "templateHaskellInProjectModule: analyses a module that splices a project function" $ do
     env <- environmentIn "test/fixtures/env/th" ["-i."]
     a <- analyseIn libDir env "test/fixtures/env/th/UsesTh.hs" >>= succeeded

@@ -22,6 +22,7 @@
 -- 'HInsight.Error.CompilerMismatch'.
 module HInsight.Cabal
   ( cabalEnvironment,
+    cabalSource,
   )
 where
 
@@ -44,8 +45,9 @@ import HIE.Bios.Types
   )
 import HInsight.Cabal.Capture (Captured (..), renderCaptureFailure, toEnvironment)
 import HInsight.Cabal.Project (findProjectDir)
-import HInsight.Environment (Environment)
+import HInsight.Environment (Environment, EnvironmentSource (..))
 import HInsight.Error (EnvironmentError (..), InsightError (..))
+import HInsight.Source (sourceFilePath)
 import System.Directory (canonicalizePath)
 import System.FilePath ((</>))
 
@@ -60,6 +62,11 @@ cabalEnvironment file = do
       pure $ case attempt of
         Left (err :: IOException) -> Left (EnvironmentFailure (CaptureFailed (T.pack (show err))))
         Right result -> result >>= toEnvironment
+
+-- | 'cabalEnvironment' as an 'EnvironmentSource', for
+-- 'HInsight.Ghc.Session.ghcInsightWith'.
+cabalSource :: EnvironmentSource IO
+cabalSource = EnvironmentSource {environmentFor = cabalEnvironment . sourceFilePath}
 
 -- | Run cabal for the file's component and read the compiler's version.
 capture :: FilePath -> FilePath -> IO (Either InsightError Captured)

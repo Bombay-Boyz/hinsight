@@ -16,6 +16,7 @@ module HInsight.Analysis
   )
 where
 
+import HInsight.Environment (EnvironmentSummary)
 import HInsight.Error (InsightError)
 import HInsight.Explanation (Explanation)
 import HInsight.Flow (Pipeline)
@@ -39,13 +40,16 @@ data Analysis = Analysis
     analysisGraph :: !ProjectGraph,
     -- | How many other diagnostics GHC reported that this version does not
     -- explain (for example scope errors). Never negative.
-    analysisUnexplained :: !Int
+    analysisUnexplained :: !Int,
+    -- | The project environment the file was analysed in; 'Nothing' when its
+    -- place was worked out from its header instead.
+    analysisEnvironment :: !(Maybe EnvironmentSummary)
   }
   deriving stock (Eq, Show)
 
 -- | An analysis that found nothing.
 emptyAnalysis :: Analysis
-emptyAnalysis = Analysis [] [] [] emptyGraph 0
+emptyAnalysis = Analysis [] [] [] emptyGraph 0 Nothing
 
 -- | The capability to analyse a file, over an effect @m@.
 newtype Insight m = Insight

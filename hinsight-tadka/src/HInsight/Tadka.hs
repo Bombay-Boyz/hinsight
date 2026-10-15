@@ -29,6 +29,7 @@ import HInsight.Flow (FlowKind (..), Pipeline, Stage (..), pipelineContext, pipe
 import HInsight.Graph (graphImportCount, renderGraph)
 import HInsight.Hole (HoleFit (..), HoleReport (..), Locality (..))
 import HInsight.Identifier (unIdentifier)
+import HInsight.Report (renderEnvironmentSummary)
 import HInsight.Source (Span, positionColumn, positionLine, spanEnd, spanStart, unColumn, unLine)
 import HInsight.Tadka.Locate (offsetsOf)
 import HInsight.TypeText (TypeText, unTypeText)
@@ -128,12 +129,15 @@ findings src a =
         traverse (pipelineFinding src) (analysisFlows a)
       ]
 
--- | The parts of an analysis that are not diagnostics: the module graph and
--- the count of errors hinsight did not explain, as plain lines. Empty when
+-- | The parts of an analysis that are not diagnostics: the module graph, the
+-- count of errors hinsight did not explain, and the environment it ran in, as
+-- plain lines. Empty when
 -- there is nothing to say.
 renderExtras :: Analysis -> Text
-renderExtras a = T.concat (graph <> unexplained)
+renderExtras a = T.concat (graph <> unexplained <> environment)
   where
+    environment :: [Text]
+    environment = maybe [] (pure . renderEnvironmentSummary) (analysisEnvironment a)
     graph :: [Text]
     graph = [renderGraph (analysisGraph a) | graphImportCount (analysisGraph a) > 0]
     unexplained :: [Text]
