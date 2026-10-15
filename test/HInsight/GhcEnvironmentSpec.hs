@@ -82,10 +82,11 @@ environmentSpec libDir = do
     result `shouldSatisfy` \case
       Left (EnvironmentFailure (FlagRejected why)) -> "max-relevant-binds" `T.isInfixOf` why
       _ -> False
-  it "reports an argument GHC takes for a file name as a typed error" $ do
-    env <- environmentIn "test/fixtures/env/ext" ["-i.", "Elsewhere.hs"]
-    result <- analyseIn libDir env "test/fixtures/env/ext/NeedsExt.hs"
-    result `shouldBe` Left (EnvironmentFailure (UnrecognisedArguments ["Elsewhere.hs"]))
+  it "leaves out the targets a build tool lists after the flags" $ do
+    let file = "test/fixtures/env/ext/NeedsExt.hs"
+    env <- environmentIn "test/fixtures/env/ext" ["-i.", "-XLambdaCase", "NeedsExt", "Elsewhere.hs"]
+    a <- analyseIn libDir env file >>= succeeded
+    counts a `shouldBe` (1, 0)
   it "projectWerrorKeepsErrorCount: a project -Werror changes no count" $ do
     let file = "test/fixtures/env/werror/Werror.hs"
     plain <- environmentIn "test/fixtures/env/werror" ["-i."] >>= \env -> analyseIn libDir env file >>= succeeded

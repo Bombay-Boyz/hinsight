@@ -1,6 +1,7 @@
 packages:
   .
   hinsight-tadka
+  hinsight-cabal
 tests: True
 benchmarks: True
 with-compiler: ghc-9.10.3
@@ -14,5 +15,9 @@ package hinsight
   ghc-options: -fwrite-ide-info
 
 package hinsight-tadka
+  flags: +werror
+  ghc-options: -fwrite-ide-info
+
+package hinsight-cabal
   flags: +werror
   ghc-options: -fwrite-ide-info

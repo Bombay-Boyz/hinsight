@@ -37,7 +37,8 @@ jobs:
             dist-newstyle
             .hie
             hinsight-tadka/.hie
-          key: ${{ runner.os }}-ghc-${{ env.GHC_VERSION }}-${{ hashFiles('hinsight.cabal', 'hinsight-tadka/hinsight-tadka.cabal', 'cabal.project', 'cabal.project.freeze') }}
+            hinsight-cabal/.hie
+          key: ${{ runner.os }}-ghc-${{ env.GHC_VERSION }}-${{ hashFiles('hinsight.cabal', 'hinsight-tadka/hinsight-tadka.cabal', 'hinsight-cabal/hinsight-cabal.cabal', 'cabal.project', 'cabal.project.freeze') }}
           restore-keys: ${{ runner.os }}-ghc-${{ env.GHC_VERSION }}-
 
       - name: Build with warnings as errors
@@ -76,10 +77,10 @@ jobs:
         run: |
           # With no .hie files weeder finds nothing and passes, which would
           # hide dead code. A fully cached build can leave none behind.
-          for dir in .hie hinsight-tadka/.hie; do
+          for dir in .hie hinsight-tadka/.hie hinsight-cabal/.hie; do
             test "$(find "$dir" -name '*.hie' | wc -l)" -gt 0 || { echo "no .hie files in $dir: nothing for weeder to read"; exit 1; }
           done
-          "$HOME/.local/bin/weeder" --hie-directory .hie --hie-directory hinsight-tadka/.hie
+          "$HOME/.local/bin/weeder" --hie-directory .hie --hie-directory hinsight-tadka/.hie --hie-directory hinsight-cabal/.hie
 
   lint:
     name: lint and format
@@ -98,10 +99,10 @@ jobs:
           echo "$HOME/tools" >> "$GITHUB_PATH"
 
       - name: HLint (bans from the engineering standard are errors)
-        run: hlint src test bench app toolchain hinsight-tadka
+        run: hlint src test bench app toolchain hinsight-tadka hinsight-cabal
 
       - name: "Ormolu (fixtures excluded because their line numbers are asserted)"
-        run: ormolu --mode check $(find src test bench app toolchain hinsight-tadka -name '*.hs' -not -path 'test/fixtures/*')
+        run: ormolu --mode check $(find src test bench app toolchain hinsight-tadka hinsight-cabal -name '*.hs' -not -path 'test/fixtures/*')
 
   independence:
     name: package independence

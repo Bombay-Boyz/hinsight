@@ -161,14 +161,17 @@ data SessionFlags = SessionFlags
   }
   deriving stock (Eq, Show)
 
--- | The arguments for a session. Two kinds of flag are left out, and reported
+-- | The arguments for a session. Three kinds of flag are left out, and reported
 -- in 'sessionDropped' rather than lost, because they would change what the
--- analysis sees:
+-- analysis sees or write into the project:
 --
 -- * @-Werror@ and @-Werror=...@, which turn warnings into errors and so change
 --   which errors there are to explain;
 -- * @-fdefer-type-errors@, @-fdefer-typed-holes@ and
---   @-fdefer-out-of-scope-variables@, which hide the errors that are explained.
+--   @-fdefer-out-of-scope-variables@, which hide the errors that are explained;
+-- * @-fwrite-ide-info@, @-fwrite-interface@ and @-fwrite-if-simplified-core@,
+--   which make GHC write files into the project's build folders (prior-art
+--   class 11), where an analysis must leave nothing behind.
 --
 -- The arguments start with @-package-env=-@ after the working directory, so a
 -- @.ghc.environment@ file in the directory the process runs in cannot add
@@ -199,9 +202,11 @@ sessionFlags env =
     kept, dropped :: [GhcFlag]
     (dropped, kept) = partition changesDiagnostics (environmentFlags env)
 
--- | Whether a flag would change which errors GHC reports.
+-- | Whether a flag would change which errors GHC reports, or make it write
+-- files.
 changesDiagnostics :: GhcFlag -> Bool
 changesDiagnostics (UnsafeGhcFlag t) =
   t == "-Werror"
     || "-Werror=" `T.isPrefixOf` t
     || t `elem` ["-fdefer-type-errors", "-fdefer-typed-holes", "-fdefer-out-of-scope-variables"]
+    || t `elem` ["-fwrite-ide-info", "-fwrite-interface", "-fwrite-if-simplified-core"]
