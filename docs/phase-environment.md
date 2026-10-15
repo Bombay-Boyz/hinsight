@@ -197,10 +197,40 @@ a function from it; `enableCodeGenForTH` in `GHC.Driver.Make.load` should give
 module, which hinsight's two-step load may not arrange. If the test fails, the
 fix is to be chosen from its message, not guessed.
 
-**Step 3 — the cabal adapter.** The separate package. Fixture projects with
-real `.cabal` files: one component; library plus tests; a file in no component;
-a plan from another compiler. Tests are reported pending, not passed, when
-`cabal` is missing, as the GHC tests already are.
+**Step 3 — the cabal adapter. Written; unverified until built.** The package
+`hinsight-cabal` (module `HInsight.Cabal`, `cabalEnvironment :: FilePath -> IO
+(Either InsightError Environment)`). It finds the project the way cabal does
+(`HInsight.Cabal.Project`: nearest `cabal.project`, else nearest `.cabal`),
+builds a cabal cradle for it with `hie-bios`, and asks for the file's component
+flags (`LoadFile`) and the compiler's version. The build folder it gives cabal
+is `hie-bios`'s own cache, kept after the call: a first real run showed that the
+flags name package databases inside it, so a cache deleted after capture breaks
+the analysis that follows (`can't find a package database`). `hie-bios` locks
+that cache, so simultaneous calls are safe. `HInsight.Cabal.Capture` turns that into an `Environment` and is pure:
+it refuses another compiler, drops empty arguments, and names the component by
+its `-this-unit-id`. A `hie.yaml` and stack are not consulted in this version.
+Core changes with it: `EnvironmentError` gains `NoCabalProject` and
+`CaptureFailed`; `sessionFlags` also drops `-fwrite-ide-info`,
+`-fwrite-interface` and `-fwrite-if-simplified-core`, which would make GHC write
+into the project's build folders (class 11); and `applyEnvironment` leaves out
+the targets cabal lists after a component's flags (arguments GHC leaves over
+that do not start with a dash), while a leftover that does start with a dash is
+still an unknown flag.
+
+Tests, with cabal projects written into temporary folders: the pure capture
+(`otherCompilerIsRefused` and others), the project finder (`spaceInPathAnalyses`,
+`symlinkedFileAnalyses`, `nestedProjectUsesInnerCabalFile`), and, when `cabal`
+and GHC 9.10.3 are found, real captures: the component's root, extensions and
+name; an end-to-end analysis with the captured flags; `editedCabalFileIsSeen`;
+`captureLeavesProjectBuildAlone`; `twoAnalysesAtOnce`. Not written: a file in
+no component or in two (class 12), a custom `Setup` on an old Cabal (class 10),
+`dotGhciDoesNotChangeFlags` (class 15), `generatedModuleMissingIsUnexplained`
+(class 17). What `hie-bios` does for those is not known from its source, so
+they wait for a real run to show it.
+
+**Unverified, and the first thing to check:** that `hie-bios` 0.21 builds against
+GHC 9.10.3 here, that cabal's flags (which include `-package-id` and similar)
+are accepted by the session, and that `-this-unit-id` is among them.
 
 **Step 4 — wire it through.** CLI and demo options, the environment summary in
 reports, and the Tadka demo. Acceptance: `hinsight-demo --environment cabal`

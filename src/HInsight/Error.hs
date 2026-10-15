@@ -122,10 +122,14 @@ data EnvironmentError
   | -- | GHC refused a flag of the environment, for example one with a value it
     -- cannot read. The field is GHC's message, on one line.
     FlagRejected Text
-  | -- | GHC did not take some of the environment's arguments for flags: a flag
-    -- it does not know, or a file name. They were not applied. The field lists
-    -- them.
+  | -- | GHC does not know some of the environment's flags, so they were not
+    -- applied. The field lists them.
     UnrecognisedArguments [Text]
+  | -- | No cabal project was found above the file. The field is the file.
+    NoCabalProject FilePath
+  | -- | Cabal, or the tool that asks it for a component's flags, failed. The
+    -- field is what it reported, on one line.
+    CaptureFailed Text
   deriving stock (Eq, Show)
 
 -- | A message that names the specific thing that failed and where.
@@ -188,4 +192,7 @@ renderEnvironmentError = \case
       <> expected
   FlagRejected why -> "GHC refused a flag of the project environment: " <> why
   UnrecognisedArguments args ->
-    "GHC did not recognise these arguments of the project environment as flags: " <> T.intercalate " " args
+    "GHC does not know these flags of the project environment: " <> T.intercalate " " args
+  NoCabalProject file ->
+    "no cabal.project or .cabal file was found above " <> T.pack file
+  CaptureFailed why -> "asking cabal for the project's compiler flags failed: " <> why

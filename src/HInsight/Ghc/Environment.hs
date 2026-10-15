@@ -4,9 +4,8 @@
 --
 -- The pure side ("HInsight.Environment") decides which arguments a session
 -- may be given; this module hands them to GHC's own flag parser, so every flag
--- means exactly what it means to @ghc@. A flag GHC refuses, or an argument it
--- takes for a file name, is a typed error rather than something silently
--- ignored: a session that quietly lacks an extension would report errors the
+-- means exactly what it means to @ghc@. A flag GHC refuses or does not know is
+-- a typed error rather than something silently ignored: a session that quietly lacks an extension would report errors the
 -- project's own build never has.
 module HInsight.Ghc.Environment
   ( applyEnvironment,
@@ -25,7 +24,9 @@ import HInsight.Error (EnvironmentError (..))
 -- | The flags with the environment's arguments applied.
 --
 -- GHC's warnings about the flags (for example a deprecated one) are not
--- reported: the analysis explains errors, and a flag that works is not one.
+-- reported: the analysis explains errors, and a flag that works is not one. A
+-- flag GHC does not know comes back from its parser as a leftover, not as an
+-- exception, and is reported as 'UnrecognisedArguments'.
 applyEnvironment :: Environment -> DynFlags -> Ghc (Either EnvironmentError DynFlags)
 applyEnvironment env flags = do
   logger <- getLogger
@@ -33,8 +34,11 @@ applyEnvironment env flags = do
   pure $ case parsed of
     Left (thrown :: GhcException) -> Left (FlagRejected (oneLine (show thrown)))
     Right (updated, leftovers, _warnings)
-      | null leftovers -> Right updated
-      | otherwise -> Left (UnrecognisedArguments (map (T.pack . unLoc) leftovers))
+      | null unknown -> Right updated
+      | otherwise -> Left (UnrecognisedArguments unknown)
+      where
+        unknown :: [T.Text]
+        unknown = filter ("-" `T.isPrefixOf`) (map (T.pack . unLoc) leftovers)
   where
     arguments :: [Located String]
     arguments = map (noLoc . T.unpack . unGhcFlag) (sessionArguments (sessionFlags env))

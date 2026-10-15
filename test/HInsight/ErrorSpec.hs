@@ -50,10 +50,14 @@ spec = describe "renderError" $ do
     t `shouldSatisfy` T.isInfixOf "ghc-9.10.3"
   it "names the flag GHC refused, through the top-level renderer" $
     rendered (EnvironmentFailure (FlagRejected "unknown flag: -fnope")) `shouldSatisfy` T.isInfixOf "-fnope"
-  it "names every argument GHC did not take for a flag" $ do
-    let t = rendered (EnvironmentFailure (UnrecognisedArguments ["Foo.hs", "bar"]))
-    t `shouldSatisfy` T.isInfixOf "Foo.hs"
-    t `shouldSatisfy` T.isInfixOf "bar"
+  it "names the file with no cabal project above it" $
+    rendered (EnvironmentFailure (NoCabalProject "/work/Lone.hs")) `shouldSatisfy` T.isInfixOf "/work/Lone.hs"
+  it "carries what cabal reported" $
+    rendered (EnvironmentFailure (CaptureFailed "cabal: no such component")) `shouldSatisfy` T.isInfixOf "no such component"
+  it "names every flag GHC does not know" $ do
+    let t = rendered (EnvironmentFailure (UnrecognisedArguments ["-fnope", "-fnada"]))
+    t `shouldSatisfy` T.isInfixOf "-fnope"
+    t `shouldSatisfy` T.isInfixOf "-fnada"
   prop "always names the path it was given" $ \p ->
     T.pack p `T.isInfixOf` rendered (SessionFailure (SourceFileNotFound p))
   prop "always names the offending number" $ \n ->

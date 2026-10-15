@@ -152,8 +152,10 @@ component's flags from cabal has needed a fix in `hie-bios` for nearly every
 cabal release, so `hinsight` does not write it. The dependency (about two dozen
 packages) sits in an adapter package, so `hinsight` core keeps its small
 dependency set and the handle `EnvironmentSource` stays open to other build
-tools. Status: **not yet built**; whether `hie-bios` builds against GHC 9.10.3 is
-unverified. Revisit if it does not.
+tools. Status: the package `hinsight-cabal` is written (step 3); whether
+`hie-bios` builds against GHC 9.10.3 is verified only when it is first built.
+Revisit if it does not. Only a cabal project is understood: the project is
+found by cabal's own rule and a `hie.yaml` or stack project is not consulted.
 
 ## 14. Environment flags go through GHC's own parser, and ours are applied last
 

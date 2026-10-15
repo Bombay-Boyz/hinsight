@@ -25,7 +25,7 @@ genFlagText :: Gen Text
 genFlagText =
   frequency
     [ (3, elements ["-Wall", "-Wwarn", "-Wno-error=unused-imports", "-XLambdaCase", "-i.", "-package-db", "/store/package.db", "-fno-defer-type-errors", "-Werror-like", "-O2"]),
-      (2, elements ["-Werror", "-Werror=incomplete-patterns", "-fdefer-type-errors", "-fdefer-typed-holes", "-fdefer-out-of-scope-variables"])
+      (2, elements ["-Werror", "-Werror=incomplete-patterns", "-fdefer-type-errors", "-fdefer-typed-holes", "-fdefer-out-of-scope-variables", "-fwrite-ide-info", "-fwrite-interface"])
     ]
 
 spec :: Spec
@@ -108,6 +108,11 @@ spec = describe "HInsight.Environment" $ do
       let result = sessionFlags env
       map unGhcFlag (sessionDropped result) `shouldBe` ["-fdefer-type-errors", "-fdefer-typed-holes", "-fdefer-out-of-scope-variables"]
       map unGhcFlag (drop 3 (sessionArguments result)) `shouldBe` ["-fno-defer-type-errors"]
+    it "drops the flags that make GHC write files into the project" $ do
+      env <- environmentWith ["-fwrite-ide-info", "-fwrite-interface", "-fwrite-if-simplified-core", "-fno-write-ide-info", "-hiedir=.hie"]
+      let result = sessionFlags env
+      map unGhcFlag (sessionDropped result) `shouldBe` ["-fwrite-ide-info", "-fwrite-interface", "-fwrite-if-simplified-core"]
+      map unGhcFlag (drop 3 (sessionArguments result)) `shouldBe` ["-fno-write-ide-info", "-hiedir=.hie"]
     it "does not treat a similar flag as -Werror" $ do
       env <- environmentWith ["-Werror-like", "-Wno-error=unused-imports"]
       sessionDropped (sessionFlags env) `shouldBe` []
@@ -130,7 +135,7 @@ spec = describe "HInsight.Environment" $ do
         let kept = map unGhcFlag (drop 3 (sessionArguments (sessionFlags env)))
         second <- environmentWith kept
         pure
-          ( all (`notElem` ["-Werror", "-fdefer-type-errors", "-fdefer-typed-holes", "-fdefer-out-of-scope-variables"]) kept
+          ( all (`notElem` droppedTexts) kept
               .&&. not (any (T.isPrefixOf "-Werror=") kept)
               .&&. null (sessionDropped (sessionFlags second))
           )
@@ -141,4 +146,4 @@ spec = describe "HInsight.Environment" $ do
         pure (kept === filter (`notElem` droppedTexts) texts)
   where
     droppedTexts :: [Text]
-    droppedTexts = ["-Werror", "-Werror=incomplete-patterns", "-fdefer-type-errors", "-fdefer-typed-holes", "-fdefer-out-of-scope-variables"]
+    droppedTexts = ["-Werror", "-Werror=incomplete-patterns", "-fdefer-type-errors", "-fdefer-typed-holes", "-fdefer-out-of-scope-variables", "-fwrite-ide-info", "-fwrite-interface", "-fwrite-if-simplified-core"]
