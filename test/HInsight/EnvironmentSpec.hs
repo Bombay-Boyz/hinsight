@@ -94,6 +94,18 @@ spec = describe "HInsight.Environment" $ do
           root <- ok (mkProjectRoot "/r")
           version <- ok (mkGhcVersion parts)
           pure (either (const True) (const False) (mkEnvironment component root version []))
+  describe "summarise" $ do
+    it "names the component, counts the flags and lists those left out of the session" $ do
+      env <- environmentWith ["-Wall", "-Werror", "-fwrite-ide-info", "-XLambdaCase"]
+      let s = summarise env
+      unComponentName (summaryComponent s) `shouldBe` "pkg:lib:pkg"
+      summaryFlagCount s `shouldBe` 4
+      map unGhcFlag (summaryDropped s) `shouldBe` ["-Werror", "-fwrite-ide-info"]
+    prop "counts every flag and leaves out exactly what sessionFlags does" $
+      forAll (listOf genFlagText) $ \texts -> ioProperty $ do
+        env <- environmentWith texts
+        let s = summarise env
+        pure (summaryFlagCount s === length texts .&&. summaryDropped s === sessionDropped (sessionFlags env))
   describe "sessionFlags" $ do
     it "starts with the working directory, written with GHC's own flag, then ignores environment files" $ do
       env <- environmentWith ["-XLambdaCase"]

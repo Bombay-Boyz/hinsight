@@ -170,6 +170,17 @@ flags. `-Werror` and the `-fdefer-*` flags are dropped (and reported by
 the GHC-facing parts are written from the 9.10.3 source and verified only when
 the real-GHC tests run.
 
+## 15. The environment handle is in core; the cabal demo is in the adapter
+
+Decided in step 4 of the project-environment phase. `EnvironmentSource` is a
+record of functions in `HInsight.Environment` (open axis, Standard 0.2), with a
+consumer (`ghcInsightWith`) and a producer (`cabalSource`) in the same change
+(Standard 0.7). The demo that takes `--environment cabal|header` is an
+executable of `hinsight-cabal`, because the dependency points inward (2.6):
+core cannot depend on the adapter. An analysis carries a summary of its
+environment (`analysisEnvironment`), including the flags left out of the
+session, so a report never hides that `-Werror` or a defer flag was ignored.
+
 ## Checks that run on every push
 
 Build with `-Werror`, tests (including those that run a real GHC 9.10.3),

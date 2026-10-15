@@ -9,7 +9,18 @@ import HInsight.Cabal (cabalEnvironment)
 env <- cabalEnvironment "src/Foo.hs"   -- Either InsightError Environment
 ```
 
-The result is applied with `HInsight.Ghc.Session.ghcInsightIn`. The project
+Or let hinsight ask for each file's environment itself:
+
+```haskell
+import HInsight.Cabal (cabalSource)
+import HInsight.Ghc.Session (ghcInsightWith)
+
+analyseFile (ghcInsightWith libDir cabalSource) file
+```
+
+Try it with `cabal run hinsight-cabal-demo -- [--environment cabal|header] FILE.hs`.
+
+The result of `cabalEnvironment` is applied with `HInsight.Ghc.Session.ghcInsightIn`. The project
 must pin GHC 9.10.3 (`with-compiler: ghc-9.10.3` in `cabal.project`); a plan
 built by another compiler is reported as `CompilerMismatch`. Each call runs
 cabal afresh, in its own cache folder, and prints nothing.

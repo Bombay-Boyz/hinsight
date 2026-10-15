@@ -197,7 +197,7 @@ a function from it; `enableCodeGenForTH` in `GHC.Driver.Make.load` should give
 module, which hinsight's two-step load may not arrange. If the test fails, the
 fix is to be chosen from its message, not guessed.
 
-**Step 3 — the cabal adapter. Written; unverified until built.** The package
+**Step 3 — the cabal adapter. Done and verified on real cabal and GHC.** The package
 `hinsight-cabal` (module `HInsight.Cabal`, `cabalEnvironment :: FilePath -> IO
 (Either InsightError Environment)`). It finds the project the way cabal does
 (`HInsight.Cabal.Project`: nearest `cabal.project`, else nearest `.cabal`),
@@ -232,10 +232,37 @@ they wait for a real run to show it.
 GHC 9.10.3 here, that cabal's flags (which include `-package-id` and similar)
 are accepted by the session, and that `-this-unit-id` is among them.
 
-**Step 4 — wire it through.** CLI and demo options, the environment summary in
-reports, and the Tadka demo. Acceptance: `hinsight-demo --environment cabal`
-on `hinsight`'s own modules, and on the `hinsight-tadka` package, which imports
-`tadka` and `prettyprinter` from outside the project.
+**Step 4 — wire it through. Written; the acceptance runs below are still to be
+done by hand.**
+- The handle `EnvironmentSource m` (`environmentFor :: SourceFile -> m (Either
+  InsightError Environment)`) is in `HInsight.Environment`. Its consumer is
+  `HInsight.Ghc.Session.ghcInsightWith`, which checks the file exists, asks the
+  source, then analyses in the result; its producer is `HInsight.Cabal.cabalSource`.
+- `Analysis` gains `analysisEnvironment :: Maybe EnvironmentSummary` (component,
+  flag count, and the flags left out of the session). `Nothing` means the
+  file's place was worked out from its header. `renderAnalysis` and the Tadka
+  `renderExtras` print one line from it, so what was dropped is said, not lost.
+- The demo with `--environment cabal|header` is `hinsight-cabal-demo`, in
+  `hinsight-cabal`. The plan said `hinsight-demo`, but that executable is in
+  core, and core must not depend on the adapter that depends on it. The core
+  `hinsight-demo` and `hinsight-tadka-demo` are unchanged and stay on the
+  header placement; the Tadka demo prints the environment line only when an
+  analysis has one. Giving it `--environment` would make `hinsight-tadka`
+  depend on `hie-bios`, which is left undone.
+
+Acceptance, run by hand from the repository root (each takes cabal's time on
+the first run, because the dependencies are built into `hie-bios`'s cache):
+
+```
+cabal run hinsight-cabal-demo -- src/HInsight/Environment.hs
+cabal run hinsight-cabal-demo -- hinsight-tadka/src/HInsight/Tadka.hs
+cabal run hinsight-cabal-demo -- --environment header hinsight-tadka/src/HInsight/Tadka.hs
+```
+
+The first two should report nothing but the environment line (and a module
+graph, if the module imports project modules). The third should fail with an
+unexplained error, because `tadka` is not installed globally: that difference is
+what the environment is for.
 
 **Step 5 — cost and a baseline.** Benchmark the environment capture, which is
 a process start and will likely be seconds, and report it beside the existing

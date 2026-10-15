@@ -21,6 +21,7 @@
 module HInsight.Ghc.Session
   ( ghcInsight,
     ghcInsightIn,
+    ghcInsightWith,
   )
 where
 
@@ -82,7 +83,7 @@ import GHC.Utils.Outputable (ppr, (<+>))
 import GHC.Utils.Panic (GhcException)
 import HInsight.Analysis (Analysis (..), Insight (..))
 import HInsight.Config (LibDir, libDirPath)
-import HInsight.Environment (Environment)
+import HInsight.Environment (Environment, EnvironmentSource (..), EnvironmentSummary, summarise)
 import HInsight.Error (EnvironmentError, InsightError (..), SessionError (..))
 import HInsight.Flow (Pipeline)
 import HInsight.Ghc.Bindings (Binding, collectBindings)
@@ -132,6 +133,16 @@ ghcInsight dir = Insight {analyseFile = analyse dir FromHeader}
 ghcInsightIn :: LibDir -> Environment -> Insight IO
 ghcInsightIn dir env = Insight {analyseFile = analyse dir (FromEnvironment env)}
 
+-- | The GHC-backed implementation of 'Insight' that asks a source for the
+-- environment of each file, then analyses the file in it. The file's existence
+-- is checked first, so a missing file is reported as such and not as a failure
+-- of the source.
+ghcInsightWith :: LibDir -> EnvironmentSource IO -> Insight IO
+ghcInsightWith dir source = Insight {analyseFile = \file -> preflight dir file >>= maybe (inEnvironment file) (pure . Left . SessionFailure)}
+  where
+    inEnvironment :: SourceFile -> IO (Either InsightError Analysis)
+    inEnvironment file = environmentFor source file >>= either (pure . Left) (\env -> analyseFile (ghcInsightIn dir env) file)
+
 analyse :: LibDir -> Placement -> SourceFile -> IO (Either InsightError Analysis)
 analyse dir placement file = do
   failure <- preflight dir file
@@ -169,7 +180,7 @@ runOnce dir placement file = do
   logged <- newIORef []
   outcome <- runGhc (Just (libDirPath dir)) (typecheck placement sink logged path)
   captured <- readIORef sink
-  evaluate (assemble path outcome captured)
+  evaluate (assemble path (summaryOf placement) outcome captured)
   where
     path :: FilePath
     path = sourceFilePath file
@@ -360,12 +371,18 @@ isError env = case errMsgSeverity env of
   SevError -> True
   _ -> False
 
+-- | What the analysis says about the environment it ran in.
+summaryOf :: Placement -> Maybe EnvironmentSummary
+summaryOf FromHeader = Nothing
+summaryOf (FromEnvironment env) = Just (summarise env)
+
 assemble ::
   FilePath ->
+  Maybe EnvironmentSummary ->
   Either InsightError Outcome ->
   [CapturedHole] ->
   Either InsightError Analysis
-assemble path outcome captured = do
+assemble path environment outcome captured = do
   found <- outcome
   combine
     <$> extractMessages path (outcomeBindings found) (outcomeErrors found)
@@ -380,7 +397,8 @@ assemble path outcome captured = do
           analysisHoles = holes,
           analysisFlows = flows,
           analysisGraph = graph,
-          analysisUnexplained = extractedUnexplained extracted + unseen extracted holes
+          analysisUnexplained = extractedUnexplained extracted + unseen extracted holes,
+          analysisEnvironment = environment
         }
 
 -- | Typed holes GHC reported that the hole-fit plugin never saw. They are

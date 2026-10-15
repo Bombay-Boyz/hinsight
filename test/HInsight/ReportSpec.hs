@@ -2,6 +2,7 @@ module HInsight.ReportSpec (spec) where
 
 import Data.Text qualified as T
 import HInsight.Analysis (Analysis (..), emptyAnalysis)
+import HInsight.Environment (EnvironmentSummary, mkComponentName, mkEnvironment, mkGhcFlag, mkProjectRoot, pinnedGhcVersion, summarise)
 import HInsight.Graph (mkModuleName, mkProjectGraph)
 import HInsight.Hole
 import HInsight.Identifier (mkIdentifier)
@@ -12,6 +13,13 @@ import HInsight.TypeText (mkTypeText)
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck
+
+environmentSummary :: [T.Text] -> IO EnvironmentSummary
+environmentSummary flags = do
+  component <- ok (mkComponentName "lib:sample")
+  root <- ok (mkProjectRoot "/work/sample")
+  parsed <- traverse (ok . mkGhcFlag) flags
+  summarise <$> ok (mkEnvironment component root pinnedGhcVersion parsed)
 
 holeAt :: [HoleFit] -> IO HoleReport
 holeAt fits = do
@@ -78,6 +86,17 @@ spec = do
       g <- ok (mkProjectGraph [(a, [b]), (b, [])])
       renderAnalysis emptyAnalysis {analysisGraph = g}
         `shouldBe` "module graph: 2 modules, 1 import\n  B\n  A  imports B\n"
+    it "names the environment after the findings, with what was left out of the session" $ do
+      s <- environmentSummary ["-XLambdaCase", "-Werror", "-fwrite-ide-info"]
+      renderAnalysis emptyAnalysis {analysisEnvironment = Just s}
+        `shouldBe` T.unlines
+          [ "nothing to report: no type mismatches, typed holes or pipelines found",
+            "",
+            "environment: component lib:sample, 3 flags; left out of the session: -Werror, -fwrite-ide-info"
+          ]
+    it "uses the singular for one flag and says nothing about flags that were all kept" $ do
+      s <- environmentSummary ["-XLambdaCase"]
+      renderEnvironmentSummary s `shouldBe` "environment: component lib:sample, 1 flag\n"
     it "separates sections with a blank line" $ do
       h <- holeAt []
       let out = renderAnalysis emptyAnalysis {analysisHoles = [h, h]}

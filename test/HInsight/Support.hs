@@ -29,6 +29,7 @@ where
 import Data.Text qualified as T
 import HInsight.Analysis (Analysis (..))
 import HInsight.Context
+import HInsight.Environment (EnvironmentSummary, mkComponentName, mkEnvironment, mkGhcFlag, mkProjectRoot, pinnedGhcVersion, summarise)
 import HInsight.Explanation
 import HInsight.Flow
 import HInsight.Graph
@@ -128,6 +129,14 @@ genProjectGraph = do
   entries <- traverse (\m -> (,) m <$> sublistOf names) names
   maybe (pure emptyGraph) pure (rightToMaybe (mkProjectGraph entries))
 
+-- | An environment summary with one flag that is left out of the session.
+sampleSummary :: Maybe EnvironmentSummary
+sampleSummary = do
+  component <- rightToMaybe (mkComponentName "lib:sample")
+  root <- rightToMaybe (mkProjectRoot "/work/sample")
+  flags <- traverse (rightToMaybe . mkGhcFlag) ["-XLambdaCase", "-Werror"]
+  summarise <$> rightToMaybe (mkEnvironment component root pinnedGhcVersion flags)
+
 genAnalysis :: Gen Analysis
 genAnalysis =
   Analysis
@@ -136,3 +145,4 @@ genAnalysis =
     <*> resize 3 (listOf genPipeline)
     <*> genProjectGraph
     <*> chooseInt (0, 4)
+    <*> oneof [pure Nothing, pure sampleSummary]
