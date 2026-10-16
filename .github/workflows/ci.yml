@@ -49,9 +49,11 @@ jobs:
 
       # The ranking benchmark is compared with the plain sort it wraps, so
       # this threshold holds on any machine: fail if ranking is more than 100%
-      # slower than sorting the same list.
+      # slower than sorting the same list. Only the core package's benchmark
+      # runs here; the environment-cost benchmark starts cabal processes and is
+      # run by hand (docs/phase-environment.md, step 5).
       - name: Benchmarks
-        run: cabal bench --benchmark-options='--stdev 20 --fail-if-slower 100'
+        run: cabal bench hinsight-bench --benchmark-options='--stdev 20 --fail-if-slower 100'
 
       # Weeder fails the build on any dead code. Its first report was empty
       # and a deliberately unused function was reported, so it can be trusted.

@@ -86,3 +86,19 @@ test-suite hinsight-cabal-test
     , QuickCheck  >=2.14 && <2.16
     , temporary
     , text
+
+benchmark hinsight-cabal-bench
+  import:           warnings
+  ghc-options:      -hiedir=.hie/bench
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   bench
+  main-is:          Main.hs
+  build-depends:
+    , base
+    , deepseq      >=1.4 && <1.7
+    , directory
+    , hinsight
+    , hinsight:hinsight-toolchain
+    , hinsight-cabal
+    , tasty-bench  >=0.3 && <0.5
+    , text

@@ -270,12 +270,30 @@ because the header placement does not know the project's default extensions.
 That is a stronger demonstration than the missing package I predicted, and it
 is what the environment is for.
 
-**Step 5 — cost and a baseline.** Benchmark the environment capture, which is
-a process start and will likely be seconds, and report it beside the existing
-analysis benchmarks. The ratio-based CI threshold stays the only enforced one;
-a stored absolute baseline needs a fixed runner, which does not exist (decisions
-item 6). Whether a long-lived session is now worth its stale-state bugs is
-judged from these numbers, not before.
+**Step 5 — cost and a baseline. Written; numbers still to be measured by hand.**
+`hinsight-cabal-bench` (a benchmark of the adapter package) times, on
+`src/HInsight/Cabal/Capture.hs`, which imports the package's own modules:
+capturing the environment with the cache warm; analysing in an environment that
+was captured beforehand; and both together (`ghcInsightWith`). None is
+thresholded, and the benchmark is not part of CI: every capture starts a cabal
+process, and an absolute time needs a fixed runner (decisions item 6). CI's
+benchmark step now names the core benchmark only.
+
+Run it with `cabal bench hinsight-cabal-bench --benchmark-options='--stdev 100'`
+(the loose target keeps a seconds-long operation from being repeated for
+minutes). The first capture of a project is not in these numbers: it builds the
+project's dependencies into `hie-bios`'s cache. Measure it once, with a cache
+folder of its own, cold and then warm:
+
+```
+export HIE_BIOS_CACHE_DIR=$(mktemp -d)
+time cabal run hinsight-cabal-demo -- hinsight-cabal/src/HInsight/Cabal/Capture.hs   # cold
+time cabal run hinsight-cabal-demo -- hinsight-cabal/src/HInsight/Cabal/Capture.hs   # warm
+unset HIE_BIOS_CACHE_DIR
+```
+
+Whether a long-lived session is now worth its stale-state bugs is judged from
+these numbers, not before. The recorded baseline goes below, once measured.
 
 **Step 6 — documentation.** `docs/decisions.md` gets the entries for 3.1 to 3.3;
 the README status loses "packages are not resolved" only once step 4's
