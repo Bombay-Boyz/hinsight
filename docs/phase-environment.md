@@ -1,6 +1,7 @@
 # Next phase: the project environment (package resolution)
 
-Status: **planned, not started.** Nothing in this document is built. It follows
+Status: **closed.** Steps 0 to 5 are built and were checked on real cabal and
+GHC 9.10.3; step 6 is this record. It follows
 the engineering standard: prior art first (5.7), one canonical representation
 (2.1), effects behind a handle (0.5), and a named test for every claim (5.5).
 
@@ -319,20 +320,29 @@ such as an editor. It is not built: a single command-line analysis does not need
 it, and a cache adds stale-state bugs (prior-art class 20) that nothing yet
 demands (Standard 0.7).
 
-**Step 6 — documentation.** `docs/decisions.md` gets the entries for 3.1 to 3.3;
-the README status loses "packages are not resolved" only once step 4's
-acceptance runs pass.
+**Step 6 — documentation. Done.** `docs/decisions.md` has items 13 to 15 for
+3.1 to 3.3 and the wiring; the README status describes cabal mode and its cost;
+`docs/prior-art.md` lists the failure classes. Not built, on purpose: an
+environment cache keyed on `componentDependencies` (step 5), `hie.yaml` and
+stack, a file in no component or in two, a custom `Setup` on an old Cabal.
+Each of those is a decision for when something demands it.
 
 ## 5. Acceptance, in one list
 
-1. `hinsight` analyses its own modules.
-2. `hinsight-tadka`'s modules analyse with `tadka` resolved from the cabal store.
-3. A plan from a different compiler is a typed error, not a wrong answer.
-4. A project `-Werror` does not change the count of unexplained errors.
-5. Nothing is printed by GHC or cabal during an analysis; their output is kept
-   and reported as data.
-6. `weeder`, `hlint`, `ormolu` and `-Werror` stay green, with every new export
-   used.
+Results, each with how it was checked:
+
+1. **Met.** `hinsight` analyses its own modules: step 4's first run, and the
+   dogfood test in `GhcEnvironmentSpec`.
+2. **Met.** `hinsight-tadka`'s modules analyse with `tadka` and `prettyprinter`
+   resolved from the cabal store: step 4's second run.
+3. **Met by test.** `otherCompilerIsRefused` checks that another compiler is a
+   typed `CompilerMismatch`. It has not been run against a real plan built by
+   GHC 9.14.1.
+4. **Met.** `projectWerrorKeepsErrorCount` (real GHC).
+5. **Observed, not tested.** No stray GHC or cabal output appeared in the
+   acceptance runs; there is no automated test of it.
+6. **Confirmed by CI on the push that carries this record.** Every export added
+   in the phase has a user (weeder was green when each step was pushed).
 
 ## 6. Risks
 

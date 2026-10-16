@@ -185,6 +185,18 @@ core cannot depend on the adapter. An analysis carries a summary of its
 environment (`analysisEnvironment`), including the flags left out of the
 session, so a report never hides that `-Werror` or a defer flag was ignored.
 
+## 16. `hinsight` presents what GHC and its tools say, and never infers
+
+Decided after reading GHC 9.10.3's source for the next phase
+(`docs/feasibility.md`). Formatting, filtering, ordering and parsing the output
+of GHC and of existing tools is presentation and is in scope. Reconstructing a
+cause, ranking by a measure of our own, or completing what a tool left out is
+not, and neither is writing edit machinery that an existing tool already
+provides. Where a piece cannot be read, the result is a typed refusal that
+carries the raw output. Features whose only source would be our own theory
+(space-leak findings) are dropped; features whose source is unconfirmed wait
+for a spike.
+
 ## Checks that run on every push
 
 Build with `-Werror`, tests (including those that run a real GHC 9.10.3),
