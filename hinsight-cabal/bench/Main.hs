@@ -11,10 +11,12 @@
 -- * both together, which is what an analysis through 'ghcInsightWith' costs.
 --
 -- Every capture starts a @cabal@ process, so each is timed only a few times.
--- This benchmark is not part of CI's benchmark step, which runs only the core
--- package's. Run it with:
+-- tasty-bench measures the CPU time of this process by default, which leaves
+-- out the @cabal@ process it waits for (a first run showed a capture at 5 ms),
+-- so the time is set to wall-clock. This benchmark is not part of CI's
+-- benchmark step, which runs only the core package's. Run it with:
 --
--- > cabal bench hinsight-cabal-bench --benchmark-options='--stdev 100'
+-- > cabal bench hinsight-cabal-bench --benchmark-options='--stdev 100 --time-mode wall'
 --
 -- The first capture of a project builds its dependencies into the build tool's
 -- cache and is far slower than the ones timed here; it is measured by hand, as
