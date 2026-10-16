@@ -60,7 +60,11 @@ imports). CI fails when `rankFits` is more than 100% slower than the sort it
 wraps; that ratio holds on any machine. The rendering and analysis timings are
 printed but have no threshold, because their absolute times depend on the
 machine; a threshold needs a stored baseline from a fixed runner, which does not
-exist yet. The analysis benchmarks are skipped when no GHC 9.10.3 is found.
+exist yet. The analysis benchmarks are skipped when no GHC 9.10.3 is found. The cost of
+capturing a project environment is a separate benchmark in `hinsight-cabal`
+(`hinsight-cabal-bench`); it is reported, not thresholded, and not run in CI
+because each capture starts a cabal process. CI's benchmark step names
+`hinsight-bench`.
 The library-directory lookup used to be written three times (demo, tests,
 benchmark); a fourth copy was due with the Tadka demo, so it now lives in the
 public sub-library `hinsight-toolchain` (`HInsight.Toolchain`). An empty
