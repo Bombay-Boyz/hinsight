@@ -53,8 +53,10 @@ Early. Read this before relying on it.
   `(>>=)` only: not `(.) f g`, backticks, other operators, or a user's own
   definitions of these names. Its integration test runs against GHC 9.10.3;
   see `docs/decisions.md`, item 10.
-- It does not trace the constraint solver. GHC does not expose solver steps;
-  the explanation is built from the mismatch GHC records.
+- It does not show how the constraint solver reached a mismatch. GHC exposes
+  no structured solver steps; the explanation is built from the mismatch GHC
+  records. Whether GHC's own text trace can be presented is not decided;
+  `docs/feasibility.md` says what is known and what is not.
 
 ## Build and test
 
