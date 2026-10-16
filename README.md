@@ -40,10 +40,12 @@ Early. Read this before relying on it.
   project: the source folder is worked out from the file's module header and
   place, and those modules are typechecked first. A dependency that does not
   compile is reported as such and the file is not analysed against it.
-  Packages are not resolved: imports from outside the project must be
-  installed. The phase that resolves them is planned in
-  `docs/phase-environment.md`. Each analysis starts a fresh GHC session, so it is correct but
-  not fast; see `docs/decisions.md`, item 1.
+  By default packages are not resolved: imports from outside the project must
+  be installed. With a cabal project they are: `hinsight-cabal` asks cabal how
+  the file's component is compiled (its extensions, flags and packages) and the
+  analysis runs in that environment; the report says which flags were left out
+  of the session (`docs/phase-environment.md`). Each analysis starts a fresh
+  GHC session, so it is correct but not fast; see `docs/decisions.md`, item 1.
 - Type flow reads the typechecked program. For a file with errors it
   typechecks again with type errors, typed holes and out-of-scope variables
   deferred, so a chain next to an error is still shown; errors GHC cannot

@@ -232,8 +232,7 @@ they wait for a real run to show it.
 GHC 9.10.3 here, that cabal's flags (which include `-package-id` and similar)
 are accepted by the session, and that `-this-unit-id` is among them.
 
-**Step 4 — wire it through. Written; the acceptance runs below are still to be
-done by hand.**
+**Step 4 — wire it through. Done; acceptance run by hand on real cabal and GHC.**
 - The handle `EnvironmentSource m` (`environmentFor :: SourceFile -> m (Either
   InsightError Environment)`) is in `HInsight.Environment`. Its consumer is
   `HInsight.Ghc.Session.ghcInsightWith`, which checks the file exists, asks the
@@ -259,10 +258,17 @@ cabal run hinsight-cabal-demo -- hinsight-tadka/src/HInsight/Tadka.hs
 cabal run hinsight-cabal-demo -- --environment header hinsight-tadka/src/HInsight/Tadka.hs
 ```
 
-The first two should report nothing but the environment line (and a module
-graph, if the module imports project modules). The third should fail with an
-unexplained error, because `tadka` is not installed globally: that difference is
-what the environment is for.
+Result. The first run analysed `src/HInsight/Environment.hs` in component
+`hinsight-0.1.0.0-inplace` (91 flags; `-Werror` and `-fwrite-ide-info` left out)
+and showed its type flow and a three-module graph. The second analysed
+`hinsight-tadka/src/HInsight/Tadka.hs` in `hinsight-tadka-0.1.0.0-inplace` (67
+flags), resolving `tadka` and `prettyprinter` from the cabal store and the
+inplace `hinsight` package from `hie-bios`'s cache, and showed its type flow and
+a two-module graph. The third, with `--environment header`, failed before it got
+to the packages: `Illegal \case ... Perhaps you intended to use LambdaCase`,
+because the header placement does not know the project's default extensions.
+That is a stronger demonstration than the missing package I predicted, and it
+is what the environment is for.
 
 **Step 5 — cost and a baseline.** Benchmark the environment capture, which is
 a process start and will likely be seconds, and report it beside the existing
