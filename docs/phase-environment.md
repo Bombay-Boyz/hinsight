@@ -270,7 +270,7 @@ because the header placement does not know the project's default extensions.
 That is a stronger demonstration than the missing package I predicted, and it
 is what the environment is for.
 
-**Step 5 — cost and a baseline. Written; numbers still to be measured by hand.**
+**Step 5 — cost and a baseline. Done; measured on one development machine.**
 `hinsight-cabal-bench` (a benchmark of the adapter package) times, on
 `src/HInsight/Cabal/Capture.hs`, which imports the package's own modules:
 capturing the environment with the cache warm; analysing in an environment that
@@ -279,9 +279,11 @@ thresholded, and the benchmark is not part of CI: every capture starts a cabal
 process, and an absolute time needs a fixed runner (decisions item 6). CI's
 benchmark step now names the core benchmark only.
 
-Run it with `cabal bench hinsight-cabal-bench --benchmark-options='--stdev 100'`
-(the loose target keeps a seconds-long operation from being repeated for
-minutes). The first capture of a project is not in these numbers: it builds the
+Run it with `cabal bench hinsight-cabal-bench --benchmark-options='--stdev 100
+--time-mode wall'` (the loose target keeps a seconds-long operation from being
+repeated for minutes; the wall-clock mode is essential, because tasty-bench's
+default CPU time leaves out the cabal process: a first run reported a capture at
+5 ms). The first capture of a project is not in these numbers: it builds the
 project's dependencies into `hie-bios`'s cache. Measure it once, with a cache
 folder of its own, cold and then warm:
 
@@ -293,7 +295,29 @@ unset HIE_BIOS_CACHE_DIR
 ```
 
 Whether a long-lived session is now worth its stale-state bugs is judged from
-these numbers, not before. The recorded baseline goes below, once measured.
+these numbers, not before.
+
+Baseline (one development machine, Linux, GHC 9.10.3; not thresholded, and a
+different machine will differ):
+
+| What | Wall time |
+|---|---|
+| Capture the environment, cache warm | about 470 ms (±19) |
+| Analyse in an environment captured beforehand | about 78 ms (±44) |
+| Capture and analyse (`ghcInsightWith`) | about 555 ms (±7) |
+| First run on an empty cache (`hinsight-cabal-demo`, whole process) | 14.1 s |
+| Second run, cache warm (`hinsight-cabal-demo`, whole process, including `cabal run`) | 0.87 s |
+
+What this says. A capture is about 85% of the cost of analysing one file in an
+environment, and the analysis itself, in a fresh GHC session, is under 100 ms.
+So a long-lived GHC session would save little: the cost to cut is the capture,
+which is repeated for every file though it only changes when the `.cabal` file
+or `cabal.project` does (the dependencies `hie-bios` reports as
+`componentDependencies`, which this version discards). An environment cache keyed
+on those files is the change that would matter to something analysing many files,
+such as an editor. It is not built: a single command-line analysis does not need
+it, and a cache adds stale-state bugs (prior-art class 20) that nothing yet
+demands (Standard 0.7).
 
 **Step 6 — documentation.** `docs/decisions.md` gets the entries for 3.1 to 3.3;
 the README status loses "packages are not resolved" only once step 4's
