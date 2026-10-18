@@ -103,3 +103,47 @@ Not done here. For anyone able to open them: in `haskell/hie-bios` and
 not find module", "response file", "Werror", "Template Haskell", "hs-boot",
 "cabal repl", "builddir", "ghc-options" and "with-compiler". Add anything that
 is not one of classes 10 to 22 to this table with a named test.
+
+## Explanation phase: reading what GHC says (Standard 5.7)
+
+Scope: the failure classes of tools that read GHC's diagnostics and debug
+output, reviewed before `hinsight` adds typed evidence, unification chains,
+splice expansion and Core dumps (`docs/phase-explanation.md`). Numbering is
+local to this section (E1 onward).
+
+**What was read, and the limit.** Read in full: the GHC 9.10 user guide section
+on debugging flags; the Well-Typed article on the new diagnostic
+infrastructure; haskell-language-server issue 2014 (moving to structured
+diagnostics); GHC ticket 14097 (`-ddump-json` with `-ddump-to-file`, 2017,
+GHC 8.2.1, so it may since have been fixed). GHC's own issue tracker refuses
+automated requests, so no ticket there was read; classes that would rest on it
+are marked *(experience)* or *(spike)*, the latter meaning observed on GHC
+9.10.3 in `docs/feasibility.md`. No other tool's tracker was reviewed.
+
+| # | Failure class | Source | Mitigation in `hinsight` | Regression test to add |
+|---|---|---|---|---|
+| E1 | Debug-output formats carry no stability promise; the user guide says nothing about them, and a line of an unexpected shape breaks a reader | user guide (read); spike | The trace reader is pure and total. A line it does not recognise becomes a `Raw` step with its text; nothing is dropped and nothing throws | Feed unrecognised and truncated lines: every input line appears in the output, in order |
+| E2 | Diagnostics not yet ported to typed form arrive wrapped as unknown messages with only rendered text | Well-Typed article (read) | They are counted as unexplained and carry GHC's own rendering | A wrapped unknown message is counted once in the invariant |
+| E3 | Constructors of the typed diagnostic types change between GHC versions | Well-Typed article (read); HLS 2014 (read) | One GHC version at a time; matching ends in a catch-all that counts the error as unexplained, never as lost | The count invariant holds over every fixture; a version bump re-runs the golden fixtures |
+| E4 | A hint GHC attaches is not one `hinsight` models | Well-Typed article (read) | Closed suggestion sum for the hints it models, plus GHC's rendering for the rest (open decision 2 in the plan) | A hint constructor not in the sum is kept with its rendering, not discarded |
+| E5 | The destination of dump output differs from what the flags suggest; with `-ddump-json` the output went to standard output because the dump prefix was lost | GHC ticket 14097 (read, 2017) | Splice text comes through the log hook, not files; Core dumps go to a directory `hinsight` creates | Nothing is written to standard output or the working directory by any deep analysis |
+| E6 | Dump files and interface files are left behind when the analysis fails part way | *(experience)* | The temporary directory is created and removed with `bracket` | Inject an exception during a Core run: the directory is gone |
+| E7 | `-dppr-debug` is session-wide and changes how every later message prints | user guide (read); spike | Set only in the second, trace-only pass | Errors from the first pass read identically with and without the deep analysis |
+| E8 | Trace volume grows with the module; one binding can produce thousands of records | spike | Records are filtered to the binding with the error and counted; past a limit the result is `TraceLimitExceeded` | A generated binding larger than the limit returns the typed error, not a truncated chain |
+| E9 | Some records carry no source span (2.5% in the spike), and multi-line records are split by the log hook | spike | Unlocated records are never attributed to a line; they are counted as unlocated | A trace with unlocated records reports their number and does not place them |
+| E10 | Changing flags after the load retraces every dependency | spike | The second pass sets flags, then analyses only the target | The trace of a file with a large dependency contains no records for the dependency |
+| E11 | Declaration splices and nested splices may print differently from expression splices | *(experience)*, unverified | The splice spike is extended to both before the reader is written (step 6) | One fixture each for declaration, nested and failing splices |
+| E12 | Core, rule and specialisation dumps need interface files or object code written to disk, which can touch the project tree | spike | Output directed to the temporary directory only | The project folder is byte-identical before and after a Core run |
+| E13 | Non-ASCII identifiers and GHC's Unicode quotes in rendered text | *(experience)* | Text is carried as `Text` throughout; no `String` round trip through a locale-dependent handle | A fixture with a non-ASCII identifier produces the same text on a machine with a plain locale |
+
+## What this decides
+
+- The reader of GHC's trace has to be total: unknown input is kept as raw text.
+  This is E1 and E9 together, and it is the main reason the reader is a pure
+  module with its own tests.
+- E5 and E6 mean the splice path uses no files and the Core path uses a
+  directory that is always removed.
+- E7 and E10 mean the deep passes are separate from the standard analysis. This
+  agrees with the plan's choice of a separate handle.
+- Still owed: a review of the other tools' trackers, and of GHC's tracker once
+  it can be read.
