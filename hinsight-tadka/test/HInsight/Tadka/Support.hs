@@ -12,6 +12,7 @@ module HInsight.Tadka.Support
     mismatchAt,
     signedAt,
     holeAt,
+    instanceAt,
     pipelineAt,
     analysisOf,
     narrate,
@@ -27,6 +28,7 @@ import HInsight.Explanation (Explanation (..), mkDivergence)
 import HInsight.Flow (FlowKind (..), Pipeline, Stage (..), mkPipeline, mkStageText)
 import HInsight.Hole (HoleFit (..), HoleReport (..), Locality (..), mkRefinementLevel)
 import HInsight.Identifier (Identifier, mkIdentifier)
+import HInsight.Instance (UnresolvedInstance (..), mkInstanceText)
 import HInsight.Source (Span, mkColumn, mkLine, mkPosition, mkSpan)
 import HInsight.Tadka (Finding, namedSource)
 import HInsight.TypeText (TypeText, mkTypeText)
@@ -75,6 +77,13 @@ holeAt sp wanted fits = do
     mkFit :: (Text, Text, Int, Locality) -> IO HoleFit
     mkFit (n, t, level, locality) =
       HoleFit <$> ident n <*> ty t <*> ok (mkRefinementLevel level) <*> pure locality <*> pure []
+
+-- | An unresolved constraint at a span, with the instances GHC lists for it.
+instanceAt :: Span -> Text -> [Text] -> Context -> IO UnresolvedInstance
+instanceAt sp constraint potential ctx = do
+  c <- ty constraint
+  ps <- traverse (ok . mkInstanceText) potential
+  pure (UnresolvedInstance sp c ps ctx)
 
 pipelineAt :: Span -> FlowKind -> [(Text, Text)] -> Text -> Context -> IO Pipeline
 pipelineAt sp kind stages whole ctx = do

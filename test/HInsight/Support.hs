@@ -18,6 +18,8 @@ module HInsight.Support
     genDivergence,
     genContext,
     genExplanation,
+    genInstanceText,
+    genUnresolvedInstance,
     genHoleReport,
     genStage,
     genPipeline,
@@ -35,6 +37,7 @@ import HInsight.Flow
 import HInsight.Graph
 import HInsight.Hole
 import HInsight.Identifier
+import HInsight.Instance
 import HInsight.Source
 import HInsight.TypeText
 import Test.QuickCheck
@@ -98,6 +101,17 @@ genExplanation =
     <*> oneof [pure Nothing, Just <$> genDivergence]
     <*> genContext
 
+genInstanceText :: Gen InstanceText
+genInstanceText = suchThatMap (T.pack <$> listOf1 (elements "abcXYZ ->[]()")) (rightToMaybe . mkInstanceText)
+
+genUnresolvedInstance :: Gen UnresolvedInstance
+genUnresolvedInstance =
+  UnresolvedInstance
+    <$> genSpan
+    <*> genTypeText
+    <*> resize 9 (listOf genInstanceText)
+    <*> genContext
+
 genHoleReport :: Gen HoleReport
 genHoleReport =
   HoleReport
@@ -141,6 +155,7 @@ genAnalysis :: Gen Analysis
 genAnalysis =
   Analysis
     <$> resize 3 (listOf genExplanation)
+    <*> resize 3 (listOf genUnresolvedInstance)
     <*> resize 3 (listOf genHoleReport)
     <*> resize 3 (listOf genPipeline)
     <*> genProjectGraph

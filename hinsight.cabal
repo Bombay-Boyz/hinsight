@@ -69,6 +69,7 @@ library
     HInsight.Graph
     HInsight.Hole
     HInsight.Identifier
+    HInsight.Instance
     HInsight.Project
     HInsight.Report
     HInsight.Source
@@ -131,6 +132,7 @@ test-suite hinsight-test
     HInsight.GhcSessionSpec
     HInsight.HoleSpec
     HInsight.IdentifierSpec
+    HInsight.InstanceSpec
     HInsight.ProjectSpec
     HInsight.ReportSpec
     HInsight.SourceSpec

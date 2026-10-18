@@ -24,6 +24,7 @@ import HInsight.Hole
     Locality (..),
   )
 import HInsight.Identifier (unIdentifier)
+import HInsight.Instance (renderUnresolvedInstance)
 import HInsight.Source (renderPosition, spanStart)
 import HInsight.TypeText (unTypeText)
 
@@ -77,6 +78,7 @@ renderAnalysis a = T.intercalate "\n" (findings <> environment)
     sections :: [Text]
     sections =
       map renderExplanation (analysisMismatches a)
+        <> map renderUnresolvedInstance (analysisInstances a)
         <> map renderHoleReport (analysisHoles a)
         <> map renderPipeline (analysisFlows a)
         <> [renderGraph (analysisGraph a) | graphImportCount (analysisGraph a) > 0]

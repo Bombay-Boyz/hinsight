@@ -57,6 +57,14 @@ spec = describe "findings" $ do
   it "reports a mismatch and a hole as errors and a pipeline as advice" $ do
     sevs <- traverse (fmap Td.severity) [mismatchFinding, holeFinding, pipelineFinding]
     sevs `shouldBe` [Td.SevError, Td.SevError, Td.SevAdvice]
+  it "draws an unresolved constraint as an error with its own code" $ do
+    src <- sourceOf "k = length 5\n"
+    sp <- span' (1, 5) (1, 11)
+    u <- instanceAt sp "Foldable t0" ["instance Foldable Maybe"] OutsideBinding
+    f <- oneOf src emptyAnalysis {A.analysisInstances = [u]}
+    fmap Td.unDiagnosticCode (Td.code f) `shouldBe` Just "hinsight::E0004"
+    Td.severity f `shouldBe` Td.SevError
+    narrate f `shouldSatisfy` T.isInfixOf "Foldable t0"
   it "marks the expression and the signature of a signed binding" $ do
     f <- mismatchFinding
     length (Td.contextLabelStates (Td.context f)) `shouldBe` 2

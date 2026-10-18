@@ -11,6 +11,7 @@ import HInsight.GhcSessionSpec qualified
 import HInsight.GraphSpec qualified
 import HInsight.HoleSpec qualified
 import HInsight.IdentifierSpec qualified
+import HInsight.InstanceSpec qualified
 import HInsight.ProjectSpec qualified
 import HInsight.ReportSpec qualified
 import HInsight.SourceSpec qualified
@@ -25,6 +26,7 @@ main = hspec $ do
   HInsight.GraphSpec.spec
   HInsight.HoleSpec.spec
   HInsight.IdentifierSpec.spec
+  HInsight.InstanceSpec.spec
   HInsight.ProjectSpec.spec
   HInsight.ErrorSpec.spec
   HInsight.ReportSpec.spec

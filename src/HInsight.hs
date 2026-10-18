@@ -43,6 +43,10 @@ module HInsight
     mkIdentifier,
     unIdentifier,
     renderExplanation,
+    UnresolvedInstance (..),
+    InstanceText,
+    unInstanceText,
+    renderUnresolvedInstance,
     HoleReport (..),
     HoleFit (..),
     rankFits,
@@ -63,4 +67,5 @@ import HInsight.Flow (FlowKind (..), Pipeline, Stage (..), StageText, pipelineCo
 import HInsight.Graph (ModuleName, ProjectGraph, dependencyOrder, graphImportCount, graphModules, importCycles, importsOf, renderGraph, unModuleName)
 import HInsight.Hole (HoleFit (..), HoleReport (..), rankFits)
 import HInsight.Identifier (Identifier, mkIdentifier, unIdentifier)
+import HInsight.Instance (InstanceText, UnresolvedInstance (..), renderUnresolvedInstance, unInstanceText)
 import HInsight.Source (SourceFile, mkSourceFile, sourceFilePath)

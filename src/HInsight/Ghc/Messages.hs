@@ -5,15 +5,19 @@
 -- Works on the structured diagnostics GHC 9.10 puts in a 'SourceError', not on
 -- rendered text. Only mismatches that carry GHC's expected/actual information
 -- are explained, whether GHC reports them as a plain mismatch or as one that
--- involves a rigid type variable; every other error is counted, never dropped
--- silently. A real typed hole is reported through the hole-fit plugin instead,
--- and is tallied here so the caller can check that the plugin saw it.
+-- involves a rigid type variable. A class constraint GHC could not solve is
+-- reported with the instances GHC lists for it. Every other error is counted,
+-- never dropped silently. A real typed hole is reported through the hole-fit
+-- plugin instead, and is tallied here so the caller can check that the plugin
+-- saw it.
 module HInsight.Ghc.Messages
   ( Extracted (..),
     extractMessages,
   )
 where
 
+import Data.Text qualified as T
+import GHC.Core.InstEnv (ClsInst)
 import GHC.Core.Type (Type)
 import GHC.Driver.Errors.Types (GhcMessage (..))
 import GHC.Tc.Errors.Types
@@ -24,6 +28,7 @@ import GHC.Tc.Errors.Types
     TcRnMessage (..),
     TcRnMessageDetailed (..),
     TcSolverReportMsg (..),
+    errorItemPred,
   )
 import GHC.Types.Error (MsgEnvelope (..))
 import GHC.Types.SrcLoc (RealSrcSpan, SrcSpan (..))
@@ -35,15 +40,17 @@ import HInsight.Explanation
     mkDivergence,
   )
 import HInsight.Ghc.Bindings (Binding, contextAt)
-import HInsight.Ghc.Convert (convertSpan, convertText, renderUser)
+import HInsight.Ghc.Convert (convertSpan, convertText, fromDomain, renderUser)
+import HInsight.Instance (UnresolvedInstance (..), mkInstanceText)
 import HInsight.Source (Span)
 import HInsight.TypeText (TypeText)
 
--- | The explained mismatches, the number of errors left unexplained, and the
--- number of typed-hole errors GHC reported (which the hole-fit plugin is
--- expected to have seen).
+-- | The explained mismatches, the unresolved class constraints, the number of
+-- errors left unexplained, and the number of typed-hole errors GHC reported
+-- (which the hole-fit plugin is expected to have seen).
 data Extracted = Extracted
   { extractedMismatches :: ![Explanation],
+    extractedInstances :: ![UnresolvedInstance],
     extractedUnexplained :: !Int,
     extractedHoleDiagnostics :: !Int
   }
@@ -52,6 +59,8 @@ data Extracted = Extracted
 -- | What became of one diagnostic.
 data Classified
   = Explained Explanation
+  | -- | A class constraint GHC could not solve.
+    Unresolved UnresolvedInstance
   | -- | A typed hole or wildcard: its fits come through the hole-fit plugin.
     HoleDiagnostic
   | Unexplained
@@ -75,6 +84,7 @@ tally :: [Classified] -> Extracted
 tally cs =
   Extracted
     { extractedMismatches = [e | Explained e <- cs],
+      extractedInstances = [u | Unresolved u <- cs],
       extractedUnexplained = length [() | Unexplained <- cs],
       extractedHoleDiagnostics = length [() | HoleDiagnostic <- cs]
     }
@@ -85,11 +95,28 @@ classify file bindings env = case typecheckerMessage (errMsgDiagnostic env) of
     ReportHoleError _ holeError -> Right (classifyHole holeError)
     Mismatch {mismatchMsg = mm} -> mismatch mm
     CannotUnifyVariable {mismatchMsg = mm} -> mismatch mm
+    CannotResolveInstance {cannotResolve_item = item, cannotResolve_unifiers = unifiers} ->
+      unresolved file bindings (errMsgSpan env) (errorItemPred item) unifiers
     _ -> Right Unexplained
   _ -> Right Unexplained
   where
     mismatch :: MismatchMsg -> Either InsightError Classified
     mismatch = maybe (Right Unexplained) (explain file bindings (errMsgSpan env)) . mismatchParts
+
+-- | A class constraint GHC could not solve, with the instances GHC lists as
+-- potentially matching it.
+unresolved :: FilePath -> [Binding] -> SrcSpan -> Type -> [ClsInst] -> Either InsightError Classified
+unresolved file bindings loc predicate unifiers = case loc of
+  RealSrcSpan rs _ -> Unresolved <$> buildInstance file bindings rs predicate unifiers
+  UnhelpfulSpan _ -> Right Unexplained
+
+buildInstance :: FilePath -> [Binding] -> RealSrcSpan -> Type -> [ClsInst] -> Either InsightError UnresolvedInstance
+buildInstance file bindings rs predicate unifiers =
+  UnresolvedInstance
+    <$> convertSpan file rs
+    <*> convertText file (renderUser predicate)
+    <*> traverse (fromDomain file . mkInstanceText . T.pack . renderUser) unifiers
+    <*> contextAt file bindings rs
 
 -- | GHC reports an out-of-scope variable as a hole error too, but it is not a
 -- typed hole and the plugin never sees it, so it is an unexplained error.

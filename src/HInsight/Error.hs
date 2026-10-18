@@ -52,7 +52,7 @@ data DomainError
     SpanEndsBeforeStart Int Int Int Int
   | -- | A rendered type or identifier was empty or only whitespace. Raised by
     -- 'HInsight.TypeText.mkTypeText' and 'HInsight.Identifier.mkIdentifier' and
-    -- 'HInsight.Flow.mkStageText' and 'HInsight.Graph.mkModuleName'; the field names
+    -- 'HInsight.Flow.mkStageText' and 'HInsight.Graph.mkModuleName' and 'HInsight.Instance.mkInstanceText'; the field names
     -- which input it was.
     BlankText Text
   | -- | A divergence between two identical types was requested. Raised by

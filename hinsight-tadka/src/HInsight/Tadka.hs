@@ -29,6 +29,7 @@ import HInsight.Flow (FlowKind (..), Pipeline, Stage (..), pipelineContext, pipe
 import HInsight.Graph (graphImportCount, renderGraph)
 import HInsight.Hole (HoleFit (..), HoleReport (..), Locality (..))
 import HInsight.Identifier (unIdentifier)
+import HInsight.Instance (InstanceText, UnresolvedInstance (..), shownCandidates, unInstanceText)
 import HInsight.Report (renderEnvironmentSummary)
 import HInsight.Source (Span, positionColumn, positionLine, spanEnd, spanStart, unColumn, unLine)
 import HInsight.Tadka.Locate (offsetsOf)
@@ -68,6 +69,7 @@ namedSource path text = case Td.mkNamedSource (T.pack path) text of
 -- | What a finding reports. The kind decides its code and severity.
 data FindingKind
   = MismatchKind
+  | UnresolvedInstanceKind
   | HoleKind
   | PipelineKind
   deriving stock (Eq, Show, Enum, Bounded)
@@ -109,22 +111,25 @@ kindCode kind = either (const Nothing) Just (Td.mkDiagnosticCode text)
       MismatchKind -> "hinsight::E0001"
       HoleKind -> "hinsight::E0002"
       PipelineKind -> "hinsight::E0003"
+      UnresolvedInstanceKind -> "hinsight::E0004"
 
 -- | GHC rejects a module with a mismatch or a hole; a pipeline is only shown.
 kindSeverity :: FindingKind -> Td.Severity
 kindSeverity = \case
   MismatchKind -> Td.SevError
+  UnresolvedInstanceKind -> Td.SevError
   HoleKind -> Td.SevError
   PipelineKind -> Td.SevAdvice
 
--- | Every finding of an analysis, mismatches first, then holes, then
--- pipelines, each group in the order hinsight gave it. The text must be the
+-- | Every finding of an analysis, mismatches first, then unresolved
+-- constraints, then holes, then pipelines, each group in the order hinsight gave it. The text must be the
 -- text GHC read. Fails on the first span that is not a position of it.
 findings :: Td.NamedSource -> Analysis -> Either AdaptError [Finding]
 findings src a =
   concat
     <$> sequence
       [ traverse (mismatchFinding src) (analysisMismatches a),
+        traverse (instanceFinding src) (analysisInstances a),
         traverse (holeFinding src) (analysisHoles a),
         traverse (pipelineFinding src) (analysisFlows a)
       ]
@@ -161,6 +166,26 @@ mismatchFinding src e = do
         findingHelp = nonEmptyDocs (maybe [] divergenceNote (explanationDivergence e) <> unsignedNote (explanationContext e)),
         findingNotes = []
       }
+
+instanceFinding :: Td.NamedSource -> UnresolvedInstance -> Either AdaptError Finding
+instanceFinding src u = do
+  primary <- label src Td.Primary (unresolvedSpan u) ("GHC could not solve" <+> typeDoc (unresolvedConstraint u))
+  context <- contextWith src primary (unresolvedContext u)
+  case shownCandidates u of
+    (shown, omitted) ->
+      pure
+        Finding
+          { findingKind = UnresolvedInstanceKind,
+            findingMessage = "unresolved constraint" <+> typeDoc (unresolvedConstraint u),
+            findingContext = context,
+            findingHelp = Just (candidatesHeading (unresolvedPotential u)),
+            findingNotes = map (textDoc . unInstanceText) shown <> [pretty ("and " <> T.pack (show omitted) <> " more") | omitted > 0]
+          }
+
+candidatesHeading :: [InstanceText] -> Doc Td.Ann
+candidatesHeading = \case
+  [] -> "GHC lists no potentially matching instances"
+  instances -> "potentially matching instances (" <> pretty (length instances) <> ")"
 
 holeFinding :: Td.NamedSource -> HoleReport -> Either AdaptError Finding
 holeFinding src h = do

@@ -22,12 +22,16 @@ import HInsight.Explanation (Explanation)
 import HInsight.Flow (Pipeline)
 import HInsight.Graph (ProjectGraph, emptyGraph)
 import HInsight.Hole (HoleReport)
+import HInsight.Instance (UnresolvedInstance)
 import HInsight.Source (SourceFile)
 
 -- | Everything found in one file.
 data Analysis = Analysis
   { -- | Type mismatches GHC reported, each explained.
     analysisMismatches :: ![Explanation],
+    -- | Class constraints GHC could not solve, each with the instances GHC
+    -- lists for it.
+    analysisInstances :: ![UnresolvedInstance],
     -- | Typed holes with their ranked fits.
     analysisHoles :: ![HoleReport],
     -- | Pipelines of @.@, @$@ and @>>=@ with the type at each stage. The types
@@ -49,7 +53,7 @@ data Analysis = Analysis
 
 -- | An analysis that found nothing.
 emptyAnalysis :: Analysis
-emptyAnalysis = Analysis [] [] [] emptyGraph 0 Nothing
+emptyAnalysis = Analysis [] [] [] [] emptyGraph 0 Nothing
 
 -- | The capability to analyse a file, over an effect @m@.
 newtype Insight m = Insight

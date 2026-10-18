@@ -394,6 +394,7 @@ assemble path environment outcome captured = do
     combine extracted holes flows graph =
       Analysis
         { analysisMismatches = extractedMismatches extracted,
+          analysisInstances = extractedInstances extracted,
           analysisHoles = holes,
           analysisFlows = flows,
           analysisGraph = graph,
