@@ -4,9 +4,10 @@
 --
 -- Works on the structured diagnostics GHC 9.10 puts in a 'SourceError', not on
 -- rendered text. Only mismatches that carry GHC's expected/actual information
--- are explained; every other error is counted, never dropped silently. A real
--- typed hole is reported through the hole-fit plugin instead, and is tallied
--- here so the caller can check that the plugin saw it.
+-- are explained, whether GHC reports them as a plain mismatch or as one that
+-- involves a rigid type variable; every other error is counted, never dropped
+-- silently. A real typed hole is reported through the hole-fit plugin instead,
+-- and is tallied here so the caller can check that the plugin saw it.
 module HInsight.Ghc.Messages
   ( Extracted (..),
     extractMessages,
@@ -34,7 +35,7 @@ import HInsight.Explanation
     mkDivergence,
   )
 import HInsight.Ghc.Bindings (Binding, contextAt)
-import HInsight.Ghc.Convert (convertSpan, convertText, renderGhcType)
+import HInsight.Ghc.Convert (convertSpan, convertText, renderUser)
 import HInsight.Source (Span)
 import HInsight.TypeText (TypeText)
 
@@ -82,9 +83,13 @@ classify :: FilePath -> [Binding] -> MsgEnvelope GhcMessage -> Either InsightErr
 classify file bindings env = case typecheckerMessage (errMsgDiagnostic env) of
   Just (TcRnSolverReport (SolverReportWithCtxt _ content) _) -> case content of
     ReportHoleError _ holeError -> Right (classifyHole holeError)
-    Mismatch {mismatchMsg = mm} -> maybe (Right Unexplained) (explain file bindings (errMsgSpan env)) (mismatchParts mm)
+    Mismatch {mismatchMsg = mm} -> mismatch mm
+    CannotUnifyVariable {mismatchMsg = mm} -> mismatch mm
     _ -> Right Unexplained
   _ -> Right Unexplained
+  where
+    mismatch :: MismatchMsg -> Either InsightError Classified
+    mismatch = maybe (Right Unexplained) (explain file bindings (errMsgSpan env)) . mismatchParts
 
 -- | GHC reports an out-of-scope variable as a hole error too, but it is not a
 -- typed hole and the plugin never sees it, so it is an unexplained error.
@@ -138,7 +143,7 @@ build file bindings rs parts =
     <*> contextAt file bindings rs
   where
     text :: Type -> Either InsightError TypeText
-    text = convertText file . renderGhcType
+    text = convertText file . renderUser
     make :: Span -> TypeText -> TypeText -> TypeText -> TypeText -> Context -> Explanation
     make sp e a l r ctx =
       Explanation

@@ -3,6 +3,7 @@ module Main (main) where
 import HInsight.CliSpec qualified
 import HInsight.EnvironmentSpec qualified
 import HInsight.ErrorSpec qualified
+import HInsight.EvidenceSpec qualified
 import HInsight.ExplanationSpec qualified
 import HInsight.FlowSpec qualified
 import HInsight.GhcEnvironmentSpec qualified
@@ -30,3 +31,4 @@ main = hspec $ do
   HInsight.CliSpec.spec
   HInsight.GhcSessionSpec.spec
   HInsight.GhcEnvironmentSpec.spec
+  HInsight.EvidenceSpec.spec

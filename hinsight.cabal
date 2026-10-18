@@ -123,6 +123,7 @@ test-suite hinsight-test
     HInsight.CliSpec
     HInsight.EnvironmentSpec
     HInsight.ErrorSpec
+    HInsight.EvidenceSpec
     HInsight.ExplanationSpec
     HInsight.FlowSpec
     HInsight.GraphSpec
