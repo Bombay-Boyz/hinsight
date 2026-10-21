@@ -24,6 +24,7 @@ import HInsight.Graph (ProjectGraph, emptyGraph)
 import HInsight.Hole (HoleReport)
 import HInsight.Instance (UnresolvedInstance)
 import HInsight.Source (SourceFile)
+import HInsight.Suggestion (Suggested)
 
 -- | Everything found in one file.
 data Analysis = Analysis
@@ -32,6 +33,9 @@ data Analysis = Analysis
     -- | Class constraints GHC could not solve, each with the instances GHC
     -- lists for it.
     analysisInstances :: ![UnresolvedInstance],
+    -- | The hints GHC attached to its errors. They come in addition to the
+    -- findings above and do not change how errors are counted.
+    analysisSuggestions :: ![Suggested],
     -- | Typed holes with their ranked fits.
     analysisHoles :: ![HoleReport],
     -- | Pipelines of @.@, @$@ and @>>=@ with the type at each stage. The types
@@ -53,7 +57,7 @@ data Analysis = Analysis
 
 -- | An analysis that found nothing.
 emptyAnalysis :: Analysis
-emptyAnalysis = Analysis [] [] [] [] emptyGraph 0 Nothing
+emptyAnalysis = Analysis [] [] [] [] [] emptyGraph 0 Nothing
 
 -- | The capability to analyse a file, over an effect @m@.
 newtype Insight m = Insight

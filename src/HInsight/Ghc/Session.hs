@@ -395,6 +395,7 @@ assemble path environment outcome captured = do
       Analysis
         { analysisMismatches = extractedMismatches extracted,
           analysisInstances = extractedInstances extracted,
+          analysisSuggestions = extractedSuggestions extracted,
           analysisHoles = holes,
           analysisFlows = flows,
           analysisGraph = graph,

@@ -47,6 +47,12 @@ module HInsight
     InstanceText,
     unInstanceText,
     renderUnresolvedInstance,
+    Suggested (..),
+    Suggestion,
+    HintKind (..),
+    suggestionKind,
+    suggestionText,
+    renderSuggested,
     HoleReport (..),
     HoleFit (..),
     rankFits,
@@ -69,3 +75,4 @@ import HInsight.Hole (HoleFit (..), HoleReport (..), rankFits)
 import HInsight.Identifier (Identifier, mkIdentifier, unIdentifier)
 import HInsight.Instance (InstanceText, UnresolvedInstance (..), renderUnresolvedInstance, unInstanceText)
 import HInsight.Source (SourceFile, mkSourceFile, sourceFilePath)
+import HInsight.Suggestion (HintKind (..), Suggested (..), Suggestion, renderSuggested, suggestionKind, suggestionText)

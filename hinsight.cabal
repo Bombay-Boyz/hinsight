@@ -73,6 +73,9 @@ library
     HInsight.Project
     HInsight.Report
     HInsight.Source
+    HInsight.Suggestion
+    HInsight.Trace
+    HInsight.Trace.Clean
     HInsight.TypeText
 
 -- The one place that finds the GHC 9.10.3 library directory. Public so that
@@ -136,7 +139,9 @@ test-suite hinsight-test
     HInsight.ProjectSpec
     HInsight.ReportSpec
     HInsight.SourceSpec
+    HInsight.SuggestionSpec
     HInsight.Support
+    HInsight.TraceSpec
   build-depends:
     , base
     , hinsight

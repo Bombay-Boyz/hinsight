@@ -274,3 +274,48 @@ percent either way.
   view shows everything in the binding with kind-level lines marked, not hidden.
 - **`-dppr-debug` is session-wide.** Confined to the second pass, whose
   diagnostics are discarded.
+
+## Decisions taken while building
+
+These record choices made in the steps above that the plan left open.
+
+1. **Hints are a closed kind plus GHC's wording (step 3).** `HintKind` has one
+   constructor per hint GHC defines that this package knows, and `OtherHint` for
+   the rest. The text is what GHC prints for the hint. The payload of a hint (the
+   extension to enable, the name to use instead) is not taken apart, because no
+   consumer needs it yet and the text already says it. Revisit when one does.
+2. **Hints are additive.** A diagnostic keeps its classification (explained,
+   unresolved, hole or unexplained); its hints are a separate list. The count of
+   errors is unaffected.
+3. **A hint with no source location is not reported.** Nothing can anchor it.
+   This is rare and is stated in the documentation of `HInsight.Ghc.Messages`.
+4. **Printed types use GHC's user style (step 1).** Type variables print as
+   written (`a`), not with the unique suffix of the debug style. Hole types and
+   fits still use the earlier rendering and are to be checked in step 7.
+5. **The trace reader reads only what the spikes printed (step 4).** `HInsight.Trace`
+   interprets the `u_tys`, `utype_defer`, `utype_defer2`, `found filled tyvar`,
+   `uUnfilledVar2`, `tc_sub_type (general case)` and `tcInstFun` headings. Any
+   other heading is `Unmodelled`; a heading it knows with a shape it does not
+   recognise is `Malformed`, counted by `malformedCount`. Neither is dropped and
+   the raw message is always carried. The reader joins the lines of a message
+   before reading it, because GHC lays a message out to the width it renders to.
+6. **Spans read from a trace are exclusive, like every span here.** GHC prints
+   the end of a span as its last column, so the reader adds one. GHC prints a
+   span of width 0 or 1 as a single column; it reads back with width 1. A span
+   that ends in column 0 is not read, and its message has no location.
+7. **Open question 4 (kind-level steps) is decided: mark, do not hide.**
+   `stepKindLevel` is true for a unification whose every word, on both sides, is
+   one of GHC's own kind names (`GHC.Types.Type`, `RuntimeRep`, `LiftedRep`,
+   `Constraint`, `Many`, `GHC.Prim.TYPE`, `*`, `->`). It is judged by printed form
+   only. A step that mixes in a type variable is not marked even when it is about
+   kinds, because telling would need a guess. Marked steps stay in the output.
+8. **The readable view is a view.** `HInsight.Trace.Clean` removes the decorations
+   it recognises exactly and `residue` reports any that remain. It is idempotent
+   on lines GHC printed and never makes text longer; it is not idempotent on
+   arbitrary text, so that is not claimed. A module qualifier is dropped only
+   where no two names in the same block would collide.
+9. **The record limit is a bound, not a sample (step 4).** `capture` keeps no
+   more than its limit and keeps nothing once the limit is passed, so memory is
+   bounded however long the trace is. `finishCapture` then gives
+   `TraceLimitExceeded`, never part of the trace. The error is not yet part of
+   `InsightError`; step 5 adds it where it becomes reachable.

@@ -19,6 +19,7 @@ module HInsight.Tadka
   )
 where
 
+import Data.Foldable (toList)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Text (Text)
 import Data.Text qualified as T
@@ -32,6 +33,7 @@ import HInsight.Identifier (unIdentifier)
 import HInsight.Instance (InstanceText, UnresolvedInstance (..), shownCandidates, unInstanceText)
 import HInsight.Report (renderEnvironmentSummary)
 import HInsight.Source (Span, positionColumn, positionLine, spanEnd, spanStart, unColumn, unLine)
+import HInsight.Suggestion (Suggested (..), Suggestion, suggestionText)
 import HInsight.Tadka.Locate (offsetsOf)
 import HInsight.TypeText (TypeText, unTypeText)
 import Prettyprinter (Doc, annotate, fill, pretty, vsep, (<+>))
@@ -72,6 +74,7 @@ data FindingKind
   | UnresolvedInstanceKind
   | HoleKind
   | PipelineKind
+  | HintsKind
   deriving stock (Eq, Show, Enum, Bounded)
 
 -- | Something hinsight found, ready for Tadka to draw. The constructor is not
@@ -112,6 +115,7 @@ kindCode kind = either (const Nothing) Just (Td.mkDiagnosticCode text)
       HoleKind -> "hinsight::E0002"
       PipelineKind -> "hinsight::E0003"
       UnresolvedInstanceKind -> "hinsight::E0004"
+      HintsKind -> "hinsight::E0005"
 
 -- | GHC rejects a module with a mismatch or a hole; a pipeline is only shown.
 kindSeverity :: FindingKind -> Td.Severity
@@ -120,10 +124,12 @@ kindSeverity = \case
   UnresolvedInstanceKind -> Td.SevError
   HoleKind -> Td.SevError
   PipelineKind -> Td.SevAdvice
+  HintsKind -> Td.SevAdvice
 
 -- | Every finding of an analysis, mismatches first, then unresolved
--- constraints, then holes, then pipelines, each group in the order hinsight gave it. The text must be the
--- text GHC read. Fails on the first span that is not a position of it.
+-- constraints, then holes, then pipelines, then GHC's suggestions, each group
+-- in the order hinsight gave it. The text must be the text GHC read. Fails on
+-- the first span that is not a position of it.
 findings :: Td.NamedSource -> Analysis -> Either AdaptError [Finding]
 findings src a =
   concat
@@ -131,7 +137,8 @@ findings src a =
       [ traverse (mismatchFinding src) (analysisMismatches a),
         traverse (instanceFinding src) (analysisInstances a),
         traverse (holeFinding src) (analysisHoles a),
-        traverse (pipelineFinding src) (analysisFlows a)
+        traverse (pipelineFinding src) (analysisFlows a),
+        concat <$> traverse (hintFindings src) (analysisSuggestions a)
       ]
 
 -- | The parts of an analysis that are not diagnostics: the module graph, the
@@ -166,6 +173,22 @@ mismatchFinding src e = do
         findingHelp = nonEmptyDocs (maybe [] divergenceNote (explanationDivergence e) <> unsignedNote (explanationContext e)),
         findingNotes = []
       }
+
+-- | One finding per hint GHC gave for an error, at the error's span.
+hintFindings :: Td.NamedSource -> Suggested -> Either AdaptError [Finding]
+hintFindings src s = traverse hintFinding (toList (suggestedHints s))
+  where
+    hintFinding :: Suggestion -> Either AdaptError Finding
+    hintFinding h = do
+      primary <- label src Td.Primary (suggestedSpan s) "GHC has a suggestion for this"
+      pure
+        Finding
+          { findingKind = HintsKind,
+            findingMessage = pretty (suggestionText h),
+            findingContext = Td.mkContextDegrading src (primary :| []),
+            findingHelp = Nothing,
+            findingNotes = []
+          }
 
 instanceFinding :: Td.NamedSource -> UnresolvedInstance -> Either AdaptError Finding
 instanceFinding src u = do

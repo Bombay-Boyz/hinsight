@@ -14,12 +14,14 @@
 module HInsight.Error
   ( InsightError (..),
     DomainError (..),
+    TraceError (..),
     SessionError (..),
     ExtractionError (..),
     EnvironmentError (..),
     renderError,
     renderDomainError,
     renderEnvironmentError,
+    renderTraceError,
   )
 where
 
@@ -52,7 +54,7 @@ data DomainError
     SpanEndsBeforeStart Int Int Int Int
   | -- | A rendered type or identifier was empty or only whitespace. Raised by
     -- 'HInsight.TypeText.mkTypeText' and 'HInsight.Identifier.mkIdentifier' and
-    -- 'HInsight.Flow.mkStageText' and 'HInsight.Graph.mkModuleName' and 'HInsight.Instance.mkInstanceText'; the field names
+    -- 'HInsight.Flow.mkStageText' and 'HInsight.Graph.mkModuleName' and 'HInsight.Instance.mkInstanceText' and 'HInsight.Suggestion.mkSuggestion'; the field names
     -- which input it was.
     BlankText Text
   | -- | A divergence between two identical types was requested. Raised by
@@ -81,6 +83,16 @@ data DomainError
     -- 'HInsight.Environment.mkGhcVersion' and 'parseGhcVersion'; carries the
     -- text given.
     MalformedVersion Text
+  | -- | A limit was below 1. Raised by 'HInsight.Trace.mkRecordLimit'; the
+    -- first field names which limit, the second is the number given.
+    NonPositiveLimit Text Int
+  deriving stock (Eq, Show)
+
+-- | The typechecker trace could not be used. Raised by "HInsight.Trace".
+newtype TraceError
+  = -- | More records were wanted than the limit allows. The field is the
+    -- limit. Nothing is truncated: no records are returned.
+    TraceLimitExceeded Int
   deriving stock (Eq, Show)
 
 -- | The GHC session failed. Raised by "HInsight.Ghc.Session".
@@ -160,6 +172,7 @@ renderDomainError = \case
   RelativeRoot p -> "the project root " <> T.pack p <> " is not an absolute path"
   InvalidFlag f -> "the compiler flag " <> T.pack (show f) <> " is empty or contains a NUL character"
   MalformedVersion v -> "the compiler version " <> T.pack (show v) <> " is not dotted decimal numbers such as 9.10.3"
+  NonPositiveLimit what n -> "the " <> what <> " is " <> tshow n <> "; it must be at least 1"
   where
     pos :: Int -> Int -> Text
     pos l c = tshow l <> ":" <> tshow c
@@ -196,3 +209,11 @@ renderEnvironmentError = \case
   NoCabalProject file ->
     "no cabal.project or .cabal file was found above " <> T.pack file
   CaptureFailed why -> "asking cabal for the project's compiler flags failed: " <> why
+
+-- | Render a 'TraceError'.
+renderTraceError :: TraceError -> Text
+renderTraceError = \case
+  TraceLimitExceeded n ->
+    "the trace holds more than "
+      <> tshow n
+      <> " relevant records, so none are shown rather than a truncated part of it"

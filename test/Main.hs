@@ -15,11 +15,15 @@ import HInsight.InstanceSpec qualified
 import HInsight.ProjectSpec qualified
 import HInsight.ReportSpec qualified
 import HInsight.SourceSpec qualified
+import HInsight.SuggestionSpec qualified
+import HInsight.TraceSpec qualified
 import Test.Hspec (hspec)
 
 main :: IO ()
 main = hspec $ do
   HInsight.SourceSpec.spec
+  HInsight.SuggestionSpec.spec
+  HInsight.TraceSpec.spec
   HInsight.ExplanationSpec.spec
   HInsight.EnvironmentSpec.spec
   HInsight.FlowSpec.spec

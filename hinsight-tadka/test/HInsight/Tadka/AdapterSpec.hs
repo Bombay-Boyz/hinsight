@@ -10,6 +10,7 @@ import HInsight.Context (Context (..))
 import HInsight.Environment (mkComponentName, mkEnvironment, mkGhcFlag, mkProjectRoot, pinnedGhcVersion, summarise)
 import HInsight.Flow (FlowKind (..))
 import HInsight.Hole (Locality (..))
+import HInsight.Suggestion (HintKind (..))
 import HInsight.Tadka
 import HInsight.Tadka.Support
 import Tadka qualified as Td
@@ -65,6 +66,14 @@ spec = describe "findings" $ do
     fmap Td.unDiagnosticCode (Td.code f) `shouldBe` Just "hinsight::E0004"
     Td.severity f `shouldBe` Td.SevError
     narrate f `shouldSatisfy` T.isInfixOf "Foldable t0"
+  it "draws each hint GHC gave as advice with its own code" $ do
+    src <- sourceOf "n = lenght \"abc\"\n"
+    sp <- span' (1, 5) (1, 11)
+    s <- suggestedAt sp (SimilarNames, "Perhaps use length") [(OtherHint, "Another hint")]
+    fs <- ok (findings src emptyAnalysis {A.analysisSuggestions = [s]})
+    map (fmap Td.unDiagnosticCode . Td.code) fs `shouldBe` [Just "hinsight::E0005", Just "hinsight::E0005"]
+    map Td.severity fs `shouldBe` [Td.SevAdvice, Td.SevAdvice]
+    map narrate fs `shouldSatisfy` any (T.isInfixOf "Perhaps use length")
   it "marks the expression and the signature of a signed binding" $ do
     f <- mismatchFinding
     length (Td.contextLabelStates (Td.context f)) `shouldBe` 2

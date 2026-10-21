@@ -26,6 +26,7 @@ import HInsight.Hole
 import HInsight.Identifier (unIdentifier)
 import HInsight.Instance (renderUnresolvedInstance)
 import HInsight.Source (renderPosition, spanStart)
+import HInsight.Suggestion (renderSuggested)
 import HInsight.TypeText (unTypeText)
 
 -- | One typed hole: a header line, then either "no fits found" or a
@@ -79,6 +80,7 @@ renderAnalysis a = T.intercalate "\n" (findings <> environment)
     sections =
       map renderExplanation (analysisMismatches a)
         <> map renderUnresolvedInstance (analysisInstances a)
+        <> map renderSuggested (analysisSuggestions a)
         <> map renderHoleReport (analysisHoles a)
         <> map renderPipeline (analysisFlows a)
         <> [renderGraph (analysisGraph a) | graphImportCount (analysisGraph a) > 0]

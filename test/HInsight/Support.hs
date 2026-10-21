@@ -20,6 +20,8 @@ module HInsight.Support
     genExplanation,
     genInstanceText,
     genUnresolvedInstance,
+    genSuggestion,
+    genSuggested,
     genHoleReport,
     genStage,
     genPipeline,
@@ -28,6 +30,7 @@ module HInsight.Support
   )
 where
 
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.Text qualified as T
 import HInsight.Analysis (Analysis (..))
 import HInsight.Context
@@ -39,6 +42,7 @@ import HInsight.Hole
 import HInsight.Identifier
 import HInsight.Instance
 import HInsight.Source
+import HInsight.Suggestion
 import HInsight.TypeText
 import Test.QuickCheck
 
@@ -112,6 +116,15 @@ genUnresolvedInstance =
     <*> resize 9 (listOf genInstanceText)
     <*> genContext
 
+genSuggestion :: Gen Suggestion
+genSuggestion =
+  suchThatMap
+    ((,) <$> elements [minBound .. maxBound] <*> (T.pack <$> listOf1 (elements "abc XYZ'")))
+    (rightToMaybe . uncurry mkSuggestion)
+
+genSuggested :: Gen Suggested
+genSuggested = Suggested <$> genSpan <*> ((:|) <$> genSuggestion <*> resize 3 (listOf genSuggestion))
+
 genHoleReport :: Gen HoleReport
 genHoleReport =
   HoleReport
@@ -156,6 +169,7 @@ genAnalysis =
   Analysis
     <$> resize 3 (listOf genExplanation)
     <*> resize 3 (listOf genUnresolvedInstance)
+    <*> resize 3 (listOf genSuggested)
     <*> resize 3 (listOf genHoleReport)
     <*> resize 3 (listOf genPipeline)
     <*> genProjectGraph

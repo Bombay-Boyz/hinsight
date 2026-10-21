@@ -13,6 +13,7 @@ module HInsight.Tadka.Support
     signedAt,
     holeAt,
     instanceAt,
+    suggestedAt,
     pipelineAt,
     analysisOf,
     narrate,
@@ -21,6 +22,7 @@ module HInsight.Tadka.Support
 where
 
 import Data.Aeson qualified as Aeson
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.Text (Text)
 import HInsight.Analysis (Analysis (..), emptyAnalysis)
 import HInsight.Context (Context (..))
@@ -30,6 +32,7 @@ import HInsight.Hole (HoleFit (..), HoleReport (..), Locality (..), mkRefinement
 import HInsight.Identifier (Identifier, mkIdentifier)
 import HInsight.Instance (UnresolvedInstance (..), mkInstanceText)
 import HInsight.Source (Span, mkColumn, mkLine, mkPosition, mkSpan)
+import HInsight.Suggestion (HintKind, Suggested (..), mkSuggestion)
 import HInsight.Tadka (Finding, namedSource)
 import HInsight.TypeText (TypeText, mkTypeText)
 import Tadka qualified as Td
@@ -84,6 +87,12 @@ instanceAt sp constraint potential ctx = do
   c <- ty constraint
   ps <- traverse (ok . mkInstanceText) potential
   pure (UnresolvedInstance sp c ps ctx)
+
+-- | The hints GHC gave for an error at a span; there is at least one.
+suggestedAt :: Span -> (HintKind, Text) -> [(HintKind, Text)] -> IO Suggested
+suggestedAt sp first rest = do
+  hints <- traverse (ok . uncurry mkSuggestion) (first :| rest)
+  pure (Suggested sp hints)
 
 pipelineAt :: Span -> FlowKind -> [(Text, Text)] -> Text -> Context -> IO Pipeline
 pipelineAt sp kind stages whole ctx = do

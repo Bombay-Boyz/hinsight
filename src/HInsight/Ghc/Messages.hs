@@ -10,15 +10,22 @@
 -- never dropped silently. A real typed hole is reported through the hole-fit
 -- plugin instead, and is tallied here so the caller can check that the plugin
 -- saw it.
+--
+-- The hints GHC attaches to a diagnostic are collected for every kind of
+-- diagnostic, besides how it is classified. A hint on a diagnostic that has no
+-- source location is not reported, since there is nothing to anchor it to.
 module HInsight.Ghc.Messages
   ( Extracted (..),
     extractMessages,
   )
 where
 
+import Data.List.NonEmpty (nonEmpty)
+import Data.Maybe (catMaybes)
 import Data.Text qualified as T
 import GHC.Core.InstEnv (ClsInst)
 import GHC.Core.Type (Type)
+import GHC.Driver.Errors.Ppr ()
 import GHC.Driver.Errors.Types (GhcMessage (..))
 import GHC.Tc.Errors.Types
   ( HoleError (..),
@@ -30,7 +37,9 @@ import GHC.Tc.Errors.Types
     TcSolverReportMsg (..),
     errorItemPred,
   )
-import GHC.Types.Error (MsgEnvelope (..))
+import GHC.Types.Error (Diagnostic (diagnosticHints), MsgEnvelope (..))
+import GHC.Types.Hint (GhcHint (..))
+import GHC.Types.Hint.Ppr ()
 import GHC.Types.SrcLoc (RealSrcSpan, SrcSpan (..))
 import HInsight.Context (Context)
 import HInsight.Error (InsightError)
@@ -43,14 +52,16 @@ import HInsight.Ghc.Bindings (Binding, contextAt)
 import HInsight.Ghc.Convert (convertSpan, convertText, fromDomain, renderUser)
 import HInsight.Instance (UnresolvedInstance (..), mkInstanceText)
 import HInsight.Source (Span)
+import HInsight.Suggestion (HintKind (..), Suggested (..), Suggestion, mkSuggestion)
 import HInsight.TypeText (TypeText)
 
--- | The explained mismatches, the unresolved class constraints, the number of
--- errors left unexplained, and the number of typed-hole errors GHC reported
--- (which the hole-fit plugin is expected to have seen).
+-- | The explained mismatches, the unresolved class constraints, GHC's hints,
+-- the number of errors left unexplained, and the number of typed-hole errors
+-- GHC reported (which the hole-fit plugin is expected to have seen).
 data Extracted = Extracted
   { extractedMismatches :: ![Explanation],
     extractedInstances :: ![UnresolvedInstance],
+    extractedSuggestions :: ![Suggested],
     extractedUnexplained :: !Int,
     extractedHoleDiagnostics :: !Int
   }
@@ -76,15 +87,19 @@ data MismatchParts = MismatchParts
 
 -- | Classify and explain a list of error diagnostics from one file.
 extractMessages :: FilePath -> [Binding] -> [MsgEnvelope GhcMessage] -> Either InsightError Extracted
-extractMessages file bindings envs = tally <$> traverse (classify file bindings) envs
+extractMessages file bindings envs =
+  tally
+    <$> traverse (classify file bindings) envs
+    <*> traverse (suggestionsOf file) envs
 
 -- | Count by outcome. List comprehensions with a refutable pattern are the
 -- filter-and-map here; 'length' is strict, so nothing accumulates lazily.
-tally :: [Classified] -> Extracted
-tally cs =
+tally :: [Classified] -> [Maybe Suggested] -> Extracted
+tally cs hints =
   Extracted
     { extractedMismatches = [e | Explained e <- cs],
       extractedInstances = [u | Unresolved u <- cs],
+      extractedSuggestions = catMaybes hints,
       extractedUnexplained = length [() | Unexplained <- cs],
       extractedHoleDiagnostics = length [() | HoleDiagnostic <- cs]
     }
@@ -117,6 +132,30 @@ buildInstance file bindings rs predicate unifiers =
     <*> convertText file (renderUser predicate)
     <*> traverse (fromDomain file . mkInstanceText . T.pack . renderUser) unifiers
     <*> contextAt file bindings rs
+
+-- | The hints GHC attached to a diagnostic, anchored at its span. A
+-- diagnostic with no hints, or with no source location, yields none.
+suggestionsOf :: FilePath -> MsgEnvelope GhcMessage -> Either InsightError (Maybe Suggested)
+suggestionsOf file env = case (errMsgSpan env, nonEmpty (diagnosticHints (errMsgDiagnostic env))) of
+  (RealSrcSpan rs _, Just hints) -> Just <$> (Suggested <$> convertSpan file rs <*> traverse (suggestion file) hints)
+  _ -> Right Nothing
+
+suggestion :: FilePath -> GhcHint -> Either InsightError Suggestion
+suggestion file hint = fromDomain file (mkSuggestion (hintKind hint) (T.pack (renderUser hint)))
+
+-- | The kind of a hint. A kind not listed here is 'OtherHint'.
+hintKind :: GhcHint -> HintKind
+hintKind = \case
+  SuggestSimilarNames {} -> SimilarNames
+  ImportSuggestion {} -> Import
+  SuggestExtension {} -> Extension
+  SuggestAddTypeSignatures {} -> Signature
+  SuggestFillInWildcardConstraint {} -> WildcardConstraint
+  SuggestParentheses {} -> Parentheses
+  SuggestMissingDo {} -> MissingDo
+  SuggestLetInDo {} -> LetInDo
+  SuggestBindToWildcard {} -> BindToWildcard
+  _ -> OtherHint
 
 -- | GHC reports an out-of-scope variable as a hole error too, but it is not a
 -- typed hole and the plugin never sees it, so it is an unexplained error.

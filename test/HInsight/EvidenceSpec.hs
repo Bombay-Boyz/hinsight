@@ -67,6 +67,7 @@ evidenceSpec libDir = do
         unresolvedPotential u `shouldBe` []
       other -> expectationFailure ("expected exactly one unresolved constraint, found " <> show (length other))
     (length (analysisMismatches a), analysisUnexplained a) `shouldBe` (0, 0)
+    analysisSuggestions a `shouldBe` []
   it "lists the instances GHC says could match an ambiguous constraint" $ do
     a <- analyse libDir "AmbiguousLength.hs"
     let constraints = map (unTypeText . unresolvedConstraint) (analysisInstances a)
@@ -74,8 +75,16 @@ evidenceSpec libDir = do
     filter ("Foldable" `T.isPrefixOf`) constraints `shouldSatisfy` (not . null)
     concatMap unresolvedPotential (analysisInstances a) `shouldSatisfy` (not . null)
     analysisUnexplained a `shouldBe` 0
+  it "carries the hint GHC gives for a misspelt name" $ do
+    a <- analyse libDir "SimilarName.hs"
+    analysisUnexplained a `shouldBe` 1
+    case analysisSuggestions a of
+      [s] -> do
+        SimilarNames `elem` fmap suggestionKind (suggestedHints s) `shouldBe` True
+        any (("length" `T.isInfixOf`) . suggestionText) (suggestedHints s) `shouldBe` True
+      other -> expectationFailure ("expected one suggestion, found " <> show (length other))
   it "accounts for every error GHC reports" $
-    for_ [("TypeMismatch.hs", 1), ("RigidVariable.hs", 1), ("ScopeError.hs", 1), ("Hole.hs", 1), ("ThreeMismatches.hs", 3), ("NoInstance.hs", 1), ("AmbiguousLength.hs", 2)] $
+    for_ [("TypeMismatch.hs", 1), ("RigidVariable.hs", 1), ("ScopeError.hs", 1), ("Hole.hs", 1), ("ThreeMismatches.hs", 3), ("NoInstance.hs", 1), ("AmbiguousLength.hs", 2), ("SimilarName.hs", 1)] $
       \(name, reported) -> do
         a <- analyse libDir name
         (name, accountedFor a) `shouldBe` (name, reported)
