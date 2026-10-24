@@ -1,5 +1,7 @@
 module Main (main) where
 
+import HInsight.ChainGhcSpec qualified
+import HInsight.ChainSpec qualified
 import HInsight.CliSpec qualified
 import HInsight.EnvironmentSpec qualified
 import HInsight.ErrorSpec qualified
@@ -24,6 +26,7 @@ main = hspec $ do
   HInsight.SourceSpec.spec
   HInsight.SuggestionSpec.spec
   HInsight.TraceSpec.spec
+  HInsight.ChainSpec.spec
   HInsight.ExplanationSpec.spec
   HInsight.EnvironmentSpec.spec
   HInsight.FlowSpec.spec
@@ -38,3 +41,4 @@ main = hspec $ do
   HInsight.GhcSessionSpec.spec
   HInsight.GhcEnvironmentSpec.spec
   HInsight.EvidenceSpec.spec
+  HInsight.ChainGhcSpec.spec

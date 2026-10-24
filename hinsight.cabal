@@ -50,9 +50,11 @@ library
   exposed-modules:
     HInsight
     HInsight.Analysis
+    HInsight.Chain
     HInsight.Cli
     HInsight.Config
     HInsight.Context
+    HInsight.Deep
     HInsight.Environment
     HInsight.Error
     HInsight.Explanation
@@ -66,6 +68,7 @@ library
     HInsight.Ghc.Holes
     HInsight.Ghc.Messages
     HInsight.Ghc.Session
+    HInsight.Ghc.Trace
     HInsight.Graph
     HInsight.Hole
     HInsight.Identifier
@@ -124,6 +127,8 @@ test-suite hinsight-test
   hs-source-dirs:   test
   main-is:          Main.hs
   other-modules:
+    HInsight.ChainGhcSpec
+    HInsight.ChainSpec
     HInsight.CliSpec
     HInsight.EnvironmentSpec
     HInsight.ErrorSpec
@@ -146,6 +151,7 @@ test-suite hinsight-test
     , base
     , hinsight
     , hinsight-toolchain
+    , containers
     , directory
     , filepath
     , hspec       >=2.10 && <2.12

@@ -11,6 +11,7 @@
 module HInsight.Ghc.Bindings
   ( Binding,
     collectBindings,
+    bindingSpans,
     contextAt,
   )
 where
@@ -29,6 +30,7 @@ import HInsight.Context (Context (..))
 import HInsight.Error (InsightError)
 import HInsight.Ghc.Convert (convertSpan, convertText, fromDomain, renderGhc)
 import HInsight.Identifier (mkIdentifier)
+import HInsight.Source (Span)
 
 -- | A type signature as written: where it is and the type it declares.
 data Signature = Signature
@@ -63,6 +65,10 @@ collectBindings decls =
           RealSrcSpan rs _ <- [locA loc],
           L _ rdr <- names
         ]
+
+-- | Where each binding is, in the order they appear.
+bindingSpans :: FilePath -> [Binding] -> Either InsightError [Span]
+bindingSpans file = traverse (convertSpan file . bindingSpan)
 
 -- | The context of a source span: the top-level binding that contains it.
 contextAt :: FilePath -> [Binding] -> RealSrcSpan -> Either InsightError Context

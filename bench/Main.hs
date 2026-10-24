@@ -14,7 +14,7 @@ import Data.List (sortOn)
 import Data.Maybe (mapMaybe)
 import Data.Text qualified as T
 import HInsight
-import HInsight.Ghc.Session (ghcInsight)
+import HInsight.Ghc.Session (ghcDeep, ghcInsight)
 import HInsight.Hole (Locality (..), mkRefinementLevel)
 import HInsight.Report (renderAnalysis)
 import HInsight.Source (mkColumn, mkLine, mkPosition, mkSpan)
@@ -71,7 +71,9 @@ analysisGroup libDir =
   bgroup
     "analyse a file"
     [ analyse "a single module" "test/fixtures/Ok.hs",
-      analyse "a module and two project imports" "test/fixtures/project/App.hs"
+      analyse "a module and two project imports" "test/fixtures/project/App.hs",
+      analyse "a module with one mismatch" "test/fixtures/ChainPair.hs",
+      chains "the chains of that mismatch (the trace pass)" "test/fixtures/ChainPair.hs"
     ]
   where
     analyse :: String -> FilePath -> Benchmark
@@ -81,6 +83,13 @@ analysisGroup libDir =
       dir <- orFail (mkLibDir libDir)
       file <- orFail (mkSourceFile path)
       analyseFile (ghcInsight dir) file
+    chains :: String -> FilePath -> Benchmark
+    chains name path = bench name (whnfIO (runChains path))
+    runChains :: FilePath -> IO (Either InsightError Chains)
+    runChains path = do
+      dir <- orFail (mkLibDir libDir)
+      file <- orFail (mkSourceFile path)
+      chainsFor (ghcDeep dir) FollowingVariables file
 
 orFail :: (Show e) => Either e a -> IO a
 orFail = either (fail . show) pure

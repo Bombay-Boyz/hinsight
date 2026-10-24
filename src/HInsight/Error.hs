@@ -38,6 +38,8 @@ data InsightError
     ExtractionFailure ExtractionError
   | -- | The project environment could not be applied to the GHC session.
     EnvironmentFailure EnvironmentError
+  | -- | The typechecker trace could not be used.
+    TraceFailure TraceError
   deriving stock (Eq, Show)
 
 -- | A smart constructor rejected its input. Raised by the pure domain layer.
@@ -151,6 +153,7 @@ renderError = \case
   SessionFailure e -> renderSession e
   ExtractionFailure e -> renderExtraction e
   EnvironmentFailure e -> renderEnvironmentError e
+  TraceFailure e -> renderTraceError e
 
 -- | Render a 'DomainError'.
 renderDomainError :: DomainError -> Text

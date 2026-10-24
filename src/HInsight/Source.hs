@@ -23,6 +23,7 @@ module HInsight.Source
     mkSpan,
     spanStart,
     spanEnd,
+    spanContains,
     renderPosition,
   )
 where
@@ -109,6 +110,11 @@ spanStart (UnsafeSpan s _) = s
 -- | Where a 'Span' ends (exclusive).
 spanEnd :: Span -> Position
 spanEnd (UnsafeSpan _ e) = e
+
+-- | Whether the first span covers the second: it starts no later and ends no
+-- earlier. A span covers itself.
+spanContains :: Span -> Span -> Bool
+spanContains outer inner = spanStart outer <= spanStart inner && spanEnd inner <= spanEnd outer
 
 -- | A position as @line:column@, the form editors and compilers use.
 renderPosition :: Position -> Text

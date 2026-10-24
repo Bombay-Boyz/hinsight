@@ -1,6 +1,7 @@
 module HInsight.CliSpec (spec) where
 
 import Data.Text qualified as T
+import HInsight.Chain (ChainView (..))
 import HInsight.Cli
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
@@ -24,15 +25,33 @@ spec = describe "parseCommand" $ do
   it "rejects two files and gives the count" $
     parseCommand ["a.hs", "b.hs"] `shouldBe` BadUsage "expected exactly one file but got 2"
   prop "never accepts more than one file" $ \a b rest ->
-    notHelp (a : b : rest) ==> case parseCommand (a : b : rest) of
+    notHelp (a : b : rest) && not (any isChainFlag (a : b : rest)) ==> case parseCommand (a : b : rest) of
       BadUsage _ -> True
       _ -> False
+  describe "chains" $ do
+    it "asks for the chains that follow the variables" $
+      parseCommand ["--chains", "A.hs"] `shouldBe` ExplainChains FollowingVariables "A.hs"
+    it "asks for the whole binding, with the flag on either side of the file" $
+      parseCommand ["A.hs", "--chains=whole"] `shouldBe` ExplainChains WholeBinding "A.hs"
+    it "lets the last chain flag win" $
+      parseCommand ["--chains=whole", "--chains", "A.hs"] `shouldBe` ExplainChains FollowingVariables "A.hs"
+    it "still needs a file" $
+      parseCommand ["--chains"] `shouldBe` BadUsage "no file was given"
+    it "still counts files" $
+      parseCommand ["--chains", "a.hs", "b.hs"] `shouldBe` BadUsage "expected exactly one file but got 2"
+    it "names an unknown option even beside a chain flag" $
+      parseCommand ["--chains", "--verbose", "A.hs"] `shouldBe` BadUsage "unknown option --verbose"
   prop "accepts any single argument that does not start with a dash" $ \(NonEmpty s) ->
     take 1 s /= "-" ==> parseCommand [s] === Analyse s
-  describe "usageText" $
+  describe "usageText" $ do
     it "names the program and the pinned compiler" $ do
       usageText `shouldSatisfy` T.isInfixOf "hinsight-demo"
       usageText `shouldSatisfy` T.isInfixOf "ghc-9.10.3"
+    it "describes both chain views" $ do
+      usageText `shouldSatisfy` T.isInfixOf "--chains"
+      usageText `shouldSatisfy` T.isInfixOf "--chains=whole"
   where
+    isChainFlag :: String -> Bool
+    isChainFlag = (`elem` ["--chains", "--chains=whole"])
     notHelp :: [String] -> Bool
     notHelp = not . any (`elem` ["-h", "--help"])

@@ -19,6 +19,8 @@ module HInsight.Trace
     TraceRecord (..),
     Step (..),
     parseRecord,
+    recordText,
+    locatedIn,
 
     -- * A view of a step
     stepKindLevel,
@@ -28,6 +30,7 @@ module HInsight.Trace
     -- * Keeping a bounded number of records
     RecordLimit,
     mkRecordLimit,
+    defaultRecordLimit,
     Capture,
     emptyCapture,
     capture,
@@ -52,9 +55,12 @@ import HInsight.Source
     mkPosition,
     mkSourceFile,
     mkSpan,
+    sourceFilePath,
+    spanContains,
   )
 import HInsight.Trace.Clean (cleanBlock)
 import HInsight.TypeText (TypeText, mkTypeText, unTypeText)
+import System.FilePath (normalise)
 
 -- | Where a record says it was working: a file, as GHC printed the path, and a
 -- span. The end is exclusive, like every 'Span'. GHC prints a span of width 0
@@ -118,6 +124,21 @@ parseRecord raw = TraceRecord location (parseStep flat) raw
     (location, body) = splitLocation raw
     flat :: Text
     flat = T.unwords (T.words body)
+
+-- | What a record says after its location, with every run of whitespace as
+-- one space. This is the text the steps are read from.
+recordText :: TraceRecord -> Text
+recordText = T.unwords . T.words . snd . splitLocation . recordRaw
+
+-- | Whether a record says it was working in this file, inside one of these
+-- spans. The paths are compared after normalising, so @./A.hs@ and @A.hs@ are
+-- the same file. A record with no location is never inside.
+locatedIn :: FilePath -> [Span] -> TraceRecord -> Bool
+locatedIn file spans r = case recordLocation r of
+  Just l ->
+    normalise (sourceFilePath (locatedFile l)) == normalise file
+      && any (`spanContains` locatedSpan l) spans
+  Nothing -> False
 
 -- A message starts with @file:span::@. Anything else has no location.
 splitLocation :: Text -> (Maybe Located, Text)
@@ -313,6 +334,12 @@ mkRecordLimit :: Int -> Either DomainError RecordLimit
 mkRecordLimit n
   | n >= 1 = Right (UnsafeRecordLimit n)
   | otherwise = Left (NonPositiveLimit "record limit" n)
+
+-- | The limit used when the caller names none. A typical line of a module
+-- produces tens of records, so this suits a module of a few hundred lines; a
+-- larger one gives 'TraceLimitExceeded' rather than a partial trace.
+defaultRecordLimit :: RecordLimit
+defaultRecordLimit = UnsafeRecordLimit 100000
 
 -- | A trace being collected. It keeps no more than its limit, and once the
 -- limit is passed it keeps nothing, so memory stays bounded however long the

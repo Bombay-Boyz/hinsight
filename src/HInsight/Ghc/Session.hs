@@ -18,10 +18,17 @@
 -- are not the project's own must be installed. 'ghcInsightIn' takes the
 -- project's 'Environment' (its flags, packages and source folders as the
 -- build tool reports them), which replaces that guess.
+--
+-- 'ghcDeep' and 'ghcDeepIn' answer the questions that cost a second pass
+-- ("HInsight.Deep"). They place the file the same way and load its
+-- dependencies exactly as an analysis does, then typecheck the file once more
+-- with GHC's trace switched on.
 module HInsight.Ghc.Session
   ( ghcInsight,
     ghcInsightIn,
     ghcInsightWith,
+    ghcDeep,
+    ghcDeepIn,
   )
 where
 
@@ -31,7 +38,7 @@ import Control.Monad.IO.Class (liftIO)
 import Data.Bifunctor (first)
 import Data.Containers.ListUtils (nubOrd)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
-import Data.Maybe (listToMaybe)
+import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Text (Text)
 import Data.Text qualified as T
 import GHC
@@ -82,11 +89,13 @@ import GHC.Utils.Logger (LogAction)
 import GHC.Utils.Outputable (ppr, (<+>))
 import GHC.Utils.Panic (GhcException)
 import HInsight.Analysis (Analysis (..), Insight (..))
+import HInsight.Chain (ChainView, Chains (..), buildChains, emptyChains)
 import HInsight.Config (LibDir, libDirPath)
+import HInsight.Deep (Deep (..))
 import HInsight.Environment (Environment, EnvironmentSource (..), EnvironmentSummary, summarise)
 import HInsight.Error (EnvironmentError, InsightError (..), SessionError (..))
 import HInsight.Flow (Pipeline)
-import HInsight.Ghc.Bindings (Binding, collectBindings)
+import HInsight.Ghc.Bindings (Binding, bindingSpans, collectBindings)
 import HInsight.Ghc.Convert (renderGhc)
 import HInsight.Ghc.Environment (applyEnvironment)
 import HInsight.Ghc.Flow (RawPipeline, collect, pipelines)
@@ -94,10 +103,12 @@ import HInsight.Ghc.Graph (RawModule, collectGraph, projectGraph)
 import HInsight.Ghc.HoleCapture (CapturedHole, holePlugin)
 import HInsight.Ghc.Holes (holeReports)
 import HInsight.Ghc.Messages (Extracted (..), extractMessages)
+import HInsight.Ghc.Trace (captureHook, enableTrace, errorSpans)
 import HInsight.Graph (ProjectGraph)
 import HInsight.Hole (HoleReport)
 import HInsight.Project (sourceRoot)
-import HInsight.Source (SourceFile, sourceFilePath)
+import HInsight.Source (SourceFile, Span, sourceFilePath)
+import HInsight.Trace (Capture, Trace (..), defaultRecordLimit, emptyCapture, finishCapture, locatedIn)
 import System.Directory (canonicalizePath, doesDirectoryExist, doesFileExist)
 import System.FilePath (takeDirectory)
 
@@ -252,10 +263,11 @@ installHolePlugin sink env =
     capturing :: Plugin
     capturing = defaultPlugin {holeFitPlugin = holePlugin sink}
 
--- | Find the source folder, check the module graph, typecheck the file's
--- dependencies and then the file itself.
-loadProject :: Placement -> IORef [CapturedHole] -> IORef [Text] -> FilePath -> Ghc (Either SessionError Outcome)
-loadProject placement sink logged path = do
+-- | Find the source folder, check the module graph and typecheck the file's
+-- dependencies. The module graph and the file's own summary come back for
+-- whoever typechecks the file itself.
+prepareProject :: Placement -> IORef [Text] -> FilePath -> Ghc (Either SessionError (ModuleGraph, ModSummary))
+prepareProject placement logged path = do
   case placement of
     FromEnvironment _ -> pure ()
     FromHeader -> do
@@ -271,11 +283,17 @@ loadProject placement sink logged path = do
     Nothing -> pure (Left (TargetNotInGraph path))
     Just summary -> do
       failure <- loadDependencies logged graph summary
-      case failure of
-        Just why -> pure (Left (DependencyFailed path why))
-        Nothing -> do
-          modifySession (installHolePlugin sink)
-          Right . (\outcome -> outcome {outcomeModules = collectGraph graph}) <$> typecheckParsed sink path summary
+      pure (maybe (Right (graph, summary)) (Left . DependencyFailed path) failure)
+
+-- | Prepare the project, then typecheck the file itself.
+loadProject :: Placement -> IORef [CapturedHole] -> IORef [Text] -> FilePath -> Ghc (Either SessionError Outcome)
+loadProject placement sink logged path = do
+  prepared <- prepareProject placement logged path
+  case prepared of
+    Left failure -> pure (Left failure)
+    Right (graph, summary) -> do
+      modifySession (installHolePlugin sink)
+      Right . (\outcome -> outcome {outcomeModules = collectGraph graph}) <$> typecheckParsed sink path summary
 
 setImportPath :: FilePath -> Ghc ()
 setImportPath root = do
@@ -318,8 +336,8 @@ loadDependencies logged graph summary
     names =
       nubOrd
         [ moduleNameString (ms_mod_name s)
-        | s <- mgModSummaries graph,
-          ms_mod_name s /= ms_mod_name summary
+          | s <- mgModSummaries graph,
+            ms_mod_name s /= ms_mod_name summary
         ]
     describe :: [Text] -> Text
     describe [] = "GHC reported no details"
@@ -361,6 +379,101 @@ deferredPipelines sink path = do
         pure (collect (tm_typechecked_source typechecked))
   liftIO (writeIORef sink seen)
   pure flows
+
+-- | The GHC-backed implementation of 'Deep', placing the file by its header.
+ghcDeep :: LibDir -> Deep IO
+ghcDeep dir = Deep {chainsFor = chains dir FromHeader}
+
+-- | The GHC-backed implementation of 'Deep' for a file of the project
+-- component the 'Environment' describes.
+ghcDeepIn :: LibDir -> Environment -> Deep IO
+ghcDeepIn dir env = Deep {chainsFor = chains dir (FromEnvironment env)}
+
+chains :: LibDir -> Placement -> ChainView -> SourceFile -> IO (Either InsightError Chains)
+chains dir placement view file = do
+  failure <- preflight dir file
+  case failure of
+    Just why -> pure (Left (SessionFailure why))
+    Nothing -> catchSession path (runChains dir placement view path)
+  where
+    path :: FilePath
+    path = sourceFilePath file
+
+runChains :: LibDir -> Placement -> ChainView -> FilePath -> IO (Either InsightError Chains)
+runChains dir placement view path = do
+  logged <- newIORef []
+  result <- runGhc (Just (libDirPath dir)) (traceTypecheck placement view logged path)
+  evaluate result
+
+-- | What preparing a project for the trace pass came to.
+data Prepared
+  = -- | The dependencies are loaded and the file is in the module graph.
+    Ready
+  | -- | The project could not be prepared.
+    Refused SessionError
+  | -- | GHC stopped on errors before the file could be typechecked, for
+    -- example a parse error in its header or an import it cannot find.
+    Unreadable [MsgEnvelope GhcMessage]
+
+-- | Load the project as an analysis does, then typecheck the file once more
+-- with the trace on and read what it logged. A file with no errors has no
+-- chains; a file GHC cannot get as far as typechecking has errors and no
+-- chains.
+traceTypecheck :: Placement -> ChainView -> IORef [Text] -> FilePath -> Ghc (Either InsightError Chains)
+traceTypecheck placement view logged path = do
+  configured <- configure placement logged
+  case configured of
+    Left failure -> pure (Left (EnvironmentFailure failure))
+    Right () -> do
+      located <- liftIO (targetPath placement path)
+      target <- guessTarget located Nothing Nothing
+      setTargets [target]
+      prepared <- handleSourceError (pure . Unreadable . errorsOf) (either Refused (const Ready) <$> prepareProject placement logged path)
+      case prepared of
+        Refused why -> pure (Left (SessionFailure why))
+        Unreadable errors -> pure (Right (Chains [] (length errors)))
+        Ready -> tracedPass view path
+
+-- | The second pass. The module graph is built again after the trace flags are
+-- set, because GHC typechecks a module with the flags in its summary.
+tracedPass :: ChainView -> FilePath -> Ghc (Either InsightError Chains)
+tracedPass view path = do
+  enabled <- enableTrace
+  case enabled of
+    Left failure -> pure (Left (EnvironmentFailure failure))
+    Right () -> do
+      graph <- depanal [] False
+      found <- targetSummary path (mgModSummaries graph)
+      case found of
+        Nothing -> pure (Left (SessionFailure (TargetNotInGraph path)))
+        Just summary -> do
+          parsed <- handleSourceError (pure . Left . errorsOf) (Right <$> parseModule summary)
+          case parsed of
+            Left errors -> pure (Right (Chains [] (length errors)))
+            Right module' -> typecheckTraced view path summary module'
+
+typecheckTraced :: ChainView -> FilePath -> ModSummary -> ParsedModule -> Ghc (Either InsightError Chains)
+typecheckTraced view path summary parsed =
+  case bindingSpans path (collectBindings (hsmodDecls (unLoc (pm_parsed_source parsed)))) of
+    Left failure -> pure (Left failure)
+    Right spans -> do
+      ref <- liftIO (newIORef (emptyCapture defaultRecordLimit))
+      -- The trace names the file as GHC knows it.
+      let ghcPath = fromMaybe path (ml_hs_file (ms_location summary))
+      pushLogHookM (captureHook ref (locatedIn ghcPath spans))
+      checked <- handleSourceError (pure . Left . errorsOf) (Right <$> typecheckModule parsed)
+      captured <- liftIO (readIORef ref)
+      pure (either (chainsOf view path spans captured) (const (Right emptyChains)) checked)
+
+-- | The chains for the errors of a typecheck, from what the trace collected.
+-- Past the record limit the answer is an error, not a part of the trace.
+chainsOf :: ChainView -> FilePath -> [Span] -> Capture -> [MsgEnvelope GhcMessage] -> Either InsightError Chains
+chainsOf view path bindings captured errors = do
+  trace <- first TraceFailure (finishCapture captured)
+  spans <- errorSpans path errors
+  let built = buildChains view bindings spans (traceRecords trace)
+  -- An error with no real span cannot have a chain.
+  pure built {chainsMissing = chainsMissing built + length errors - length spans}
 
 -- | The error diagnostics inside a 'SourceError'; warnings are not analysed.
 errorsOf :: SourceError -> [MsgEnvelope GhcMessage]
