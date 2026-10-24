@@ -318,3 +318,29 @@ These record choices made in the steps above that the plan left open.
     `normalise`), and that a rigid-variable mismatch has a deferral at its
     span. `ChainGhcSpec` checks the first two on the Pair program and accounts
     for every error of the third whether or not it has a chain.
+11. **Splices are read from `-ddump-splices`, in a pass of their own (step 6).**
+    `HInsight.Splice` reads the one message GHC logs per splice it ran: the
+    location, the kind word (`expression`, `declarations`, `type`, `pattern`),
+    the code of the splice and the code it produced. The spike covered every
+    kind of splice and three widths; the readings agree at all of them. The pass
+    costs about one typecheck, because it needs neither `-dppr-debug` nor the
+    trace.
+12. **What is reported is only what GHC printed.** A typed splice and a
+    quasi-quote are printed as expressions and are reported as such. A splice
+    nested in another is not a record of its own; GHC notes it on the outer one
+    as `pending(rn) [...]`, and that note is carried as printed, not taken apart.
+    A kind word not in the list is kept as it is.
+13. **Splices are listed by position, not in GHC's order.** GHC runs a
+    declaration group before the expressions in it, so its order is not the
+    file's. The raw message is carried with each splice.
+14. **A declaration splice's result keeps its lines.** Elsewhere the lines of a
+    message are joined, because GHC wraps to the width it renders to. A
+    declaration splice's result is a list of declarations, so the lines at the
+    least indentation each begin one and deeper lines continue it. This is a
+    reading of the layout, stated in the module's documentation.
+15. **`splicesBlocked` and `splicesUnread`.** When GHC stops before it can run
+    any splice (a parse error, an import it cannot find), the file has no splice
+    dump at all; the errors are counted in `splicesBlocked` so that "no splices"
+    is not mistaken for "could not look". A message that says `Splicing` with a
+    shape the reader does not know is counted in `splicesUnread`, never dropped.
+    Splices that ran before a type error are still reported.

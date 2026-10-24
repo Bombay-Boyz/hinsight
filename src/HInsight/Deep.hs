@@ -17,9 +17,13 @@ where
 import HInsight.Chain (ChainView, Chains)
 import HInsight.Error (InsightError)
 import HInsight.Source (SourceFile)
+import HInsight.Splice (Splices)
 
 -- | The capabilities that need a second pass, over an effect @m@.
-newtype Deep m = Deep
+data Deep m = Deep
   { -- | What GHC logged on the way to each of the file's errors, in this view.
-    chainsFor :: ChainView -> SourceFile -> m (Either InsightError Chains)
+    chainsFor :: ChainView -> SourceFile -> m (Either InsightError Chains),
+    -- | What GHC says each splice of the file became. This costs about one
+    -- typecheck more, not the several of 'chainsFor'.
+    splicesFor :: SourceFile -> m (Either InsightError Splices)
   }

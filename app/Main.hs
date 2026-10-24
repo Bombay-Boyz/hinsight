@@ -6,7 +6,7 @@ module Main (main) where
 import Data.Bifunctor (first)
 import Data.Text (Text)
 import Data.Text.IO qualified as TIO
-import HInsight (Deep (..), LibDir, SourceFile, analyseFile, mkLibDir, mkSourceFile, renderChains, renderError)
+import HInsight (Deep (..), LibDir, SourceFile, analyseFile, mkLibDir, mkSourceFile, renderChains, renderError, renderSplices)
 import HInsight.Cli (Command (..), parseCommand, usageText)
 import HInsight.Error (renderDomainError)
 import HInsight.Ghc.Session (ghcDeep, ghcInsight)
@@ -34,6 +34,10 @@ run = \case
     (dir, file) <- inputs path
     result <- chainsFor (ghcDeep dir) view file
     either (failWith (ExitFailure 1) . renderError) (TIO.putStr . renderChains) result
+  ExplainSplices path -> do
+    (dir, file) <- inputs path
+    result <- splicesFor (ghcDeep dir) file
+    either (failWith (ExitFailure 1) . renderError) (TIO.putStr . renderSplices) result
 
 -- | GHC's library directory and the file, or the reason they are unusable.
 inputs :: FilePath -> IO (LibDir, SourceFile)

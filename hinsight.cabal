@@ -76,6 +76,7 @@ library
     HInsight.Project
     HInsight.Report
     HInsight.Source
+    HInsight.Splice
     HInsight.Suggestion
     HInsight.Trace
     HInsight.Trace.Clean
@@ -144,6 +145,8 @@ test-suite hinsight-test
     HInsight.ProjectSpec
     HInsight.ReportSpec
     HInsight.SourceSpec
+    HInsight.SpliceGhcSpec
+    HInsight.SpliceSpec
     HInsight.SuggestionSpec
     HInsight.Support
     HInsight.TraceSpec

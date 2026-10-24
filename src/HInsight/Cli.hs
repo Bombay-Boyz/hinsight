@@ -25,6 +25,9 @@ data Command
   | -- | Show what GHC logged on the way to each error of this file, in this
     -- view. This runs GHC a second time with its trace on.
     ExplainChains ChainView FilePath
+  | -- | Show what GHC says each splice of this file became. This runs GHC a
+    -- second time with its splice dump on.
+    ExplainSplices FilePath
   | -- | The arguments were unusable; the text says why.
     BadUsage Text
   deriving stock (Eq, Show)
@@ -37,31 +40,50 @@ parseCommand :: [String] -> Command
 parseCommand args
   | any (`elem` ["-h", "--help"]) args = ShowHelp
   | otherwise = case partition ("-" `isPrefixOf`) args of
-      (flags, files) -> case traverse chainFlag flags of
+      (flags, files) -> case traverse readFlag flags of
         Left unknown -> BadUsage ("unknown option " <> T.pack unknown)
-        Right views -> case files of
+        Right parsed -> case files of
           [] -> BadUsage "no file was given"
-          [file] -> maybe (Analyse file) (`ExplainChains` file) (lastOf views)
+          [file] -> forFile file parsed
           _ -> BadUsage ("expected exactly one file but got " <> T.pack (show (length files)))
   where
-    chainFlag :: String -> Either String ChainView
-    chainFlag = \case
-      "--chains" -> Right FollowingVariables
-      "--chains=whole" -> Right WholeBinding
+    readFlag :: String -> Either String Flag
+    readFlag = \case
+      "--chains" -> Right (ChainsFlag FollowingVariables)
+      "--chains=whole" -> Right (ChainsFlag WholeBinding)
+      "--splices" -> Right SplicesFlag
       other -> Left other
+    forFile :: FilePath -> [Flag] -> Command
+    forFile file parsed = case (views, SplicesFlag `elem` parsed) of
+      (_ : _, True) -> BadUsage "--splices cannot be combined with --chains"
+      ([], True) -> ExplainSplices file
+      _ -> maybe (Analyse file) (`ExplainChains` file) (lastOf views)
+      where
+        views :: [ChainView]
+        views = [v | ChainsFlag v <- parsed]
     lastOf :: [a] -> Maybe a
     lastOf = listToMaybe . reverse
+
+-- | A flag the demo knows.
+data Flag
+  = ChainsFlag ChainView
+  | SplicesFlag
+  deriving stock (Eq)
 
 -- | The help text, ending in a newline.
 usageText :: Text
 usageText =
   T.unlines
-    [ "Usage: hinsight-demo [--chains | --chains=whole] FILE.hs",
+    [ "Usage: hinsight-demo [--chains | --chains=whole | --splices] FILE.hs",
       "",
       "With --chains it also shows what GHC logged on the way to each type",
       "error, following the type variables of the error; --chains=whole",
       "shows every record of the binding. This runs GHC a second time with",
       "its trace on, which takes several times as long.",
+      "",
+      "With --splices it shows what GHC says each Template Haskell splice",
+      "of the file became (kind, code, result). This runs GHC a second time",
+      "with its splice dump on.",
       "",
       "Typechecks one Haskell module with GHC 9.10.3 and reports type",
       "mismatches and typed-hole fits. The module may import installed",

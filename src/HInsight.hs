@@ -74,6 +74,18 @@ module HInsight
     chainStepKindLevel,
     renderChain,
     renderChains,
+    Splices (..),
+    emptySplices,
+    Splice,
+    SpliceKind (..),
+    spliceSpan,
+    spliceKind,
+    spliceSource,
+    splicePending,
+    spliceResult,
+    spliceRaw,
+    renderSplice,
+    renderSplices,
 
     -- * Failures
     InsightError (..),
@@ -95,4 +107,5 @@ import HInsight.Hole (HoleFit (..), HoleReport (..), rankFits)
 import HInsight.Identifier (Identifier, mkIdentifier, unIdentifier)
 import HInsight.Instance (InstanceText, UnresolvedInstance (..), renderUnresolvedInstance, unInstanceText)
 import HInsight.Source (SourceFile, mkSourceFile, sourceFilePath)
+import HInsight.Splice (Splice, SpliceKind (..), Splices (..), emptySplices, renderSplice, renderSplices, spliceKind, splicePending, spliceRaw, spliceResult, spliceSource, spliceSpan)
 import HInsight.Suggestion (HintKind (..), Suggested (..), Suggestion, renderSuggested, suggestionKind, suggestionText)

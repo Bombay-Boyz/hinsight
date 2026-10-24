@@ -17,6 +17,8 @@ import HInsight.InstanceSpec qualified
 import HInsight.ProjectSpec qualified
 import HInsight.ReportSpec qualified
 import HInsight.SourceSpec qualified
+import HInsight.SpliceGhcSpec qualified
+import HInsight.SpliceSpec qualified
 import HInsight.SuggestionSpec qualified
 import HInsight.TraceSpec qualified
 import Test.Hspec (hspec)
@@ -27,6 +29,7 @@ main = hspec $ do
   HInsight.SuggestionSpec.spec
   HInsight.TraceSpec.spec
   HInsight.ChainSpec.spec
+  HInsight.SpliceSpec.spec
   HInsight.ExplanationSpec.spec
   HInsight.EnvironmentSpec.spec
   HInsight.FlowSpec.spec
@@ -42,3 +45,4 @@ main = hspec $ do
   HInsight.GhcEnvironmentSpec.spec
   HInsight.EvidenceSpec.spec
   HInsight.ChainGhcSpec.spec
+  HInsight.SpliceGhcSpec.spec

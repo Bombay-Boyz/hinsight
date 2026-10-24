@@ -1,6 +1,6 @@
 -- |
 -- Module      : HInsight.Ghc.Trace
--- Description : Switch GHC's typechecker trace on and collect it.
+-- Description : Switch GHC's dumps on and collect what they log.
 --
 -- The trace is GHC's own output: with @-ddump-tc-trace -dppr-debug
 -- -ferror-spans@ it logs one message per trace point, each starting with the
@@ -9,7 +9,9 @@
 -- 'Capture' ("HInsight.Trace"). Nothing here reads a message; that is the pure
 -- side's job.
 module HInsight.Ghc.Trace
-  ( enableTrace,
+  ( traceFlags,
+    spliceFlags,
+    enableFlags,
     captureHook,
     errorSpans,
   )
@@ -29,14 +31,22 @@ import HInsight.Ghc.Convert (convertSpan)
 import HInsight.Source (Span)
 import HInsight.Trace (Capture, TraceRecord, capture)
 
--- | Switch the typechecker trace on for the rest of the session. A module is
+-- | The flags of the typechecker trace.
+traceFlags :: [String]
+traceFlags = ["-ddump-tc-trace", "-dppr-debug", "-ferror-spans"]
+
+-- | The flags of the splice dump.
+spliceFlags :: [String]
+spliceFlags = ["-ddump-splices", "-ferror-spans"]
+
+-- | Switch these flags on for the rest of the session. A module is
 -- typechecked with the flags stored in its summary, so the caller builds the
 -- module graph again after this.
-enableTrace :: Ghc (Either EnvironmentError ())
-enableTrace = do
+enableFlags :: [String] -> Ghc (Either EnvironmentError ())
+enableFlags wanted = do
   logger <- getLogger
   current <- getSessionDynFlags
-  (flags, leftovers, _warnings) <- parseDynamicFlags logger current (map noLoc ["-ddump-tc-trace", "-dppr-debug", "-ferror-spans"])
+  (flags, leftovers, _warnings) <- parseDynamicFlags logger current (map noLoc wanted)
   case leftovers of
     [] -> Right <$> void (setSessionDynFlags flags)
     unknown -> pure (Left (UnrecognisedArguments (map (T.pack . unLoc) unknown)))

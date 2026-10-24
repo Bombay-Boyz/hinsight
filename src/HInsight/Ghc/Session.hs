@@ -37,6 +37,7 @@ import Control.Monad (filterM, void)
 import Control.Monad.IO.Class (liftIO)
 import Data.Bifunctor (first)
 import Data.Containers.ListUtils (nubOrd)
+import Data.Either (fromLeft)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Text (Text)
@@ -103,12 +104,13 @@ import HInsight.Ghc.Graph (RawModule, collectGraph, projectGraph)
 import HInsight.Ghc.HoleCapture (CapturedHole, holePlugin)
 import HInsight.Ghc.Holes (holeReports)
 import HInsight.Ghc.Messages (Extracted (..), extractMessages)
-import HInsight.Ghc.Trace (captureHook, enableTrace, errorSpans)
+import HInsight.Ghc.Trace (captureHook, enableFlags, errorSpans, spliceFlags, traceFlags)
 import HInsight.Graph (ProjectGraph)
 import HInsight.Hole (HoleReport)
 import HInsight.Project (sourceRoot)
 import HInsight.Source (SourceFile, Span, sourceFilePath)
-import HInsight.Trace (Capture, Trace (..), defaultRecordLimit, emptyCapture, finishCapture, locatedIn)
+import HInsight.Splice (Splices (..), buildSplices, emptySplices, splicesIn)
+import HInsight.Trace (Capture, Trace (..), TraceRecord (..), defaultRecordLimit, emptyCapture, finishCapture, locatedIn)
 import System.Directory (canonicalizePath, doesDirectoryExist, doesFileExist)
 import System.FilePath (takeDirectory)
 
@@ -336,8 +338,8 @@ loadDependencies logged graph summary
     names =
       nubOrd
         [ moduleNameString (ms_mod_name s)
-        | s <- mgModSummaries graph,
-          ms_mod_name s /= ms_mod_name summary
+          | s <- mgModSummaries graph,
+            ms_mod_name s /= ms_mod_name summary
         ]
     describe :: [Text] -> Text
     describe [] = "GHC reported no details"
@@ -382,30 +384,44 @@ deferredPipelines sink path = do
 
 -- | The GHC-backed implementation of 'Deep', placing the file by its header.
 ghcDeep :: LibDir -> Deep IO
-ghcDeep dir = Deep {chainsFor = chains dir FromHeader}
+ghcDeep dir = deepIn dir FromHeader
 
 -- | The GHC-backed implementation of 'Deep' for a file of the project
 -- component the 'Environment' describes.
 ghcDeepIn :: LibDir -> Environment -> Deep IO
-ghcDeepIn dir env = Deep {chainsFor = chains dir (FromEnvironment env)}
+ghcDeepIn dir env = deepIn dir (FromEnvironment env)
 
-chains :: LibDir -> Placement -> ChainView -> SourceFile -> IO (Either InsightError Chains)
-chains dir placement view file = do
+deepIn :: LibDir -> Placement -> Deep IO
+deepIn dir placement =
+  Deep
+    { chainsFor = \view file ->
+        deep dir placement traceFlags locatedIn (chainsOf view (sourceFilePath file)) file,
+      splicesFor =
+        deep dir placement spliceFlags (\ghcPath _ -> splicesIn ghcPath) splicesOf
+    }
+
+-- | Run a second pass over a file and read what it logged.
+deep ::
+  LibDir ->
+  Placement ->
+  [String] ->
+  (FilePath -> [Span] -> TraceRecord -> Bool) ->
+  (Deepened -> Either InsightError a) ->
+  SourceFile ->
+  IO (Either InsightError a)
+deep dir placement flags wanted finish file = do
   failure <- preflight dir file
   case failure of
     Just why -> pure (Left (SessionFailure why))
-    Nothing -> catchSession path (runChains dir placement view path)
+    Nothing -> catchSession path $ do
+      logged <- newIORef []
+      result <- runGhc (Just (libDirPath dir)) (deepPass placement flags wanted logged path)
+      evaluate (result >>= finish)
   where
     path :: FilePath
     path = sourceFilePath file
 
-runChains :: LibDir -> Placement -> ChainView -> FilePath -> IO (Either InsightError Chains)
-runChains dir placement view path = do
-  logged <- newIORef []
-  result <- runGhc (Just (libDirPath dir)) (traceTypecheck placement view logged path)
-  evaluate result
-
--- | What preparing a project for the trace pass came to.
+-- | What preparing a project for a second pass came to.
 data Prepared
   = -- | The dependencies are loaded and the file is in the module graph.
     Ready
@@ -415,12 +431,33 @@ data Prepared
     -- example a parse error in its header or an import it cannot find.
     Unreadable [MsgEnvelope GhcMessage]
 
+-- | What a second pass reached.
+data Deepened
+  = -- | GHC stopped before it typechecked the file, on this many errors.
+    Blocked Int
+  | -- | GHC typechecked the file.
+    Ran DeepRun
+
+-- | A typecheck of the file with a dump on.
+data DeepRun = DeepRun
+  { -- | The messages the dump logged that the caller wanted.
+    runCaptured :: Capture,
+    -- | The spans of the file's top-level bindings.
+    runBindings :: [Span],
+    -- | The errors of the typecheck; none when it passed.
+    runErrors :: [MsgEnvelope GhcMessage]
+  }
+
 -- | Load the project as an analysis does, then typecheck the file once more
--- with the trace on and read what it logged. A file with no errors has no
--- chains; a file GHC cannot get as far as typechecking has errors and no
--- chains.
-traceTypecheck :: Placement -> ChainView -> IORef [Text] -> FilePath -> Ghc (Either InsightError Chains)
-traceTypecheck placement view logged path = do
+-- with these flags on, giving the messages they log to the 'Capture'.
+deepPass ::
+  Placement ->
+  [String] ->
+  (FilePath -> [Span] -> TraceRecord -> Bool) ->
+  IORef [Text] ->
+  FilePath ->
+  Ghc (Either InsightError Deepened)
+deepPass placement flags wanted logged path = do
   configured <- configure placement logged
   case configured of
     Left failure -> pure (Left (EnvironmentFailure failure))
@@ -431,17 +468,21 @@ traceTypecheck placement view logged path = do
       prepared <- handleSourceError (pure . Unreadable . errorsOf) (either Refused (const Ready) <$> prepareProject placement logged path)
       case prepared of
         Refused why -> pure (Left (SessionFailure why))
-        Unreadable errors -> pure (Right (Chains [] (length errors)))
-        Ready -> tracedPass view path
+        Unreadable errors -> pure (Right (Blocked (length errors)))
+        Ready -> passWithFlags flags wanted located path
 
--- | The second pass. The module graph is built again after the trace flags are
--- set, because GHC typechecks a module with the flags in its summary.
-tracedPass :: ChainView -> FilePath -> Ghc (Either InsightError Chains)
-tracedPass view path = do
-  enabled <- enableTrace
+-- | The second pass. The module graph is built again after the flags are set,
+-- because GHC typechecks a module with the flags in its summary. Loading the
+-- file's dependencies left them as the targets, so the file is made the target
+-- again first; without it a file that imports another module of its project
+-- is not in the graph.
+passWithFlags :: [String] -> (FilePath -> [Span] -> TraceRecord -> Bool) -> FilePath -> FilePath -> Ghc (Either InsightError Deepened)
+passWithFlags flags wanted located path = do
+  enabled <- enableFlags flags
   case enabled of
     Left failure -> pure (Left (EnvironmentFailure failure))
     Right () -> do
+      guessTarget located Nothing Nothing >>= setTargets . pure
       graph <- depanal [] False
       found <- targetSummary path (mgModSummaries graph)
       case found of
@@ -449,31 +490,46 @@ tracedPass view path = do
         Just summary -> do
           parsed <- handleSourceError (pure . Left . errorsOf) (Right <$> parseModule summary)
           case parsed of
-            Left errors -> pure (Right (Chains [] (length errors)))
-            Right module' -> typecheckTraced view path summary module'
+            Left errors -> pure (Right (Blocked (length errors)))
+            Right module' -> typecheckCaptured wanted path summary module'
 
-typecheckTraced :: ChainView -> FilePath -> ModSummary -> ParsedModule -> Ghc (Either InsightError Chains)
-typecheckTraced view path summary parsed =
+typecheckCaptured :: (FilePath -> [Span] -> TraceRecord -> Bool) -> FilePath -> ModSummary -> ParsedModule -> Ghc (Either InsightError Deepened)
+typecheckCaptured wanted path summary parsed =
   case bindingSpans path (collectBindings (hsmodDecls (unLoc (pm_parsed_source parsed)))) of
     Left failure -> pure (Left failure)
     Right spans -> do
       ref <- liftIO (newIORef (emptyCapture defaultRecordLimit))
-      -- The trace names the file as GHC knows it.
+      -- The dump names the file as GHC knows it.
       let ghcPath = fromMaybe path (ml_hs_file (ms_location summary))
-      pushLogHookM (captureHook ref (locatedIn ghcPath spans))
+      pushLogHookM (captureHook ref (wanted ghcPath spans))
       checked <- handleSourceError (pure . Left . errorsOf) (Right <$> typecheckModule parsed)
       captured <- liftIO (readIORef ref)
-      pure (either (chainsOf view path spans captured) (const (Right emptyChains)) checked)
+      pure (Right (Ran (DeepRun captured spans (fromLeft [] checked))))
 
 -- | The chains for the errors of a typecheck, from what the trace collected.
--- Past the record limit the answer is an error, not a part of the trace.
-chainsOf :: ChainView -> FilePath -> [Span] -> Capture -> [MsgEnvelope GhcMessage] -> Either InsightError Chains
-chainsOf view path bindings captured errors = do
-  trace <- first TraceFailure (finishCapture captured)
-  spans <- errorSpans path errors
-  let built = buildChains view bindings spans (traceRecords trace)
-  -- An error with no real span cannot have a chain.
-  pure built {chainsMissing = chainsMissing built + length errors - length spans}
+-- Past the record limit the answer is an error, not a part of the trace. A
+-- file with no errors has no chains whatever the trace holds.
+chainsOf :: ChainView -> FilePath -> Deepened -> Either InsightError Chains
+chainsOf _ _ (Blocked n) = Right (Chains [] n)
+chainsOf view path (Ran run)
+  | null errors = Right emptyChains
+  | otherwise = do
+      trace <- first TraceFailure (finishCapture (runCaptured run))
+      spans <- errorSpans path errors
+      let built = buildChains view (runBindings run) spans (traceRecords trace)
+      -- An error with no real span cannot have a chain.
+      pure built {chainsMissing = chainsMissing built + length errors - length spans}
+  where
+    errors :: [MsgEnvelope GhcMessage]
+    errors = runErrors run
+
+-- | The splices GHC ran, from what the dump logged. Splices dumped before an
+-- error are reported with it; past the record limit the answer is an error.
+splicesOf :: Deepened -> Either InsightError Splices
+splicesOf (Blocked n) = Right emptySplices {splicesBlocked = n}
+splicesOf (Ran run) = do
+  trace <- first TraceFailure (finishCapture (runCaptured run))
+  pure (buildSplices (map recordRaw (traceRecords trace)))
 
 -- | The error diagnostics inside a 'SourceError'; warnings are not analysed.
 errorsOf :: SourceError -> [MsgEnvelope GhcMessage]

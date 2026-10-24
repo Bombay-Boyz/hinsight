@@ -21,6 +21,7 @@ module HInsight.Trace
     parseRecord,
     recordText,
     locatedIn,
+    parseLocated,
 
     -- * A view of a step
     stepKindLevel,

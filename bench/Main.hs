@@ -73,7 +73,9 @@ analysisGroup libDir =
     [ analyse "a single module" "test/fixtures/Ok.hs",
       analyse "a module and two project imports" "test/fixtures/project/App.hs",
       analyse "a module with one mismatch" "test/fixtures/ChainPair.hs",
-      chains "the chains of that mismatch (the trace pass)" "test/fixtures/ChainPair.hs"
+      chains "the chains of that mismatch (the trace pass)" "test/fixtures/ChainPair.hs",
+      analyse "a module with eleven splices" "test/fixtures/splices/Use.hs",
+      splices "the splices of that module (the splice pass)" "test/fixtures/splices/Use.hs"
     ]
   where
     analyse :: String -> FilePath -> Benchmark
@@ -85,6 +87,13 @@ analysisGroup libDir =
       analyseFile (ghcInsight dir) file
     chains :: String -> FilePath -> Benchmark
     chains name path = bench name (whnfIO (runChains path))
+    splices :: String -> FilePath -> Benchmark
+    splices name path = bench name (whnfIO (runSplices path))
+    runSplices :: FilePath -> IO (Either InsightError Splices)
+    runSplices path = do
+      dir <- orFail (mkLibDir libDir)
+      file <- orFail (mkSourceFile path)
+      splicesFor (ghcDeep dir) file
     runChains :: FilePath -> IO (Either InsightError Chains)
     runChains path = do
       dir <- orFail (mkLibDir libDir)

@@ -39,6 +39,12 @@ spec = describe "parseCommand" $ do
       parseCommand ["--chains"] `shouldBe` BadUsage "no file was given"
     it "still counts files" $
       parseCommand ["--chains", "a.hs", "b.hs"] `shouldBe` BadUsage "expected exactly one file but got 2"
+    it "asks for the splices" $
+      parseCommand ["--splices", "A.hs"] `shouldBe` ExplainSplices "A.hs"
+    it "will not combine splices with chains" $
+      parseCommand ["--splices", "--chains", "A.hs"] `shouldBe` BadUsage "--splices cannot be combined with --chains"
+    it "still needs a file for splices" $
+      parseCommand ["--splices"] `shouldBe` BadUsage "no file was given"
     it "names an unknown option even beside a chain flag" $
       parseCommand ["--chains", "--verbose", "A.hs"] `shouldBe` BadUsage "unknown option --verbose"
   prop "accepts any single argument that does not start with a dash" $ \(NonEmpty s) ->
@@ -47,11 +53,13 @@ spec = describe "parseCommand" $ do
     it "names the program and the pinned compiler" $ do
       usageText `shouldSatisfy` T.isInfixOf "hinsight-demo"
       usageText `shouldSatisfy` T.isInfixOf "ghc-9.10.3"
+    it "describes the splice option" $
+      usageText `shouldSatisfy` T.isInfixOf "--splices"
     it "describes both chain views" $ do
       usageText `shouldSatisfy` T.isInfixOf "--chains"
       usageText `shouldSatisfy` T.isInfixOf "--chains=whole"
   where
     isChainFlag :: String -> Bool
-    isChainFlag = (`elem` ["--chains", "--chains=whole"])
+    isChainFlag = (`elem` ["--chains", "--chains=whole", "--splices"])
     notHelp :: [String] -> Bool
     notHelp = not . any (`elem` ["-h", "--help"])
