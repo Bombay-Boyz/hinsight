@@ -3,7 +3,9 @@
 -- Description : A readable view of the type text GHC prints under @-dppr-debug@.
 --
 -- GHC's debug printing decorates every name: @GHC.Types.Int{(w) tc 3u}@, and
--- type variables as @(a_ax0{tv} Nothing [tau:0] :: GHC.Types.Type)@. This
+-- type variables as @(a_ax0{tv} Nothing [tau:0] :: GHC.Types.Type)@. It also
+-- prints syntax trees with their annotations (@{EpAnn EpaSpan ...}@) and
+-- gives an expression's names a tag (@pair{v rAeV}@). This
 -- module removes only the patterns it recognises exactly. Anything else is
 -- left as GHC printed it and 'residue' says so. It is a view: callers keep the
 -- raw text beside it, and nothing here changes what a type means.
@@ -47,14 +49,22 @@ cleanBlock ts = map (T.pack . qualify collisionFree . binders . stripDecor . T.u
 -- | The debug patterns still present in a text. An empty list means every
 -- decoration was recognised.
 residue :: Text -> [Text]
-residue t = [p | p <- ["{tv}", "{v}", " Nothing [", "{(w)"], T.unpack p `isInfixOf` s]
+residue t = [p | p <- ["{tv}", "{v}", "{v ", " Nothing [", "{(w)", "{EpAnn "], T.unpack p `isInfixOf` s]
   where
     s :: String
     s = T.unpack t
 
--- @{(w) tc 3u}@ becomes nothing.
+-- @{(w) tc 3u}@ and the tag @{v rAeV}@ of a name become nothing, and so does
+-- an annotation block @{EpAnn ...}@ with the space after it. A block that is
+-- not closed is left as it is.
 stripDecor :: String -> String
 stripDecor s = case s of
+  '{' : 'E' : 'p' : 'A' : 'n' : 'n' : ' ' : rest
+    | Just after <- closeBrace rest (0 :: Int) -> stripDecor (dropSpace after)
+  '{' : 'v' : ' ' : rest
+    | (body@(_ : _), '}' : after) <- break (== '}') rest,
+      all isAlphaNum body ->
+        stripDecor after
   '{' : '(' : c : ')' : ' ' : rest
     | isAlpha c,
       (body, '}' : after) <- break (== '}') rest,
@@ -62,6 +72,18 @@ stripDecor s = case s of
         stripDecor after
   x : xs -> x : stripDecor xs
   [] -> []
+
+-- The text after the brace that closes the block we are in, honouring nesting.
+closeBrace :: String -> Int -> Maybe String
+closeBrace [] _ = Nothing
+closeBrace (c : cs) depth
+  | c == '{' = closeBrace cs (depth + 1)
+  | c == '}' = if depth == 0 then Just cs else closeBrace cs (depth - 1)
+  | otherwise = closeBrace cs depth
+
+dropSpace :: String -> String
+dropSpace (' ' : cs) = cs
+dropSpace cs = cs
 
 -- @(name{tv} Nothing [tau:0] :: kind)@ becomes @name[tau:0]@.
 binders :: String -> String

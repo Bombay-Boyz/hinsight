@@ -168,6 +168,13 @@ spec = describe "Trace" $ do
     it "leaves a shape it does not know as GHC printed it, and says so" $ do
       let t = "(co_axa{v} Just GHC.Types.Many [lid[CoVarId]] :: GHC.Prim.~# GHC.Types.Type GHC.Types.Type)"
       residue (cleanType t) `shouldBe` ["{v}"]
+    it "removes the syntax-tree annotations and name tags of a deferral's context" $ do
+      let t = "In the expression: ChainPair.pair{v rAeV} {EpAnn EpaSpan test/fixtures/ChainPair.hs:7:10-19 AnnListItem [] EpaComments []} (1 ({EpAnn EpaSpan test/fixtures/ChainPair.hs:7:11 NameAnnTrailing [] EpaComments []} GHC.Internal.Num.fromInteger{v 02A}) :: {EpAnn EpaSpan test/fixtures/ChainPair.hs:7:16-18 AnnListItem [] EpaComments []} {EpAnn EpaSpan test/fixtures/ChainPair.hs:7:16-18 AnnListItem [] EpaComments []} Int) {EpAnn EpaSpan test/fixtures/ChainPair.hs:7:21-23 AnnListItem [] EpaComments []} \"x\""
+      -- Qualifiers are dropped from type names only, so these value names keep theirs.
+      cleanType t `shouldBe` "In the expression: ChainPair.pair (1 (GHC.Internal.Num.fromInteger) :: Int) \"x\""
+      residue (cleanType t) `shouldBe` []
+    it "leaves an annotation block that is never closed as GHC printed it" $
+      cleanType "x {EpAnn EpaSpan a.hs:1:1 [" `shouldBe` "x {EpAnn EpaSpan a.hs:1:1 ["
     it "reports no residue on a type it fully reads" $
       residue (cleanType uTys) `shouldBe` []
     prop "never makes the text longer" $
