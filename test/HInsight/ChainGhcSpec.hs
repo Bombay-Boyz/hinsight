@@ -10,10 +10,11 @@ import Control.Exception (finally)
 import Data.Maybe (listToMaybe)
 import Data.Text qualified as T
 import HInsight
-import HInsight.Ghc.Session (ghcDeep, ghcInsight)
+import HInsight.Environment (mkComponentName, mkEnvironment, mkGhcFlag, mkProjectRoot, pinnedGhcVersion)
+import HInsight.Ghc.Session (ghcDeep, ghcDeepIn, ghcInsight)
 import HInsight.Support (ok)
 import HInsight.Toolchain (findGhcLibDir)
-import System.Directory (createDirectoryIfMissing, getTemporaryDirectory, removeDirectoryRecursive)
+import System.Directory (canonicalizePath, createDirectoryIfMissing, getTemporaryDirectory, removeDirectoryRecursive)
 import System.FilePath ((</>))
 import System.Process (getCurrentPid)
 import Test.Hspec
@@ -77,6 +78,21 @@ realSpec libDir = do
     cs <- chainsOfPath libDir FollowingVariables path `finally` removeDirectoryRecursive folder
     chainsFound cs `shouldBe` []
     chainsMissing cs `shouldSatisfy` (>= 1)
+  it "gives the same chain inside a project environment" $ do
+    root <- canonicalizePath "test/fixtures" >>= ok . mkProjectRoot
+    component <- ok (mkComponentName "fixture")
+    flag <- ok (mkGhcFlag "-i.")
+    env <- ok (mkEnvironment component root pinnedGhcVersion [flag])
+    dir <- ok (mkLibDir libDir)
+    file <- ok (mkSourceFile "test/fixtures/ChainPair.hs")
+    inEnv <- chainsFor (ghcDeepIn dir env) FollowingVariables file >>= either (fail . show) pure
+    plain <- chainsOfFixture libDir FollowingVariables "ChainPair.hs"
+    -- The variable names carry GHC's uniques and the file name is spelled
+    -- differently, so only what is stable is compared: where each step is, how
+    -- many there are, and how many records were left out.
+    let shape = map (\c -> (map chainStepSpan (chainSteps c), chainOmitted c)) . chainsFound
+    shape inEnv `shouldBe` shape plain
+    chainsMissing inEnv `shouldBe` chainsMissing plain
   it "gives no chains for a file without errors" $ do
     cs <- chainsOfFixture libDir FollowingVariables "Ok.hs"
     cs `shouldBe` emptyChains
