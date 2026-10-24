@@ -336,8 +336,8 @@ loadDependencies logged graph summary
     names =
       nubOrd
         [ moduleNameString (ms_mod_name s)
-          | s <- mgModSummaries graph,
-            ms_mod_name s /= ms_mod_name summary
+        | s <- mgModSummaries graph,
+          ms_mod_name s /= ms_mod_name summary
         ]
     describe :: [Text] -> Text
     describe [] = "GHC reported no details"

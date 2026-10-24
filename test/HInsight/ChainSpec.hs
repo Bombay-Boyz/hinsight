@@ -153,7 +153,7 @@ spec = describe "Chain" $ do
                       [ fmap chainStepSpan (lastOf (chainSteps c))
                           === Just err
                           .&&. counterexample "last step" (maybe False (T.isPrefixOf "GHC deferred" . chainStepSummary) (lastOf (chainSteps c)))
-                        | c <- chainsFound cs
+                      | c <- chainsFound cs
                       ]
             _ -> counterexample "spans" False
     prop "is total on any text" $

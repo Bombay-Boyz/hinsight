@@ -230,7 +230,7 @@ renderChain c = T.unlines (heading : zipWith line [1 :: Int ..] (chainSteps c) <
     omitted :: [Text]
     omitted =
       [ "  (" <> T.pack (show (chainOmitted c)) <> " records GHC logged here are not interpreted)"
-        | chainOmitted c > 0
+      | chainOmitted c > 0
       ]
     viewName :: ChainView -> Text
     viewName = \case
