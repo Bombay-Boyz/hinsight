@@ -83,6 +83,21 @@ evidenceSpec libDir = do
         SimilarNames `elem` fmap suggestionKind (suggestedHints s) `shouldBe` True
         any (("length" `T.isInfixOf`) . suggestionText) (suggestedHints s) `shouldBe` True
       other -> expectationFailure ("expected one suggestion, found " <> show (length other))
+  it "reports no mismatch next to a scope error: GHC stops before it typechecks" $ do
+    a <- analyse libDir "ScopeHidesMismatch.hs"
+    (length (analysisMismatches a), analysisUnexplained a) `shouldBe` (0, 1)
+  it "reports a mismatch next to a typed hole, because GHC does" $ do
+    a <- analyse libDir "HoleAndMismatch.hs"
+    (length (analysisMismatches a), length (analysisHoles a), analysisUnexplained a) `shouldBe` (1, 1, 0)
+  it "prints the type of a hole and of its fits without type variable uniques" $ do
+    a <- analyse libDir "HoleVariable.hs"
+    case analysisHoles a of
+      [h] -> do
+        unTypeText (holeType h) `shouldBe` "[a] -> [a]"
+        let printed = unTypeText (holeType h) : map (unTypeText . fitType) (holeFits h)
+        filter (T.isInfixOf "[sk:") printed `shouldBe` []
+        filter (T.isInfixOf "_a") printed `shouldBe` []
+      other -> expectationFailure ("expected exactly one hole, found " <> show (length other))
   it "accounts for every error GHC reports" $
     for_ [("TypeMismatch.hs", 1), ("RigidVariable.hs", 1), ("ScopeError.hs", 1), ("Hole.hs", 1), ("ThreeMismatches.hs", 3), ("NoInstance.hs", 1), ("AmbiguousLength.hs", 2), ("SimilarName.hs", 1)] $
       \(name, reported) -> do

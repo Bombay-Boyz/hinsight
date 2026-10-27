@@ -40,9 +40,10 @@ position l c = mkPosition <$> mkLine l <*> mkColumn c
 convertText :: FilePath -> String -> Either InsightError TypeText
 convertText file = fromDomain file . mkTypeText . T.pack
 
--- | Render a GHC type on one line with default settings.
+-- | Render a GHC type on one line in the style GHC uses for people, so a type
+-- variable prints as written (@a@) and not with its unique (@a_aYt[sk:1]@).
 renderGhcType :: Type -> String
-renderGhcType = renderGhc . ppr
+renderGhcType = renderUser
 
 -- | Render any GHC document on one line with default settings.
 renderGhc :: SDoc -> String

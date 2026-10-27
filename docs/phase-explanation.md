@@ -265,19 +265,16 @@ Ticked only where a test or a run checked it; the rest say what is missing.
    listed before and after). "Nothing is printed by GHC during an analysis" has
    no test; GHC's output goes through the log hook, and nothing was seen on the
    terminal in any run, but that is an observation, not a check.
-8. [~] `weeder`, `hlint`, `ormolu` and `-Werror` were green on steps 1 to 6 in CI
-   and on the user's machine for step 7; the CI result of the closing commit is
-   to be read when it is pushed. Every new export is used (weeder), and the
+8. [x] `weeder`, `hlint`, `ormolu` and `-Werror` were green in CI on steps 7 and
+   8 (read by the user). Every new export is used (weeder), and the
    independence check (the repository never names the application that uses it)
    is part of CI.
 
 ### Owed after the phase
 
-- Confirm that GHC reports no further mismatches after a scope error or a typed
-  hole in the same binding (the `step1-fix.sh` hypothesis); it is assumed in the
-  explanation of such files and has not been checked on its own.
-- Hole types and fits still print with the earlier rendering; check them for the
-  unique suffix that the debug style adds (decision 4).
+- Done after the phase: the scope-error hypothesis was checked and is true for
+  scope errors only (decision 24); hole types and fits now print in the user
+  style (decision 25).
 - Set `defaultRecordLimit` from the trace benchmark (decision 9).
 - Run the analysis benchmarks and record the figures (acceptance 4).
 - STG is not offered (decision 20).
@@ -336,7 +333,7 @@ These record choices made in the steps above that the plan left open.
    This is rare and is stated in the documentation of `HInsight.Ghc.Messages`.
 4. **Printed types use GHC's user style (step 1).** Type variables print as
    written (`a`), not with the unique suffix of the debug style. Hole types and
-   fits still use the earlier rendering and are to be checked in step 7.
+   fits used the debug style until after the phase; see decision 25.
 5. **Chains are a separate handle (step 5).** `Deep m` is its own record, not a
    field of `Insight m`, so an ordinary analysis keeps its meaning and its cost.
    A field is added to `Deep` in the change that makes it reachable.
@@ -432,3 +429,14 @@ These record choices made in the steps above that the plan left open.
 23. **The targets are cleared before GHC makes Core.** `compileToCoreSimplified`
     adds the file as a target itself; a file given twice is an error ("module is
     defined in multiple files"). The pass therefore calls `setTargets []` first.
+24. **A scope error hides every type error in the file; a typed hole hides none.**
+    Checked with GHC 9.10.3 on files with a scope error in one binding and a
+    mismatch in another: GHC reported only the scope errors, because it stops
+    after the renamer. A hole is reported by the typechecker, so a mismatch next
+    to it is reported too. The explanation therefore reports no mismatch for a
+    file with a scope error, and says so by counting the scope error as
+    unexplained; `EvidenceSpec` pins both cases.
+25. **Hole types and fits print in the user style.** A rigid type variable
+    printed as `a_aYt[sk:1]` in a hole's type and in the fit `k`; GHC prints `a`.
+    The hole rendering now uses the same style as the rest (decision 4), and
+    `EvidenceSpec` checks that no printed hole type or fit carries a unique.
