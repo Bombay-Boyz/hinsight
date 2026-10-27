@@ -115,6 +115,9 @@ data SessionError
     -- file was not analysed. The first field is the file; the second is what
     -- GHC reported, on one line.
     DependencyFailed FilePath Text
+  | -- | The file typechecked, but GHC then failed to make its Core. The first
+    -- field is the file; the second is what GHC reported, on one line.
+    CoreFailed FilePath Text
   deriving stock (Eq, Show)
 
 -- | GHC's data could not be turned into a domain value.
@@ -188,6 +191,7 @@ renderSession = \case
   TargetNotInGraph p -> "GHC did not list " <> T.pack p <> " among the modules it found for it"
   DependencyFailed p why ->
     "a module imported by " <> T.pack p <> " did not compile, so it was not analysed: " <> why
+  CoreFailed p why -> "GHC could not make the Core of " <> T.pack p <> ": " <> why
 
 renderExtraction :: ExtractionError -> Text
 renderExtraction = \case
