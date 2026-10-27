@@ -1,6 +1,7 @@
 # Next phase: what GHC says, presented in depth
 
-Status: **planned, not started.** Nothing in this document is built. It follows
+Status: **built (steps 0 to 7); closed in step 8.** The acceptance list in
+section 5 says what was checked and how, and what was not. It follows
 the engineering standard: prior art first (5.7), one canonical representation
 (2.1), effects behind a handle (0.5), a named test for every claim (5.5), and a
 bound on anything that grows with the input (2.4, 4.11). Every capability named
@@ -157,7 +158,12 @@ at `-O0` and only the target at `-O` is cheaper is not measured (step 7).
 section that is missing, and a failed temporary-directory setup. Each message
 names the file and span.
 
-### 3.9 Open decisions
+### 3.9 Open decisions (resolved while building)
+
+Resolved: 1 by item 5 of the decisions below, 2 by item 1 (and
+`docs/decisions.md`, item 18), 4 by item 6. Open: 3, whose default is
+`defaultRecordLimit` = 100 000 until the trace benchmark has been run on a large
+module and its figure recorded. The original text follows.
 
 1. **Handle shape.** `Deep` as a second record (recommended) or new fields on
    `Insight`.
@@ -226,24 +232,63 @@ status, and the acceptance list below ticked with how each was checked.
 
 ## 5. Acceptance
 
-1. The rigid-variable example is explained (`rigidVariableIsExplained`).
-2. For the ten spike programs the result has the expected kind, or the
-   diagnostic is counted unexplained; none is dropped (the count identity).
-3. The chain for the `Pair` program equals its golden sequence and ends at a
-   deferral with the error's span.
-4. The standard path's cost is unchanged: the existing benchmark shows no
-   regression, and the trace pass is not entered unless requested.
-5. A module with more records than the limit gives `TraceLimitExceeded`, not a
-   truncated chain.
-6. An unreadable record is carried raw and counted.
-7. Nothing is printed by GHC during an analysis; nothing is left on disk after
-   the Core mode.
-8. `weeder`, `hlint`, `ormolu` and `-Werror` stay green, with every new export
-   used, and the repository never mentions the application that uses it.
+Ticked only where a test or a run checked it; the rest say what is missing.
+
+1. [x] The rigid-variable example is explained. Checked by `EvidenceSpec`
+   ("explains a mismatch against a rigid type variable", on
+   `test/fixtures/RigidVariable.hs`, real GHC 9.10.3).
+2. [x] For the spike programs the result has the expected kind, or the
+   diagnostic is counted unexplained; none is dropped. Checked by `EvidenceSpec`
+   ("accounts for every error GHC reports"): eight fixtures, each with the
+   number of errors GHC reports equal to explained + unexplained. The list has
+   eight programs, not the ten the plan named; the plan's ten were not kept as a
+   list, so this is the set the fixtures cover, not a claim about the ten.
+3. [x] The chain for the `Pair` program equals its golden sequence and ends at a
+   deferral with the error's span. Checked by `ChainSpec` (golden sequence from
+   real lines, at both views) and `ChainGhcSpec` (the same program through real
+   GHC, and inside a project environment).
+4. [~] The standard path's cost is unchanged. By construction: the trace, splice
+   and Core passes are the separate handle `Deep` and are never entered by
+   `analyseFile`. Not measured: no before-and-after figure of an analysis was
+   taken across this phase, and CI's benchmark step thresholds only the ranking
+   benchmark. Run `cabal bench hinsight-bench` and record the analysis entries
+   to close this.
+5. [x] A module with more records than the limit gives `TraceLimitExceeded`, not
+   a truncated chain. Checked by `TraceSpec` ("gives an error, not a truncated
+   trace, past the limit", a property, and a 100 000-record input).
+6. [x] An unreadable record is carried raw and counted. Checked by `ChainSpec`
+   ("counts an uninterpreted record that came before the deferral"),
+   `SpliceSpec` (`splicesUnread`) and `CoreSpec` (`coreUnread`, and the
+   totality property).
+7. [~] Nothing is left on disk after the Core mode: checked by `CoreGhcSpec`
+   (`coreModeLeavesNoFiles`: fixture folder, working folder and temporary folder
+   listed before and after). "Nothing is printed by GHC during an analysis" has
+   no test; GHC's output goes through the log hook, and nothing was seen on the
+   terminal in any run, but that is an observation, not a check.
+8. [~] `weeder`, `hlint`, `ormolu` and `-Werror` were green on steps 1 to 6 in CI
+   and on the user's machine for step 7; the CI result of the closing commit is
+   to be read when it is pushed. Every new export is used (weeder), and the
+   independence check (the repository never names the application that uses it)
+   is part of CI.
+
+### Owed after the phase
+
+- Confirm that GHC reports no further mismatches after a scope error or a typed
+  hole in the same binding (the `step1-fix.sh` hypothesis); it is assumed in the
+  explanation of such files and has not been checked on its own.
+- Hole types and fits still print with the earlier rendering; check them for the
+  unique suffix that the debug style adds (decision 4).
+- Set `defaultRecordLimit` from the trace benchmark (decision 9).
+- Run the analysis benchmarks and record the figures (acceptance 4).
+- STG is not offered (decision 20).
 
 ## 6. Size
 
-An estimate, to be replaced by the measured figure when the phase closes:
+An estimate, kept as planned. Measured at the close: the library's modules are
+about 4,500 lines (comments included) and the test modules about 2,600, so the
+estimate of about 4,400 source lines for the whole package held, and the tests
+came in above the estimate of about 1,750 for the phase. The split by part was
+not measured.
 
 | Part | Source lines | Test lines |
 |---|---|---|
@@ -378,3 +423,12 @@ These record choices made in the steps above that the plan left open.
     section, so adding it later changes only which flags are set.
 21. **No Core for a file that does not typecheck.** The errors are counted in
     `coreBlocked`; no section is shown, because GHC made none.
+22. **A failed Core step is not "blocked" (step 7).** The Core pass typechecks the
+    file itself first, with the Core flags set. If that fails, the errors are
+    `coreBlocked`. If the file typechecks and GHC then fails to make its Core, the
+    answer is `SessionFailure (CoreFailed file message)` carrying what GHC
+    reported. Counting every failure as blocked had hidden a real defect (the
+    target given twice), and a test that passed for the wrong reason.
+23. **The targets are cleared before GHC makes Core.** `compileToCoreSimplified`
+    adds the file as a target itself; a file given twice is an error ("module is
+    defined in multiple files"). The pass therefore calls `setTargets []` first.

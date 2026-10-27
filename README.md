@@ -4,7 +4,7 @@
 
 Answers questions about Haskell code that need GHC's own data.
 
-This first version does four things for a Haskell module:
+It does these things for a Haskell module:
 
 - **Type mismatches.** For an error where GHC expected one type and found
   another, it returns the two types, the sub-types at which they first differ,
@@ -19,6 +19,21 @@ This first version does four things for a Haskell module:
   with the type GHC gave it, in the order data flows through them, and the type
   of the whole chain. For a file with errors the types come from a second
   typecheck with the errors deferred.
+- **Other errors and hints.** A mismatch against a rigid type variable is
+  explained like any mismatch. An unresolved class constraint is shown with the
+  instances GHC says could match. A hint GHC gives (a similar name, a missing
+  extension, a missing `do`) is shown in GHC's words. An error that is none of
+  these is counted, never dropped.
+- **What GHC logged on the way to an error.** The unification steps GHC took
+  before it gave up on a type, from its own trace (`Deep`, `chainsFor`).
+- **Template Haskell splices.** What GHC says each splice became, by position
+  (`splicesFor`).
+- **Core.** The simplifier's input and output, the specialisations and the rules
+  that fired, for the file, optimised or not (`coreOf`). No STG.
+
+Each of the last three runs GHC again with a dump on, so an ordinary analysis
+does not pay for them. They present what GHC printed and infer nothing; where
+the text could not be read it is carried raw and counted.
 
 Results are plain typed values. The library draws nothing. The GHC-backed
 implementation sits behind a record of functions (`HInsight.Insight`), so code
@@ -53,10 +68,14 @@ Early. Read this before relying on it.
   `(>>=)` only: not `(.) f g`, backticks, other operators, or a user's own
   definitions of these names. Its integration test runs against GHC 9.10.3;
   see `docs/decisions.md`, item 10.
-- It does not show how the constraint solver reached a mismatch. GHC exposes
-  no structured solver steps; the explanation is built from the mismatch GHC
-  records. Whether GHC's own text trace can be presented is not decided;
-  `docs/feasibility.md` says what is known and what is not.
+- GHC exposes no structured solver steps. The explanation of a mismatch is built
+  from the mismatch GHC records; the chains are GHC's own text trace, read and
+  filtered, and are a presentation of what it logged, not a reconstruction.
+  A trace is a text format that GHC does not promise to keep, so a GHC release
+  means refreshing the fixtures (`docs/feasibility.md`).
+- The trace, splice and Core passes are checked against GHC 9.10.3 by tests that
+  run it. Open items of the explanation phase are listed in
+  `docs/phase-explanation.md`, section 5, "Owed after the phase".
 
 ## Build and test
 
@@ -86,9 +105,13 @@ A small demo program prints what hinsight finds in a file:
 cabal run hinsight-demo -- test/fixtures/TypeMismatch.hs
 cabal run hinsight-demo -- test/fixtures/Hole.hs
 cabal run hinsight-demo -- test/fixtures/Pipeline.hs
+cabal run hinsight-demo -- --chains test/fixtures/ChainPair.hs
+cabal run hinsight-demo -- --splices test/fixtures/splices/Use.hs
+cabal run hinsight-demo -- --core test/fixtures/core/Spec.hs
 ```
 
-It asks `ghc-9.10.3` for its library directory, or uses
+`--chains=whole` shows every record of the binding, and `--core=unoptimised`
+shows the Core at `-O0`. The modes are exclusive. It asks `ghc-9.10.3` for its library directory, or uses
 `HINSIGHT_GHC_LIBDIR` if set. The file may import other modules of its own
 project; imports from packages must be installed.
 
@@ -145,6 +168,10 @@ The paths are arguments: the library never searches for tools.
 | `HInsight.Flow` | pipelines and the type at each stage, as data, and their text rendering |
 | `HInsight.Identifier` | a validated name as written in source |
 | `HInsight.Hole` | typed holes and fit ranking |
+| `HInsight.Instance`, `Suggestion` | the instances GHC lists for a constraint; the hints GHC gives |
+| `HInsight.Trace`, `Trace.Clean`, `Chain` | GHC's typechecker trace: reading a record, cleaning it, and the chain that ends at an error |
+| `HInsight.Splice`, `Core` | what GHC's splice and Core dumps say, read into data |
+| `HInsight.Deep` | the handle for the three passes above |
 | `HInsight.Report` | plain-text reports of an analysis |
 | `HInsight.Cli` | argument handling for the demo program |
 | `HInsight.Error` | every failure, in one place |

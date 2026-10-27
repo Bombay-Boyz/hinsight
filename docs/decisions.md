@@ -197,6 +197,39 @@ carries the raw output. Features whose only source would be our own theory
 (space-leak findings) are dropped; features whose source is unconfirmed wait
 for a spike.
 
+## 17. Chains, splices and Core are one handle apart from the analysis
+
+Decided across steps 5 to 7 of the explanation phase
+(`docs/phase-explanation.md`, "Decisions taken while building", items 5 to 23).
+`Deep m` is a record of three functions (`chainsFor`, `splicesFor`, `coreOf`),
+separate from `Insight m`, so an ordinary analysis keeps its meaning and its
+cost. Each reads a message GHC logs when a flag is on (`-ddump-tc-trace`,
+`-ddump-splices`, `-ddump-simpl` and friends), in a fresh session with the
+flags set after the project is loaded. What GHC printed is carried raw beside
+what was read from it; anything that could not be read is counted, never
+dropped. A file GHC cannot get past (a parse error, an unresolved import) is
+reported as blocked, and a failure of the step itself is a typed error with
+GHC's message, never folded into the blocked count.
+
+## 18. An unrecognised hint is shown in GHC's own words
+
+Decided in step 3 (`docs/phase-explanation.md`, decision 1; open decision 2 of
+section 3.9). `HintKind` has a constructor for each hint this package knows and
+`OtherHint` for the rest, and a hint's text is what GHC prints for it. The
+alternative, refusing a hint it does not know, would hide something GHC said,
+which item 16 forbids. The cost is that the text of an `OtherHint` is GHC's
+wording and can change with a GHC release; the bump procedure refreshes the
+fixtures.
+
+## 19. No STG, and no claim about what the optimiser did to dependencies
+
+The Core mode offers the simplifier's input and output, the specialisations and
+the rule firings. STG needs a backend that writes an object file, so it is left
+out rather than half-offered. Only the analysed file is simplified; its
+dependencies are typechecked, so a rule that needs one of their unfoldings may
+not fire, and the documentation says so (`docs/phase-explanation.md`, decision
+17).
+
 ## Checks that run on every push
 
 Build with `-Werror`, tests (including those that run a real GHC 9.10.3),
