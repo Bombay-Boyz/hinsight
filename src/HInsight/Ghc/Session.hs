@@ -335,18 +335,20 @@ loadDependencies logged graph summary
       errors <- liftIO (readIORef logged)
       pure $ case outcome of
         Succeeded -> Nothing
-        Failed -> Just (describe (reverse errors))
+        Failed -> Just (describeErrors (reverse errors))
   where
     names :: [String]
     names =
       nubOrd
         [ moduleNameString (ms_mod_name s)
-          | s <- mgModSummaries graph,
-            ms_mod_name s /= ms_mod_name summary
+        | s <- mgModSummaries graph,
+          ms_mod_name s /= ms_mod_name summary
         ]
-    describe :: [Text] -> Text
-    describe [] = "GHC reported no details"
-    describe messages = T.intercalate "; " messages
+
+-- | What GHC reported, on one line.
+describeErrors :: [Text] -> Text
+describeErrors [] = "GHC reported no details"
+describeErrors messages = T.intercalate "; " messages
 
 -- | Parse first, so the bindings are known even if type checking then throws.
 -- When type checking fails, the pipelines are still read, from a second
@@ -419,31 +421,50 @@ core dir placement optimisation file = do
     path :: FilePath
     path = sourceFilePath file
 
--- | Load the project, then ask GHC for the simplified Core of the file with
--- the Core dumps on. Only the file is desugared and simplified, so the rule
--- firings are its own; its dependencies are only typechecked.
+-- | Load the project, typecheck the file, then ask GHC for its simplified Core
+-- with the Core dumps on. Typechecking first tells a file that does not
+-- typecheck (GHC is blocked, 'coreBlocked') from a Core step that failed on a
+-- file that does ('CoreFailed'). Only the file is desugared and simplified, so
+-- the rule firings are its own; its dependencies are only typechecked.
 corePass :: Placement -> Optimisation -> FilePath -> IORef [Text] -> FilePath -> Ghc (Either InsightError CoreDump)
 corePass placement optimisation folder logged path = do
   prepared <- prepareDeep placement logged path
   case prepared of
     Left failure -> pure (Left failure)
-    Right (Left blocked) -> pure (Right (emptyCore optimisation) {coreBlocked = blocked})
+    Right (Left blocked) -> pure (Right (blocked' blocked))
     Right (Right located) -> do
       enabled <- enableFlags (coreFlags optimisation folder)
       case enabled of
         Left failure -> pure (Left (EnvironmentFailure failure))
         Right () -> do
-          ref <- liftIO (newIORef (emptyCapture defaultRecordLimit))
-          pushLogHookM (captureHook ref isCoreMessage)
-          -- GHC adds the file as a target itself, and a file given twice is an
-          -- error, so the targets are cleared first.
-          setTargets []
-          made <- handleSourceError (pure . Left . errorsOf) (Right <$> compileToCoreSimplified located)
-          captured <- liftIO (readIORef ref)
-          pure $ do
-            trace <- first TraceFailure (finishCapture captured)
-            let dump = buildCore optimisation (map recordRaw (traceRecords trace))
-            pure (either (\errors -> dump {coreBlocked = length errors}) (const dump) made)
+          guessTarget located Nothing Nothing >>= setTargets . pure
+          graph <- depanal [] False
+          found <- targetSummary path (mgModSummaries graph)
+          case found of
+            Nothing -> pure (Left (SessionFailure (TargetNotInGraph path)))
+            Just summary -> do
+              checked <- handleSourceError (pure . Left . errorsOf) (Right <$> (parseModule summary >>= typecheckModule))
+              case checked of
+                Left errors -> pure (Right (blocked' (length errors)))
+                Right _ -> makeCore located
+  where
+    blocked' :: Int -> CoreDump
+    blocked' n = (emptyCore optimisation) {coreBlocked = n}
+    makeCore :: FilePath -> Ghc (Either InsightError CoreDump)
+    makeCore located = do
+      ref <- liftIO (newIORef (emptyCapture defaultRecordLimit))
+      pushLogHookM (captureHook ref isCoreMessage)
+      -- GHC adds the file as a target itself, and a file given twice is an
+      -- error, so the targets are cleared first.
+      setTargets []
+      made <- handleSourceError (pure . Left . errorsOf) (Right <$> compileToCoreSimplified located)
+      captured <- liftIO (readIORef ref)
+      errors <- liftIO (readIORef logged)
+      pure $ do
+        trace <- first TraceFailure (finishCapture captured)
+        case made of
+          Left _ -> Left (SessionFailure (CoreFailed path (describeErrors (reverse errors))))
+          Right _ -> Right (buildCore optimisation (map recordRaw (traceRecords trace)))
 
 -- | Run a second pass over a file and read what it logged.
 deep ::

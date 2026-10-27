@@ -252,12 +252,12 @@ renderSplices ss = T.concat (map renderSplice (splicesFound ss)) <> footer
     blocked :: [Text]
     blocked =
       [ T.pack (show (splicesBlocked ss)) <> " error(s) stopped GHC before it could run any splice\n"
-        | splicesBlocked ss > 0
+      | splicesBlocked ss > 0
       ]
     unread :: [Text]
     unread =
       [ T.pack (show (splicesUnread ss)) <> " splice message(s) could not be read\n"
-        | splicesUnread ss > 0
+      | splicesUnread ss > 0
       ]
     none :: [Text]
     none = ["no splices: GHC ran none in this file\n" | null (splicesFound ss), splicesBlocked ss == 0, splicesUnread ss == 0]

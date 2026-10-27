@@ -22,6 +22,10 @@ spec = describe "renderError" $ do
     let t = rendered (SessionFailure (DependencyFailed "a.hs" "Bad.hs:3:1: error"))
     t `shouldSatisfy` T.isInfixOf "a.hs"
     t `shouldSatisfy` T.isInfixOf "Bad.hs:3:1: error"
+  it "names the file and what GHC said when it could not make the Core" $ do
+    let t = rendered (SessionFailure (CoreFailed "a.hs" "desugarer panic"))
+    t `shouldSatisfy` T.isInfixOf "a.hs"
+    t `shouldSatisfy` T.isInfixOf "desugarer panic"
   it "names the file that is missing from the module graph" $
     rendered (SessionFailure (TargetNotInGraph "a.hs")) `shouldSatisfy` T.isInfixOf "a.hs"
   it "names the file and the cause of an invalid value from GHC" $ do

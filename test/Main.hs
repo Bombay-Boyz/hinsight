@@ -2,9 +2,9 @@ module Main (main) where
 
 import HInsight.ChainGhcSpec qualified
 import HInsight.ChainSpec qualified
+import HInsight.CliSpec qualified
 import HInsight.CoreGhcSpec qualified
 import HInsight.CoreSpec qualified
-import HInsight.CliSpec qualified
 import HInsight.EnvironmentSpec qualified
 import HInsight.ErrorSpec qualified
 import HInsight.EvidenceSpec qualified
