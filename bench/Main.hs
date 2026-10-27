@@ -75,7 +75,11 @@ analysisGroup libDir =
       analyse "a module with one mismatch" "test/fixtures/ChainPair.hs",
       chains "the chains of that mismatch (the trace pass)" "test/fixtures/ChainPair.hs",
       analyse "a module with eleven splices" "test/fixtures/splices/Use.hs",
-      splices "the splices of that module (the splice pass)" "test/fixtures/splices/Use.hs"
+      splices "the splices of that module (the splice pass)" "test/fixtures/splices/Use.hs",
+      analyse "a module with a rule and a specialisation" "test/fixtures/core/Spec.hs",
+      core "the optimised Core of that module" Optimised "test/fixtures/core/Spec.hs",
+      core "the unoptimised Core of that module" Unoptimised "test/fixtures/core/Spec.hs",
+      core "the optimised Core of a module and one project import" Optimised "test/fixtures/core/UseDep.hs"
     ]
   where
     analyse :: String -> FilePath -> Benchmark
@@ -87,6 +91,13 @@ analysisGroup libDir =
       analyseFile (ghcInsight dir) file
     chains :: String -> FilePath -> Benchmark
     chains name path = bench name (whnfIO (runChains path))
+    core :: String -> Optimisation -> FilePath -> Benchmark
+    core name optimisation path = bench name (whnfIO (runCore optimisation path))
+    runCore :: Optimisation -> FilePath -> IO (Either InsightError CoreDump)
+    runCore optimisation path = do
+      dir <- orFail (mkLibDir libDir)
+      file <- orFail (mkSourceFile path)
+      coreOf (ghcDeep dir) optimisation file
     splices :: String -> FilePath -> Benchmark
     splices name path = bench name (whnfIO (runSplices path))
     runSplices :: FilePath -> IO (Either InsightError Splices)

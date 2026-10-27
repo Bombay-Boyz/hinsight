@@ -16,6 +16,7 @@ import Data.Maybe (listToMaybe)
 import Data.Text (Text)
 import Data.Text qualified as T
 import HInsight.Chain (ChainView (..))
+import HInsight.Core (Optimisation (..))
 
 -- | What the user asked the demo to do.
 data Command
@@ -28,6 +29,9 @@ data Command
   | -- | Show what GHC says each splice of this file became. This runs GHC a
     -- second time with its splice dump on.
     ExplainSplices FilePath
+  | -- | Show what GHC says about the Core it made for this file, at this
+    -- optimisation. This compiles the file past the typechecker.
+    ExplainCore Optimisation FilePath
   | -- | The arguments were unusable; the text says why.
     BadUsage Text
   deriving stock (Eq, Show)
@@ -52,15 +56,21 @@ parseCommand args
       "--chains" -> Right (ChainsFlag FollowingVariables)
       "--chains=whole" -> Right (ChainsFlag WholeBinding)
       "--splices" -> Right SplicesFlag
+      "--core" -> Right (CoreFlag Optimised)
+      "--core=unoptimised" -> Right (CoreFlag Unoptimised)
       other -> Left other
     forFile :: FilePath -> [Flag] -> Command
-    forFile file parsed = case (views, SplicesFlag `elem` parsed) of
-      (_ : _, True) -> BadUsage "--splices cannot be combined with --chains"
-      ([], True) -> ExplainSplices file
-      _ -> maybe (Analyse file) (`ExplainChains` file) (lastOf views)
+    forFile file parsed = case (views, SplicesFlag `elem` parsed, levels) of
+      ([], False, []) -> Analyse file
+      (_ : _, False, []) -> maybe (Analyse file) (`ExplainChains` file) (lastOf views)
+      ([], True, []) -> ExplainSplices file
+      ([], False, _ : _) -> maybe (Analyse file) (`ExplainCore` file) (lastOf levels)
+      _ -> BadUsage "choose one of --chains, --splices and --core"
       where
         views :: [ChainView]
         views = [v | ChainsFlag v <- parsed]
+        levels :: [Optimisation]
+        levels = [o | CoreFlag o <- parsed]
     lastOf :: [a] -> Maybe a
     lastOf = listToMaybe . reverse
 
@@ -68,13 +78,14 @@ parseCommand args
 data Flag
   = ChainsFlag ChainView
   | SplicesFlag
+  | CoreFlag Optimisation
   deriving stock (Eq)
 
 -- | The help text, ending in a newline.
 usageText :: Text
 usageText =
   T.unlines
-    [ "Usage: hinsight-demo [--chains | --chains=whole | --splices] FILE.hs",
+    [ "Usage: hinsight-demo [--chains | --chains=whole | --splices | --core | --core=unoptimised] FILE.hs",
       "",
       "With --chains it also shows what GHC logged on the way to each type",
       "error, following the type variables of the error; --chains=whole",
@@ -84,6 +95,12 @@ usageText =
       "With --splices it shows what GHC says each Template Haskell splice",
       "of the file became (kind, code, result). This runs GHC a second time",
       "with its splice dump on.",
+      "",
+      "With --core it shows what GHC logged for the Core of the file: the",
+      "rules that fired and the Core before and after the simplifier, at -O",
+      "(--core=unoptimised for -O0). This compiles the file past the",
+      "typechecker; anything GHC writes goes to a temporary folder that is",
+      "removed afterwards.",
       "",
       "Typechecks one Haskell module with GHC 9.10.3 and reports type",
       "mismatches and typed-hole fits. The module may import installed",

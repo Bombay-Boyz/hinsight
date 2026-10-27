@@ -53,6 +53,7 @@ import GHC
     ParsedModule (..),
     SuccessFlag (..),
     TypecheckedModule (..),
+    compileToCoreSimplified,
     depanal,
     getSessionDynFlags,
     guessTarget,
@@ -92,6 +93,7 @@ import GHC.Utils.Panic (GhcException)
 import HInsight.Analysis (Analysis (..), Insight (..))
 import HInsight.Chain (ChainView, Chains (..), buildChains, emptyChains)
 import HInsight.Config (LibDir, libDirPath)
+import HInsight.Core (CoreDump (..), Optimisation, buildCore, emptyCore, isCoreMessage)
 import HInsight.Deep (Deep (..))
 import HInsight.Environment (Environment, EnvironmentSource (..), EnvironmentSummary, summarise)
 import HInsight.Error (EnvironmentError, InsightError (..), SessionError (..))
@@ -104,7 +106,7 @@ import HInsight.Ghc.Graph (RawModule, collectGraph, projectGraph)
 import HInsight.Ghc.HoleCapture (CapturedHole, holePlugin)
 import HInsight.Ghc.Holes (holeReports)
 import HInsight.Ghc.Messages (Extracted (..), extractMessages)
-import HInsight.Ghc.Trace (captureHook, enableFlags, errorSpans, spliceFlags, traceFlags)
+import HInsight.Ghc.Trace (captureHook, coreFlags, enableFlags, errorSpans, spliceFlags, traceFlags)
 import HInsight.Graph (ProjectGraph)
 import HInsight.Hole (HoleReport)
 import HInsight.Project (sourceRoot)
@@ -113,6 +115,7 @@ import HInsight.Splice (Splices (..), buildSplices, emptySplices, splicesIn)
 import HInsight.Trace (Capture, Trace (..), TraceRecord (..), defaultRecordLimit, emptyCapture, finishCapture, locatedIn)
 import System.Directory (canonicalizePath, doesDirectoryExist, doesFileExist)
 import System.FilePath (takeDirectory)
+import System.IO.Temp (withSystemTempDirectory)
 
 -- | What one typecheck produced.
 data Outcome = Outcome
@@ -397,8 +400,50 @@ deepIn dir placement =
     { chainsFor = \view file ->
         deep dir placement traceFlags locatedIn (chainsOf view (sourceFilePath file)) file,
       splicesFor =
-        deep dir placement spliceFlags (\ghcPath _ -> splicesIn ghcPath) splicesOf
+        deep dir placement spliceFlags (\ghcPath _ -> splicesIn ghcPath) splicesOf,
+      coreOf = core dir placement
     }
+
+-- | Make the Core of a file and read what GHC logged. Anything GHC writes goes
+-- to a folder made for this call and removed when it ends, however it ends.
+core :: LibDir -> Placement -> Optimisation -> SourceFile -> IO (Either InsightError CoreDump)
+core dir placement optimisation file = do
+  failure <- preflight dir file
+  case failure of
+    Just why -> pure (Left (SessionFailure why))
+    Nothing -> catchSession path $ withSystemTempDirectory "hinsight-core" $ \folder -> do
+      logged <- newIORef []
+      result <- runGhc (Just (libDirPath dir)) (corePass placement optimisation folder logged path)
+      evaluate result
+  where
+    path :: FilePath
+    path = sourceFilePath file
+
+-- | Load the project, then ask GHC for the simplified Core of the file with
+-- the Core dumps on. Only the file is desugared and simplified, so the rule
+-- firings are its own; its dependencies are only typechecked.
+corePass :: Placement -> Optimisation -> FilePath -> IORef [Text] -> FilePath -> Ghc (Either InsightError CoreDump)
+corePass placement optimisation folder logged path = do
+  prepared <- prepareDeep placement logged path
+  case prepared of
+    Left failure -> pure (Left failure)
+    Right (Left blocked) -> pure (Right (emptyCore optimisation) {coreBlocked = blocked})
+    Right (Right located) -> do
+      enabled <- enableFlags (coreFlags optimisation folder)
+      case enabled of
+        Left failure -> pure (Left (EnvironmentFailure failure))
+        Right () -> do
+          ref <- liftIO (newIORef (emptyCapture defaultRecordLimit))
+          pushLogHookM (captureHook ref isCoreMessage)
+          -- GHC adds the file as a target itself, and a file given twice is an
+          -- error, so the targets are cleared first.
+          setTargets []
+          made <- handleSourceError (pure . Left . errorsOf) (Right <$> compileToCoreSimplified located)
+          captured <- liftIO (readIORef ref)
+          pure $ do
+            trace <- first TraceFailure (finishCapture captured)
+            let dump = buildCore optimisation (map recordRaw (traceRecords trace))
+            pure (either (\errors -> dump {coreBlocked = length errors}) (const dump) made)
 
 -- | Run a second pass over a file and read what it logged.
 deep ::
@@ -448,6 +493,24 @@ data DeepRun = DeepRun
     runErrors :: [MsgEnvelope GhcMessage]
   }
 
+-- | Configure the session and load the project as an analysis does. 'Left' says
+-- how many errors stopped GHC before the file could be typechecked; 'Right' is
+-- the target as GHC was given it.
+prepareDeep :: Placement -> IORef [Text] -> FilePath -> Ghc (Either InsightError (Either Int FilePath))
+prepareDeep placement logged path = do
+  configured <- configure placement logged
+  case configured of
+    Left failure -> pure (Left (EnvironmentFailure failure))
+    Right () -> do
+      located <- liftIO (targetPath placement path)
+      target <- guessTarget located Nothing Nothing
+      setTargets [target]
+      prepared <- handleSourceError (pure . Unreadable . errorsOf) (either Refused (const Ready) <$> prepareProject placement logged path)
+      pure $ case prepared of
+        Refused why -> Left (SessionFailure why)
+        Unreadable errors -> Right (Left (length errors))
+        Ready -> Right (Right located)
+
 -- | Load the project as an analysis does, then typecheck the file once more
 -- with these flags on, giving the messages they log to the 'Capture'.
 deepPass ::
@@ -458,18 +521,11 @@ deepPass ::
   FilePath ->
   Ghc (Either InsightError Deepened)
 deepPass placement flags wanted logged path = do
-  configured <- configure placement logged
-  case configured of
-    Left failure -> pure (Left (EnvironmentFailure failure))
-    Right () -> do
-      located <- liftIO (targetPath placement path)
-      target <- guessTarget located Nothing Nothing
-      setTargets [target]
-      prepared <- handleSourceError (pure . Unreadable . errorsOf) (either Refused (const Ready) <$> prepareProject placement logged path)
-      case prepared of
-        Refused why -> pure (Left (SessionFailure why))
-        Unreadable errors -> pure (Right (Blocked (length errors)))
-        Ready -> passWithFlags flags wanted located path
+  prepared <- prepareDeep placement logged path
+  case prepared of
+    Left failure -> pure (Left failure)
+    Right (Left blocked) -> pure (Right (Blocked blocked))
+    Right (Right located) -> passWithFlags flags wanted located path
 
 -- | The second pass. The module graph is built again after the flags are set,
 -- because GHC typechecks a module with the flags in its summary. Loading the

@@ -3,6 +3,7 @@ module HInsight.CliSpec (spec) where
 import Data.Text qualified as T
 import HInsight.Chain (ChainView (..))
 import HInsight.Cli
+import HInsight.Core (Optimisation (..))
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck
@@ -41,8 +42,16 @@ spec = describe "parseCommand" $ do
       parseCommand ["--chains", "a.hs", "b.hs"] `shouldBe` BadUsage "expected exactly one file but got 2"
     it "asks for the splices" $
       parseCommand ["--splices", "A.hs"] `shouldBe` ExplainSplices "A.hs"
-    it "will not combine splices with chains" $
-      parseCommand ["--splices", "--chains", "A.hs"] `shouldBe` BadUsage "--splices cannot be combined with --chains"
+    it "will not combine the modes" $ do
+      parseCommand ["--splices", "--chains", "A.hs"] `shouldBe` BadUsage "choose one of --chains, --splices and --core"
+      parseCommand ["--core", "--splices", "A.hs"] `shouldBe` BadUsage "choose one of --chains, --splices and --core"
+      parseCommand ["--chains", "--core", "A.hs"] `shouldBe` BadUsage "choose one of --chains, --splices and --core"
+    it "asks for the Core, optimised or not, and the last core flag wins" $ do
+      parseCommand ["--core", "A.hs"] `shouldBe` ExplainCore Optimised "A.hs"
+      parseCommand ["A.hs", "--core=unoptimised"] `shouldBe` ExplainCore Unoptimised "A.hs"
+      parseCommand ["--core", "--core=unoptimised", "A.hs"] `shouldBe` ExplainCore Unoptimised "A.hs"
+    it "still needs a file for the Core" $
+      parseCommand ["--core"] `shouldBe` BadUsage "no file was given"
     it "still needs a file for splices" $
       parseCommand ["--splices"] `shouldBe` BadUsage "no file was given"
     it "names an unknown option even beside a chain flag" $
@@ -53,13 +62,14 @@ spec = describe "parseCommand" $ do
     it "names the program and the pinned compiler" $ do
       usageText `shouldSatisfy` T.isInfixOf "hinsight-demo"
       usageText `shouldSatisfy` T.isInfixOf "ghc-9.10.3"
-    it "describes the splice option" $
+    it "describes the splice and Core options" $ do
       usageText `shouldSatisfy` T.isInfixOf "--splices"
+      usageText `shouldSatisfy` T.isInfixOf "--core=unoptimised"
     it "describes both chain views" $ do
       usageText `shouldSatisfy` T.isInfixOf "--chains"
       usageText `shouldSatisfy` T.isInfixOf "--chains=whole"
   where
     isChainFlag :: String -> Bool
-    isChainFlag = (`elem` ["--chains", "--chains=whole", "--splices"])
+    isChainFlag = (`elem` ["--chains", "--chains=whole", "--splices", "--core", "--core=unoptimised"])
     notHelp :: [String] -> Bool
     notHelp = not . any (`elem` ["-h", "--help"])

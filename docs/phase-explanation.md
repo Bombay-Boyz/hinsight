@@ -344,3 +344,37 @@ These record choices made in the steps above that the plan left open.
     is not mistaken for "could not look". A message that says `Splicing` with a
     shape the reader does not know is counted in `splicesUnread`, never dropped.
     Splices that ran before a type error are still reported.
+16. **The Core mode reads GHC's dumps from the log, not from files (step 7).**
+    The spike showed two ways: with `-ddump-simpl -ddump-spec
+    -ddump-rule-firings` alone the dumps arrive as log messages; with
+    `-ddump-to-file` they are written as `<dumpdir>/<source path>.dump-*` files.
+    The log is used, because a rule firing carries no module (`Rule fired: name
+    (module-defining-the-rule)`), so attributing firings to one file in a
+    multi-module compile needs the Core of that file alone. `HInsight.Core` reads
+    a section (a header of equals signs around a name, then a body kept as
+    printed) and a rule firing (name and defining module); anything that looks
+    like either and is not is counted as unread.
+17. **Only the file is simplified.** The pass loads the file's dependencies as
+    an analysis does (typechecked, not simplified), then asks GHC for the
+    simplified Core of the file with the dumps on. The rule firings are therefore
+    the file's own. The cost of this is that the file's optimiser cannot inline a
+    dependency's unfoldings, because the dependencies were never simplified, so a
+    rule that needs such an inlining may not fire. This is stated, not hidden.
+18. **The `-O0`-dependencies question is answered by construction, and the
+    measurement is a benchmark.** The spike's timings (0.14 to 0.19 seconds for
+    every mode) are all startup, too small to tell the modes apart, so no
+    figure is claimed. `hinsight-bench` has entries for the optimised and
+    unoptimised Core of a module and of a module with a project import; they are
+    reported, not thresholded.
+19. **A temporary folder is made and removed anyway.** GHC is told to write
+    interface, object and dump files into a folder created with
+    `withSystemTempDirectory`, which is removed however the call ends, so that
+    nothing is left on disk even if GHC writes something. `coreModeLeavesNoFiles`
+    lists the fixture folder, the working folder and the temporary folder before
+    and after.
+20. **No STG.** STG needs the bytecode backend, which writes an object file and
+    costs a compile (the spike: `Final STG:` appears only there). It is left out
+    of this phase rather than half-offered; the reader already accepts any
+    section, so adding it later changes only which flags are set.
+21. **No Core for a file that does not typecheck.** The errors are counted in
+    `coreBlocked`; no section is shown, because GHC made none.

@@ -10,6 +10,7 @@
 -- side's job.
 module HInsight.Ghc.Trace
   ( traceFlags,
+    coreFlags,
     spliceFlags,
     enableFlags,
     captureHook,
@@ -26,6 +27,7 @@ import GHC.Types.Error (MessageClass (..), MsgEnvelope (..))
 import GHC.Types.SrcLoc (SrcSpan (..), noLoc, unLoc)
 import GHC.Utils.Logger (LogAction, LogFlags (..))
 import GHC.Utils.Outputable (renderWithContext)
+import HInsight.Core (Optimisation (..))
 import HInsight.Error (EnvironmentError (..), InsightError)
 import HInsight.Ghc.Convert (convertSpan)
 import HInsight.Source (Span)
@@ -38,6 +40,26 @@ traceFlags = ["-ddump-tc-trace", "-dppr-debug", "-ferror-spans"]
 -- | The flags of the splice dump.
 spliceFlags :: [String]
 spliceFlags = ["-ddump-splices", "-ferror-spans"]
+
+-- | The flags of the Core dumps, and a folder for anything GHC writes while it
+-- makes Core. The folder is the caller's to remove.
+coreFlags :: Optimisation -> FilePath -> [String]
+coreFlags optimisation folder =
+  [ case optimisation of
+      Optimised -> "-O"
+      Unoptimised -> "-O0",
+    "-ddump-simpl",
+    "-ddump-spec",
+    "-ddump-rule-firings",
+    "-hidir",
+    folder,
+    "-odir",
+    folder,
+    "-stubdir",
+    folder,
+    "-dumpdir",
+    folder <> "/"
+  ]
 
 -- | Switch these flags on for the rest of the session. A module is
 -- typechecked with the flags stored in its summary, so the caller builds the

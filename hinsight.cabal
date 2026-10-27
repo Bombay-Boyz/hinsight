@@ -46,6 +46,7 @@ library
     , directory  >=1.3  && <1.4
     , filepath   >=1.4  && <1.6
     , ghc        ==9.10.3
+    , temporary  >=1.3  && <1.4
     , text       >=2.1  && <2.2
   exposed-modules:
     HInsight
@@ -54,6 +55,7 @@ library
     HInsight.Cli
     HInsight.Config
     HInsight.Context
+    HInsight.Core
     HInsight.Deep
     HInsight.Environment
     HInsight.Error
@@ -130,6 +132,8 @@ test-suite hinsight-test
   other-modules:
     HInsight.ChainGhcSpec
     HInsight.ChainSpec
+    HInsight.CoreGhcSpec
+    HInsight.CoreSpec
     HInsight.CliSpec
     HInsight.EnvironmentSpec
     HInsight.ErrorSpec

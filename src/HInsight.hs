@@ -74,6 +74,12 @@ module HInsight
     chainStepKindLevel,
     renderChain,
     renderChains,
+    CoreDump (..),
+    CoreSection (..),
+    RuleFiring (..),
+    Optimisation (..),
+    emptyCore,
+    renderCore,
     Splices (..),
     emptySplices,
     Splice,
@@ -98,6 +104,7 @@ import HInsight.Analysis (Analysis (..), Insight (..), emptyAnalysis)
 import HInsight.Chain (Chain, ChainStep, ChainView (..), Chains (..), chainOmitted, chainSpan, chainStepKindLevel, chainStepRaw, chainStepSpan, chainStepSummary, chainSteps, chainView, emptyChains, renderChain, renderChains)
 import HInsight.Config (LibDir, libDirPath, mkLibDir)
 import HInsight.Context (Context (..))
+import HInsight.Core (CoreDump (..), CoreSection (..), Optimisation (..), RuleFiring (..), emptyCore, renderCore)
 import HInsight.Deep (Deep (..))
 import HInsight.Error (EnvironmentError (..), InsightError (..), renderError)
 import HInsight.Explanation (Explanation (..), renderExplanation)
