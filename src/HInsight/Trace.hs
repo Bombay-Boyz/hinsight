@@ -336,9 +336,12 @@ mkRecordLimit n
   | n >= 1 = Right (UnsafeRecordLimit n)
   | otherwise = Left (NonPositiveLimit "record limit" n)
 
--- | The limit used when the caller names none. A typical line of a module
--- produces tens of records, so this suits a module of a few hundred lines; a
--- larger one gives 'TraceLimitExceeded' rather than a partial trace.
+-- | The limit used when the caller names none. Measured on GHC 9.10.3, a line
+-- of a module produces about 110 records (121 lines gave 13,681 and 226 lines
+-- gave 25,187), and the records of every top-level binding are kept, not only
+-- those of the binding with the error. A kept record costs up to about 2 KB, so
+-- this bounds the records at about 200 MB and suits a module of about 900
+-- lines. A larger one gives 'TraceLimitExceeded' rather than a partial trace.
 defaultRecordLimit :: RecordLimit
 defaultRecordLimit = UnsafeRecordLimit 100000
 

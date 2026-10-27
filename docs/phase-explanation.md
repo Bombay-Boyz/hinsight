@@ -249,10 +249,15 @@ Ticked only where a test or a run checked it; the rest say what is missing.
    GHC, and inside a project environment).
 4. [~] The standard path's cost is unchanged. By construction: the trace, splice
    and Core passes are the separate handle `Deep` and are never entered by
-   `analyseFile`. Not measured: no before-and-after figure of an analysis was
-   taken across this phase, and CI's benchmark step thresholds only the ranking
-   benchmark. Run `cabal bench hinsight-bench` and record the analysis entries
-   to close this.
+   `analyseFile`. Measured after the phase (`hinsight-bench`, the user's
+   machine): a plain analysis takes 18.3 ms (one module), 26.7 ms (with two
+   project imports) and 22.4 ms (one mismatch); the same mismatch's trace pass
+   38.8 ms; a module with eleven splices 80.5 ms plain and 86.9 ms for the splice
+   pass; a module with a rule 29.7 ms plain, 71.4 ms for optimised Core and
+   37.8 ms for unoptimised Core. These are well under the analysis time recorded
+   before the phase (under 100 ms, `docs/phase-environment.md`), but there is no
+   like-for-like figure from before the phase, so "no regression" is not claimed
+   from numbers. CI thresholds only the ranking benchmark.
 5. [x] A module with more records than the limit gives `TraceLimitExceeded`, not
    a truncated chain. Checked by `TraceSpec` ("gives an error, not a truncated
    trace, past the limit", a property, and a 100 000-record input).
@@ -275,8 +280,14 @@ Ticked only where a test or a run checked it; the rest say what is missing.
 - Done after the phase: the scope-error hypothesis was checked and is true for
   scope errors only (decision 24); hole types and fits now print in the user
   style (decision 25).
-- Set `defaultRecordLimit` from the trace benchmark (decision 9).
-- Run the analysis benchmarks and record the figures (acceptance 4).
+- Done after the phase: `defaultRecordLimit` was checked against measurements
+  and kept at 100 000 (decision 9); the analysis benchmarks were run and are
+  recorded under acceptance 4.
+- Keep only the records of the binding with the error, so that a module larger
+  than about 900 lines can have chains (decision 9). It needs the error's span
+  before the trace is captured, which the second pass does not have.
+- For a like-for-like acceptance 4: check out the commit before the phase, run
+  `cabal bench hinsight-bench`, and compare the plain analysis entries.
 - STG is not offered (decision 20).
 
 ## 6. Size
@@ -310,8 +321,10 @@ percent either way.
 - **The trace is not a contract.** Its headings are GHC's. A GHC bump means
   refreshing fixtures; the bump procedure covers it, and an unparsed record
   falls back to raw.
-- **Volume.** A large module produces tens of megabytes of trace. The hook
-  bounds memory but not the rendering time.
+- **Volume.** A large module produces tens of megabytes of trace (24 MB for a
+  121-line module under `-dppr-debug`; about 6 s of GHC time against 0.2 s
+  without it, when written to a file). The hook bounds memory but not the
+  rendering time.
 - **Kind-level noise** may not be separable by form alone. If not, the default
   view shows everything in the binding with kind-level lines marked, not hidden.
 - **`-dppr-debug` is session-wide.** Confined to the second pass, whose
@@ -350,10 +363,19 @@ These record choices made in the steps above that the plan left open.
    flags stored in its summary, so `depanal` runs again after the trace flags are
    set. The first half of the analysis (placement, dependencies, target) is
    shared with the normal pass as `prepareProject`.
-9. **The record limit is a typed error.** `defaultRecordLimit` is 100 000 for
-   now; past it the answer is `TraceFailure (TraceLimitExceeded n)`, never a
-   shortened trace. The value is to be set from the trace benchmark
-   (`hinsight-bench`, reported and not thresholded).
+9. **The record limit is a typed error.** `defaultRecordLimit` is 100 000; past
+   it the answer is `TraceFailure (TraceLimitExceeded n)`, never a shortened
+   trace. Set from measurements after the phase (GHC 9.10.3, two real modules of
+   this package with a type error added): a line produces about 110 records
+   (121 lines gave 13,681 records and 226 lines gave 25,187), the chains pass
+   peaked at 99 MB and 126 MB against 78 MB for a tiny module, so a kept record
+   costs up to about 2 KB (an upper bound: GHC's own memory grows with the
+   module too). 100 000 records is therefore about 200 MB and a module of about
+   900 lines. The value was kept: raising it trades the memory bound for modules
+   most people would still call large. The records of every top-level binding
+   are kept, not only the binding with the error; keeping only the latter would
+   cut the volume by the share of the file the error is not in, but the error's
+   binding is not known while the trace is captured, so it is left as owed work.
 10. **Unverified until the real build (step 5).** That GHC hands the trace to
     the log hook as a message class other than diagnostic or fatal, that the
     trace names the target as `ml_hs_file` spells it (compared after
