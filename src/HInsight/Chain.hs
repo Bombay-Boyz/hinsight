@@ -32,6 +32,7 @@ module HInsight.Chain
     Chains (..),
     emptyChains,
     buildChains,
+    bindingsWithErrors,
     selectChain,
     typeVariables,
     renderChain,
@@ -120,6 +121,10 @@ buildChains view bindings errors records = Chains found (length errors - length 
       [] -> Nothing
     inside :: Span -> TraceRecord -> Bool
     inside binding r = maybe False ((binding `spanContains`) . locatedSpan) (recordLocation r)
+
+-- | The bindings that contain at least one of the error spans.
+bindingsWithErrors :: [Span] -> [Span] -> [Span]
+bindingsWithErrors errors = filter (\b -> any (b `spanContains`) errors)
 
 -- | The chain for the error at a span, from the records of its binding in the
 -- order GHC logged them. 'Nothing' when no deferral was logged at that span.

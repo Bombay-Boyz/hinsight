@@ -29,6 +29,7 @@ module HInsight.Ghc.Session
     ghcInsightWith,
     ghcDeep,
     ghcDeepIn,
+    ghcDeepLimited,
   )
 where
 
@@ -91,7 +92,7 @@ import GHC.Utils.Logger (LogAction)
 import GHC.Utils.Outputable (ppr, (<+>))
 import GHC.Utils.Panic (GhcException)
 import HInsight.Analysis (Analysis (..), Insight (..))
-import HInsight.Chain (ChainView, Chains (..), buildChains, emptyChains)
+import HInsight.Chain (ChainView, Chains (..), bindingsWithErrors, buildChains, emptyChains)
 import HInsight.Config (LibDir, libDirPath)
 import HInsight.Core (CoreDump (..), Optimisation, buildCore, emptyCore, isCoreMessage)
 import HInsight.Deep (Deep (..))
@@ -112,7 +113,7 @@ import HInsight.Hole (HoleReport)
 import HInsight.Project (sourceRoot)
 import HInsight.Source (SourceFile, Span, sourceFilePath)
 import HInsight.Splice (Splices (..), buildSplices, emptySplices, splicesIn)
-import HInsight.Trace (Capture, Trace (..), TraceRecord (..), defaultRecordLimit, emptyCapture, finishCapture, locatedIn)
+import HInsight.Trace (Capture, RecordLimit, Trace (..), TraceRecord (..), defaultRecordLimit, emptyCapture, finishCapture, locatedIn)
 import System.Directory (canonicalizePath, doesDirectoryExist, doesFileExist)
 import System.FilePath (takeDirectory)
 import System.IO.Temp (withSystemTempDirectory)
@@ -389,20 +390,24 @@ deferredPipelines sink path = do
 
 -- | The GHC-backed implementation of 'Deep', placing the file by its header.
 ghcDeep :: LibDir -> Deep IO
-ghcDeep dir = deepIn dir FromHeader
+ghcDeep dir = deepIn dir FromHeader defaultRecordLimit
+
+-- | 'ghcDeep' with a record limit of the caller's choosing.
+ghcDeepLimited :: RecordLimit -> LibDir -> Deep IO
+ghcDeepLimited limit dir = deepIn dir FromHeader limit
 
 -- | The GHC-backed implementation of 'Deep' for a file of the project
 -- component the 'Environment' describes.
 ghcDeepIn :: LibDir -> Environment -> Deep IO
-ghcDeepIn dir env = deepIn dir (FromEnvironment env)
+ghcDeepIn dir env = deepIn dir (FromEnvironment env) defaultRecordLimit
 
-deepIn :: LibDir -> Placement -> Deep IO
-deepIn dir placement =
+deepIn :: LibDir -> Placement -> RecordLimit -> Deep IO
+deepIn dir placement limit =
   Deep
     { chainsFor = \view file ->
-        deep dir placement traceFlags locatedIn (chainsOf view (sourceFilePath file)) file,
+        deep dir placement limit ErroringBindings traceFlags locatedIn (chainsOf view (sourceFilePath file)) file,
       splicesFor =
-        deep dir placement spliceFlags (\ghcPath _ -> splicesIn ghcPath) splicesOf,
+        deep dir placement limit EveryBinding spliceFlags (\ghcPath _ -> splicesIn ghcPath) splicesOf,
       coreOf = core dir placement
     }
 
@@ -470,18 +475,20 @@ corePass placement optimisation folder logged path = do
 deep ::
   LibDir ->
   Placement ->
+  RecordLimit ->
+  Scoping ->
   [String] ->
   (FilePath -> [Span] -> TraceRecord -> Bool) ->
   (Deepened -> Either InsightError a) ->
   SourceFile ->
   IO (Either InsightError a)
-deep dir placement flags wanted finish file = do
+deep dir placement limit scoping flags wanted finish file = do
   failure <- preflight dir file
   case failure of
     Just why -> pure (Left (SessionFailure why))
     Nothing -> catchSession path $ do
       logged <- newIORef []
-      result <- runGhc (Just (libDirPath dir)) (deepPass placement flags wanted logged path)
+      result <- runGhc (Just (libDirPath dir)) (deepPass placement limit scoping flags wanted logged path)
       evaluate (result >>= finish)
   where
     path :: FilePath
@@ -536,49 +543,77 @@ prepareDeep placement logged path = do
 -- with these flags on, giving the messages they log to the 'Capture'.
 deepPass ::
   Placement ->
+  RecordLimit ->
+  Scoping ->
   [String] ->
   (FilePath -> [Span] -> TraceRecord -> Bool) ->
   IORef [Text] ->
   FilePath ->
   Ghc (Either InsightError Deepened)
-deepPass placement flags wanted logged path = do
+deepPass placement limit scoping flags wanted logged path = do
   prepared <- prepareDeep placement logged path
   case prepared of
     Left failure -> pure (Left failure)
     Right (Left blocked) -> pure (Right (Blocked blocked))
-    Right (Right located) -> passWithFlags flags wanted located path
+    Right (Right located) -> passWithFlags limit scoping flags wanted located path
 
 -- | The second pass. The module graph is built again after the flags are set,
 -- because GHC typechecks a module with the flags in its summary. Loading the
 -- file's dependencies left them as the targets, so the file is made the target
 -- again first; without it a file that imports another module of its project
 -- is not in the graph.
-passWithFlags :: [String] -> (FilePath -> [Span] -> TraceRecord -> Bool) -> FilePath -> FilePath -> Ghc (Either InsightError Deepened)
-passWithFlags flags wanted located path = do
-  enabled <- enableFlags flags
-  case enabled of
-    Left failure -> pure (Left (EnvironmentFailure failure))
-    Right () -> do
-      guessTarget located Nothing Nothing >>= setTargets . pure
-      graph <- depanal [] False
-      found <- targetSummary path (mgModSummaries graph)
-      case found of
-        Nothing -> pure (Left (SessionFailure (TargetNotInGraph path)))
-        Just summary -> do
-          parsed <- handleSourceError (pure . Left . errorsOf) (Right <$> parseModule summary)
-          case parsed of
-            Left errors -> pure (Right (Blocked (length errors)))
-            Right module' -> typecheckCaptured wanted path summary module'
+passWithFlags :: RecordLimit -> Scoping -> [String] -> (FilePath -> [Span] -> TraceRecord -> Bool) -> FilePath -> FilePath -> Ghc (Either InsightError Deepened)
+passWithFlags limit scoping flags wanted located path = do
+  scoped <- scopeOf scoping located path
+  case scoped of
+    Left failure -> pure (Left failure)
+    Right Nothing -> pure (Right (Ran (DeepRun (emptyCapture limit) [] [])))
+    Right (Just keep) -> do
+      enabled <- enableFlags flags
+      case enabled of
+        Left failure -> pure (Left (EnvironmentFailure failure))
+        Right () -> do
+          guessTarget located Nothing Nothing >>= setTargets . pure
+          graph <- depanal [] False
+          found <- targetSummary path (mgModSummaries graph)
+          case found of
+            Nothing -> pure (Left (SessionFailure (TargetNotInGraph path)))
+            Just summary -> do
+              parsed <- handleSourceError (pure . Left . errorsOf) (Right <$> parseModule summary)
+              case parsed of
+                Left errors -> pure (Right (Blocked (length errors)))
+                Right module' -> typecheckCaptured limit keep wanted path summary module'
 
-typecheckCaptured :: (FilePath -> [Span] -> TraceRecord -> Bool) -> FilePath -> ModSummary -> ParsedModule -> Ghc (Either InsightError Deepened)
-typecheckCaptured wanted path summary parsed =
+-- | Which bindings of the file the trace keeps records of.
+data Scoping
+  = EveryBinding
+  | ErroringBindings
+
+-- | The bindings to keep records of: 'Nothing' when the file has no errors, so
+-- the pass has nothing to explain.
+scopeOf :: Scoping -> FilePath -> FilePath -> Ghc (Either InsightError (Maybe ([Span] -> [Span])))
+scopeOf EveryBinding _ _ = pure (Right (Just id))
+scopeOf ErroringBindings located path = do
+  guessTarget located Nothing Nothing >>= setTargets . pure
+  graph <- depanal [] False
+  found <- targetSummary path (mgModSummaries graph)
+  case found of
+    Nothing -> pure (Left (SessionFailure (TargetNotInGraph path)))
+    Just summary -> do
+      checked <- handleSourceError (pure . Left . errorsOf) (Right <$> (parseModule summary >>= typecheckModule))
+      pure $ case checked of
+        Right _ -> Right Nothing
+        Left errors -> Just . bindingsWithErrors <$> errorSpans path errors
+
+typecheckCaptured :: RecordLimit -> ([Span] -> [Span]) -> (FilePath -> [Span] -> TraceRecord -> Bool) -> FilePath -> ModSummary -> ParsedModule -> Ghc (Either InsightError Deepened)
+typecheckCaptured limit keep wanted path summary parsed =
   case bindingSpans path (collectBindings (hsmodDecls (unLoc (pm_parsed_source parsed)))) of
     Left failure -> pure (Left failure)
     Right spans -> do
-      ref <- liftIO (newIORef (emptyCapture defaultRecordLimit))
+      ref <- liftIO (newIORef (emptyCapture limit))
       -- The dump names the file as GHC knows it.
       let ghcPath = fromMaybe path (ml_hs_file (ms_location summary))
-      pushLogHookM (captureHook ref (wanted ghcPath spans))
+      pushLogHookM (captureHook ref (wanted ghcPath (keep spans)))
       checked <- handleSourceError (pure . Left . errorsOf) (Right <$> typecheckModule parsed)
       captured <- liftIO (readIORef ref)
       pure (Right (Ran (DeepRun captured spans (fromLeft [] checked))))

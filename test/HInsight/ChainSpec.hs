@@ -5,7 +5,7 @@ import Data.Set qualified as S
 import Data.Text (Text)
 import Data.Text qualified as T
 import HInsight.Chain
-import HInsight.Source (Span)
+import HInsight.Source (Span, spanContains)
 import HInsight.Trace (Located (..), TraceRecord (..), locatedIn, parseRecord)
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
@@ -161,6 +161,23 @@ spec = describe "Chain" $ do
         case spanOf "Pair.hs:5:1-23" of
           Just binding -> not (null (show (buildChains FollowingVariables [binding] [binding] (map parseRecord ts))))
           Nothing -> False
+  describe "bindings that contain errors" $ do
+    let bindings = mapM spanOf ["A.hs:1:1-10", "A.hs:3:1-10", "A.hs:5:1-10"]
+        errors = mapM spanOf ["A.hs:3:5-6", "A.hs:5:2-3", "A.hs:9:1-2"]
+    it "keeps the bindings that contain an error, in order" $
+      case (bindings, errors) of
+        (Just bs, Just es) -> bindingsWithErrors es bs `shouldBe` drop 1 bs
+        _ -> expectationFailure "spans did not parse"
+    it "keeps none when there is no error" $
+      case bindings of
+        Just bs -> bindingsWithErrors [] bs `shouldBe` []
+        Nothing -> expectationFailure "spans did not parse"
+    prop "keeps exactly the bindings that contain a chosen error" $
+      case (bindings, errors) of
+        (Just bs, Just es) -> forAll (sublistOf es) $ \chosen ->
+          let kept = bindingsWithErrors chosen bs
+           in conjoin [(b `elem` kept) === any (b `spanContains`) chosen | b <- bs]
+        _ -> counterexample "spans did not parse" False
   describe "rendering" $ do
     it "numbers the steps, shows positions and marks kind-level steps" $
       pairChains WholeBinding [] $ \cs -> do

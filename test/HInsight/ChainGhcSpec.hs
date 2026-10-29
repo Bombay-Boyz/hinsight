@@ -11,9 +11,10 @@ import Data.Maybe (listToMaybe)
 import Data.Text qualified as T
 import HInsight
 import HInsight.Environment (mkComponentName, mkEnvironment, mkGhcFlag, mkProjectRoot, pinnedGhcVersion)
-import HInsight.Ghc.Session (ghcDeep, ghcDeepIn, ghcInsight)
+import HInsight.Ghc.Session (ghcDeep, ghcDeepIn, ghcDeepLimited, ghcInsight)
 import HInsight.Support (ok)
 import HInsight.Toolchain (findGhcLibDir)
+import HInsight.Trace (mkRecordLimit)
 import System.Directory (canonicalizePath, createDirectoryIfMissing, getTemporaryDirectory, removeDirectoryRecursive)
 import System.FilePath ((</>))
 import System.Process (getCurrentPid)
@@ -96,3 +97,17 @@ realSpec libDir = do
   it "gives no chains for a file without errors" $ do
     cs <- chainsOfFixture libDir FollowingVariables "Ok.hs"
     cs `shouldBe` emptyChains
+  it "keeps the records of the binding with the error only, so the other bindings do not exhaust the limit" $ do
+    tmp <- getTemporaryDirectory
+    pid <- getCurrentPid
+    limit <- ok (mkRecordLimit 400)
+    dir <- ok (mkLibDir libDir)
+    let folder = tmp </> ("hinsight-scoped-" <> show pid)
+        path = folder </> "Scoped.hs"
+        flat = concatMap (\n -> ["f" <> show n <> " :: Int", "f" <> show n <> " = " <> show n, ""]) [1 .. 400 :: Int]
+    createDirectoryIfMissing True folder
+    writeFile path (unlines (["module Scoped where", "", "pair :: a -> a -> [a]", "pair x y = [x, y]", ""] <> flat <> ["r :: [Int]", "r = pair (1 :: Int) \"x\""]))
+    file <- ok (mkSourceFile path)
+    result <- chainsFor (ghcDeepLimited limit dir) FollowingVariables file `finally` removeDirectoryRecursive folder
+    cs <- either (fail . show) pure result
+    (length (chainsFound cs), chainsMissing cs) `shouldBe` (1, 0)
