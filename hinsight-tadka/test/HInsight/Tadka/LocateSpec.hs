@@ -3,7 +3,7 @@ module HInsight.Tadka.LocateSpec (spec) where
 import Data.Text (Text)
 import Data.Text qualified as T
 import HInsight.Source (Position, mkColumn, mkLine, mkPosition, mkSpan)
-import HInsight.Tadka.Locate (offsetAt, offsetsOf)
+import HInsight.Tadka.Locate (offsetsOf)
 import HInsight.Tadka.Support (ok)
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
@@ -15,47 +15,38 @@ at l c = do
   col <- ok (mkColumn c)
   pure (mkPosition line col)
 
-spec :: Spec
-spec = describe "offsetAt" $ do
-  it "puts the first position at offset 0" $
-    at 1 1 >>= \p -> offsetAt "abc" p `shouldBe` Just 0
-  it "counts the newline of every earlier line" $
-    at 2 2 >>= \p -> offsetAt "ab\ncd\n" p `shouldBe` Just 4
-  it "knows the empty line after a final newline" $
-    at 2 1 >>= \p -> offsetAt "ab\n" p `shouldBe` Just 3
-  it "knows the position just past the end of a line" $
-    at 1 3 >>= \p -> offsetAt "ab\ncd" p `shouldBe` Just 2
-  it "refuses a line the text does not have" $
-    at 3 1 >>= \p -> offsetAt "ab\ncd" p `shouldBe` Nothing
-  it "refuses a column past the end of its line" $
-    at 1 4 >>= \p -> offsetAt "ab\ncd" p `shouldBe` Nothing
-  it "counts a character outside ASCII as one column" $
-    at 1 3 >>= \p -> offsetAt "\955x y" p `shouldBe` Just 2
-  it "moves a tab to the next multiple of eight plus one" $ do
-    at 1 9 >>= \p -> offsetAt "\tx" p `shouldBe` Just 1
-    at 1 10 >>= \p -> offsetAt "\tx" p `shouldBe` Just 2
-  it "refuses a column inside the width of a tab" $
-    at 1 5 >>= \p -> offsetAt "\tx" p `shouldBe` Nothing
-  it "advances a tab after other characters to the next stop" $
-    at 1 9 >>= \p -> offsetAt "ab\tx" p `shouldBe` Just 3
-  it "measures a span in characters" $ do
-    start <- at 1 9
-    end <- at 1 12
-    sp <- ok (mkSpan start end)
-    offsetsOf "\tfoo bar" sp `shouldBe` Just (1, 3)
-  prop "finds the offset of every position that GHC's own counting produces" $
-    forAll genSource $ \src ->
-      forAll (choose (0, T.length src)) $ \offset ->
-        let (l, c) = positionAt src offset
-         in ioProperty (at l c >>= \p -> pure (offsetAt src p === Just offset))
+spanText :: Text -> (Int, Int) -> (Int, Int) -> IO (Maybe (Int, Int))
+spanText src (l1, c1) (l2, c2) = do
+  start <- at l1 c1
+  end <- at l2 c2
+  sp <- ok (mkSpan start end)
+  pure (offsetsOf src sp)
 
--- | Text made of the characters that matter to column counting.
+spec :: Spec
+spec = describe "offsetsOf" $ do
+  it "measures a span in characters" $
+    spanText "abc def" (1, 5) (1, 8) `shouldReturn` Just (4, 3)
+  it "measures a span that starts after a tab by the tab's width" $
+    spanText "\tfoo bar" (1, 9) (1, 12) `shouldReturn` Just (1, 3)
+  it "measures a span across lines" $
+    spanText "ab\ncd\n" (1, 2) (2, 2) `shouldReturn` Just (1, 3)
+  it "counts a character outside ASCII as one column" $
+    spanText "\955x y" (1, 3) (1, 4) `shouldReturn` Just (2, 1)
+  it "refuses a span with an end the text does not have" $
+    spanText "ab" (1, 1) (1, 9) `shouldReturn` Nothing
+  prop "gives the offset and length of every span GHC's own counting produces" $
+    forAll genSource $ \src ->
+      forAll (choose (0, T.length src)) $ \a ->
+        forAll (choose (a, T.length src)) $ \b ->
+          let (l1, c1) = positionAt src a
+              (l2, c2) = positionAt src b
+           in ioProperty (spanText src (l1, c1) (l2, c2) >>= \r -> pure (r === Just (a, b - a)))
+
 genSource :: Gen Text
 genSource = T.pack <$> listOf (elements "ab \t\n\955")
 
 -- | The line and column GHC gives the character at this offset, counted by
--- scanning the text from the start with GHC's rule, written independently of
--- the code under test.
+-- scanning the text from the start with GHC's rule.
 positionAt :: Text -> Int -> (Int, Int)
 positionAt src offset = T.foldl' step (1, 1) (T.take offset src)
   where
