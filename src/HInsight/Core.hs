@@ -17,6 +17,11 @@
 --   section, and the result says exactly that.
 module HInsight.Core
   ( Optimisation (..),
+    CoreDetail (..),
+    CoreRequest (..),
+    coreOnly,
+    SectionKind (..),
+    sectionKind,
     CoreSection (..),
     RuleFiring (..),
     CoreRead (..),
@@ -44,6 +49,25 @@ data Optimisation
     Optimised
   deriving stock (Eq, Show)
 
+-- | How much of the compiler's output to ask for.
+data CoreDetail
+  = -- | Core, specialisation and rule firings.
+    CoreOnly
+  | -- | The same, and the STG GHC makes. This compiles the file and its project imports to object code.
+    CoreAndStg
+  deriving stock (Eq, Show)
+
+-- | What a Core question asks for.
+data CoreRequest = CoreRequest
+  { requestOptimisation :: !Optimisation,
+    requestDetail :: !CoreDetail
+  }
+  deriving stock (Eq, Show)
+
+-- | A request for Core without STG.
+coreOnly :: Optimisation -> CoreRequest
+coreOnly o = CoreRequest o CoreOnly
+
 -- | One dump GHC logged.
 data CoreSection = CoreSection
   { -- | The name in the header, as printed (@Tidy Core@, @Specialise@).
@@ -61,6 +85,21 @@ data RuleFiring = RuleFiring
     ruleModule :: !Text
   }
   deriving stock (Eq, Ord, Show)
+
+-- | Which dump a section is, by the name in its header.
+data SectionKind = TidyCore | Specialisation | FinalStg | OtherSection
+  deriving stock (Eq, Show)
+
+-- | The kind of a section. A name not listed is 'OtherSection'; nothing is dropped.
+sectionKind :: CoreSection -> SectionKind
+sectionKind s
+  | name == "Tidy Core" = TidyCore
+  | "Specialise" `T.isPrefixOf` name = Specialisation
+  | "Final STG" `T.isPrefixOf` name = FinalStg
+  | otherwise = OtherSection
+  where
+    name :: Text
+    name = sectionName s
 
 -- | What one message came to.
 data CoreRead
@@ -117,7 +156,7 @@ isCoreMessage r = case readCore (recordRaw r) of
 
 -- | What GHC said about the Core of a file.
 data CoreDump = CoreDump
-  { coreOptimisation :: !Optimisation,
+  { coreRequest :: !CoreRequest,
     -- | The dumps, in the order GHC logged them.
     coreSections :: ![CoreSection],
     -- | The rules applied, in the order GHC logged them.
@@ -131,12 +170,12 @@ data CoreDump = CoreDump
   deriving stock (Eq, Show)
 
 -- | Nothing logged and nothing wrong.
-emptyCore :: Optimisation -> CoreDump
-emptyCore o = CoreDump o [] [] 0 0
+emptyCore :: CoreRequest -> CoreDump
+emptyCore r = CoreDump r [] [] 0 0
 
 -- | The dump in the messages GHC logged, in the order it logged them.
-buildCore :: Optimisation -> [Text] -> CoreDump
-buildCore o messages = CoreDump o [s | ReadSection s <- reads'] (concat [rs | ReadRules rs <- reads']) (length [() | UnreadCore _ <- reads']) 0
+buildCore :: CoreRequest -> [Text] -> CoreDump
+buildCore r messages = CoreDump r [s | ReadSection s <- reads'] (concat [rs | ReadRules rs <- reads']) (length [() | UnreadCore _ <- reads']) 0
   where
     reads' :: [CoreRead]
     reads' = map readCore messages
@@ -144,16 +183,21 @@ buildCore o messages = CoreDump o [s | ReadSection s <- reads'] (concat [rs | Re
 -- | The dump as plain text: what was asked, the rules by how often each fired,
 -- then each section as GHC printed it.
 renderCore :: CoreDump -> Text
-renderCore d = T.unlines (heading : blocked <> unread <> rules <> concatMap sectionLines (coreSections d))
+renderCore d = T.unlines (heading : blocked <> unread <> noStg <> rules <> concatMap sectionLines (coreSections d))
   where
     heading :: Text
     heading =
       "what GHC logged for the Core of this file ("
-        <> modeName (coreOptimisation d)
+        <> modeName (requestOptimisation (coreRequest d))
+        <> (if wantsStg then ", with STG" else "")
         <> "): "
         <> count (length (coreSections d)) "section"
         <> ", "
         <> count (length (coreRules d)) "rule firing"
+    wantsStg :: Bool
+    wantsStg = requestDetail (coreRequest d) == CoreAndStg
+    noStg :: [Text]
+    noStg = ["  no STG: GHC logged none" | wantsStg, coreBlocked d == 0, FinalStg `notElem` map sectionKind (coreSections d)]
     modeName :: Optimisation -> Text
     modeName = \case
       Optimised -> "optimised"

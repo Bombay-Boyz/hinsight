@@ -15,7 +15,7 @@ module HInsight.Deep
 where
 
 import HInsight.Chain (ChainView, Chains)
-import HInsight.Core (CoreDump, Optimisation)
+import HInsight.Core (CoreDump, CoreRequest)
 import HInsight.Error (InsightError)
 import HInsight.Source (SourceFile)
 import HInsight.Splice (Splices)
@@ -27,8 +27,8 @@ data Deep m = Deep
     -- | What GHC says each splice of the file became. This costs about one
     -- typecheck more, not the several of 'chainsFor'.
     splicesFor :: SourceFile -> m (Either InsightError Splices),
-    -- | What GHC says about the Core of the file, made at this optimisation.
-    -- This compiles the file past the typechecker, so it costs more than a
-    -- typecheck, and more with optimisation.
-    coreOf :: Optimisation -> SourceFile -> m (Either InsightError CoreDump)
+    -- | What GHC says about the Core of the file, as requested. This compiles
+    -- the file past the typechecker, so it costs more than a typecheck, more
+    -- with optimisation, and more again with STG.
+    coreOf :: CoreRequest -> SourceFile -> m (Either InsightError CoreDump)
   }

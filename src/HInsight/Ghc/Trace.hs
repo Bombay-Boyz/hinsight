@@ -11,6 +11,8 @@
 module HInsight.Ghc.Trace
   ( traceFlags,
     coreFlags,
+    stgBuildFlags,
+    stgDumpFlags,
     spliceFlags,
     enableFlags,
     captureHook,
@@ -44,22 +46,27 @@ spliceFlags = ["-ddump-splices", "-ferror-spans"]
 -- | The flags of the Core dumps, and a folder for anything GHC writes while it
 -- makes Core. The folder is the caller's to remove.
 coreFlags :: Optimisation -> FilePath -> [String]
-coreFlags optimisation folder =
-  [ case optimisation of
-      Optimised -> "-O"
-      Unoptimised -> "-O0",
-    "-ddump-simpl",
-    "-ddump-spec",
-    "-ddump-rule-firings",
-    "-hidir",
-    folder,
-    "-odir",
-    folder,
-    "-stubdir",
-    folder,
-    "-dumpdir",
-    folder <> "/"
-  ]
+coreFlags optimisation folder = optimisationFlag optimisation : coreDumps <> folderFlags folder
+
+-- | The flags of a compile with no dump on, so the dependencies of a file can
+-- be compiled without logging anything.
+stgBuildFlags :: Optimisation -> FilePath -> [String]
+stgBuildFlags optimisation folder = optimisationFlag optimisation : folderFlags folder
+
+-- | The dumps to switch on once the dependencies are compiled.
+stgDumpFlags :: [String]
+stgDumpFlags = coreDumps <> ["-ddump-stg-final"]
+
+optimisationFlag :: Optimisation -> String
+optimisationFlag = \case
+  Optimised -> "-O"
+  Unoptimised -> "-O0"
+
+coreDumps :: [String]
+coreDumps = ["-ddump-simpl", "-ddump-spec", "-ddump-rule-firings"]
+
+folderFlags :: FilePath -> [String]
+folderFlags folder = ["-hidir", folder, "-odir", folder, "-stubdir", folder, "-dumpdir", folder <> "/"]
 
 -- | Switch these flags on for the rest of the session. A module is
 -- typechecked with the flags stored in its summary, so the caller builds the

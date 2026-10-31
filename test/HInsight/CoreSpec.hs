@@ -22,6 +22,15 @@ tidyCore =
       ""
     ]
 
+stgSection :: Text
+stgSection =
+  T.intercalate
+    "\n"
+    [ "==================== Final STG: ====================",
+      "area = \\r [d] d",
+      ""
+    ]
+
 -- | Rule firings GHC 9.10.3 logged for the same file, in the order logged.
 firings :: [Text]
 firings =
@@ -83,22 +92,38 @@ spec = describe "Core" $ do
       isCoreMessage (parseRecord "[1 of 1] Compiling Spec") `shouldBe` False
   describe "buildCore" $ do
     it "keeps sections and rules in the order GHC logged them" $ do
-      let d = buildCore Optimised (take 3 firings <> [tidyCore] <> drop 3 firings)
+      let d = buildCore (coreOnly Optimised) (take 3 firings <> [tidyCore] <> drop 3 firings)
       map sectionName (coreSections d) `shouldBe` ["Tidy Core"]
       map ruleName (coreRules d) `shouldBe` ["Class op *", "Class op +", "mymap/mymap", "fold/build", "Int# -> Integer -> Double#", "fold/build"]
       coreUnread d `shouldBe` 0
       coreBlocked d `shouldBe` 0
     it "counts what it could not read" $
-      coreUnread (buildCore Optimised ["Rule fired: broken", "==== ====", tidyCore]) `shouldBe` 2
+      coreUnread (buildCore (coreOnly Optimised) ["Rule fired: broken", "==== ====", tidyCore]) `shouldBe` 2
     it "gives nothing for no messages, and says which mode was asked" $
-      buildCore Unoptimised [] `shouldBe` emptyCore Unoptimised
+      buildCore (coreOnly Unoptimised) [] `shouldBe` emptyCore (coreOnly Unoptimised)
     prop "is total, and every message is a section, rules, unread or not Core" $
       forAll (listOf (elements (tidyCore : firings <> ["", "x", "====", "Rule fired: ", "Rule fired: x (y)\nz"]))) $ \ms ->
-        let d = buildCore Optimised ms
+        let d = buildCore (coreOnly Optimised) ms
          in length (coreSections d) + coreUnread d <= length ms
+  describe "sectionKind" $
+    it "names the kinds by the headers GHC printed, and keeps the rest" $ do
+      map (sectionKind . (`CoreSection` "")) ["Tidy Core", "Final STG:", "Specialise", "Specialise, after x", "Desugar"]
+        `shouldBe` [TidyCore, FinalStg, Specialisation, Specialisation, OtherSection]
+  describe "STG" $ do
+    let asked = CoreRequest Optimised CoreAndStg
+    it "reads the STG section when it is logged" $
+      map sectionKind (coreSections (buildCore asked [tidyCore, stgSection])) `shouldBe` [TidyCore, FinalStg]
+    it "says so when STG was asked and GHC logged none" $
+      renderCore (buildCore asked [tidyCore]) `shouldSatisfy` T.isInfixOf "  no STG: GHC logged none"
+    it "says nothing about STG when it was not asked" $
+      renderCore (buildCore (coreOnly Optimised) [tidyCore]) `shouldNotSatisfy` T.isInfixOf "STG"
+    it "does not say it when the STG is there" $
+      renderCore (buildCore asked [tidyCore, stgSection]) `shouldNotSatisfy` T.isInfixOf "no STG"
+    it "names STG in the heading" $
+      take 1 (T.lines (renderCore (buildCore asked [stgSection]))) `shouldSatisfy` all (T.isInfixOf ", with STG")
   describe "rendering" $ do
     it "summarises the rules by how often each fired, most first" $ do
-      let ls = T.lines (renderCore (buildCore Optimised firings))
+      let ls = T.lines (renderCore (buildCore (coreOnly Optimised) firings))
       take 4 ls
         `shouldBe` [ "what GHC logged for the Core of this file (optimised): 0 sections, 6 rule firings",
                      "  2 x fold/build (GHC.Internal.Base)",
@@ -106,13 +131,13 @@ spec = describe "Core" $ do
                      "  1 x Class op + (BUILTIN)"
                    ]
     it "prints each section under its header, as GHC printed it" $ do
-      let ls = T.lines (renderCore (buildCore Unoptimised [tidyCore]))
+      let ls = T.lines (renderCore (buildCore (coreOnly Unoptimised) [tidyCore]))
       take 1 ls `shouldBe` ["what GHC logged for the Core of this file (unoptimised): 1 section, 0 rule firings"]
       ls `shouldSatisfy` elem "==================== Tidy Core ===================="
       ls `shouldSatisfy` elem "  = {terms: 238, types: 138, coercions: 10, joins: 2/2}"
     it "says what stopped GHC and what could not be read" $ do
-      renderCore ((emptyCore Optimised) {coreBlocked = 2}) `shouldSatisfy` T.isInfixOf "2 error(s) stopped GHC before it made any Core"
-      renderCore ((emptyCore Optimised) {coreUnread = 1}) `shouldSatisfy` T.isInfixOf "1 message(s) could not be read"
+      renderCore ((emptyCore (coreOnly Optimised)) {coreBlocked = 2}) `shouldSatisfy` T.isInfixOf "2 error(s) stopped GHC before it made any Core"
+      renderCore ((emptyCore (coreOnly Optimised)) {coreUnread = 1}) `shouldSatisfy` T.isInfixOf "1 message(s) could not be read"
   where
     at :: Int -> Text
     at n = foldr const "" (drop n firings)

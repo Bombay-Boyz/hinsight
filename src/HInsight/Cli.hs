@@ -16,7 +16,7 @@ import Data.Maybe (listToMaybe)
 import Data.Text (Text)
 import Data.Text qualified as T
 import HInsight.Chain (ChainView (..))
-import HInsight.Core (Optimisation (..))
+import HInsight.Core (CoreDetail (..), CoreRequest (..), Optimisation (..), coreOnly)
 
 -- | What the user asked the demo to do.
 data Command
@@ -31,7 +31,7 @@ data Command
     ExplainSplices FilePath
   | -- | Show what GHC says about the Core it made for this file, at this
     -- optimisation. This compiles the file past the typechecker.
-    ExplainCore Optimisation FilePath
+    ExplainCore CoreRequest FilePath
   | -- | The arguments were unusable; the text says why.
     BadUsage Text
   deriving stock (Eq, Show)
@@ -58,15 +58,20 @@ parseCommand args
       "--splices" -> Right SplicesFlag
       "--core" -> Right (CoreFlag Optimised)
       "--core=unoptimised" -> Right (CoreFlag Unoptimised)
+      "--stg" -> Right StgFlag
       other -> Left other
     forFile :: FilePath -> [Flag] -> Command
-    forFile file parsed = case (views, SplicesFlag `elem` parsed, levels) of
-      ([], False, []) -> Analyse file
-      (_ : _, False, []) -> maybe (Analyse file) (`ExplainChains` file) (lastOf views)
-      ([], True, []) -> ExplainSplices file
-      ([], False, _ : _) -> maybe (Analyse file) (`ExplainCore` file) (lastOf levels)
-      _ -> BadUsage "choose one of --chains, --splices and --core"
+    forFile file parsed
+      | StgFlag `elem` parsed && null levels = BadUsage "--stg goes with --core"
+      | otherwise = case (views, SplicesFlag `elem` parsed, levels) of
+          ([], False, []) -> Analyse file
+          (_ : _, False, []) -> maybe (Analyse file) (`ExplainChains` file) (lastOf views)
+          ([], True, []) -> ExplainSplices file
+          ([], False, _ : _) -> maybe (Analyse file) (\o -> ExplainCore (request o) file) (lastOf levels)
+          _ -> BadUsage "choose one of --chains, --splices and --core"
       where
+        request :: Optimisation -> CoreRequest
+        request o = if StgFlag `elem` parsed then CoreRequest o CoreAndStg else coreOnly o
         views :: [ChainView]
         views = [v | ChainsFlag v <- parsed]
         levels :: [Optimisation]
@@ -79,13 +84,14 @@ data Flag
   = ChainsFlag ChainView
   | SplicesFlag
   | CoreFlag Optimisation
+  | StgFlag
   deriving stock (Eq)
 
 -- | The help text, ending in a newline.
 usageText :: Text
 usageText =
   T.unlines
-    [ "Usage: hinsight-demo [--chains | --chains=whole | --splices | --core | --core=unoptimised] FILE.hs",
+    [ "Usage: hinsight-demo [--chains | --chains=whole | --splices | --core | --core=unoptimised [--stg]] FILE.hs",
       "",
       "With --chains it also shows what GHC logged on the way to each type",
       "error, following the type variables of the error; --chains=whole",
@@ -101,6 +107,10 @@ usageText =
       "(--core=unoptimised for -O0). This compiles the file past the",
       "typechecker; anything GHC writes goes to a temporary folder that is",
       "removed afterwards.",
+      "",
+      "With --core --stg it also shows the STG GHC made. That compiles the",
+      "file and the project modules it imports to object code, which takes",
+      "several times as long as a typecheck.",
       "",
       "Typechecks one Haskell module with GHC 9.10.3 and reports type",
       "mismatches and typed-hole fits. The module may import installed",

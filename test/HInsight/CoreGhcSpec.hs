@@ -18,10 +18,16 @@ import System.FilePath ((</>))
 import Test.Hspec
 
 coreOfPath :: FilePath -> Optimisation -> FilePath -> IO CoreDump
-coreOfPath libDir optimisation path = do
+coreOfPath libDir optimisation = coreWith libDir (coreOnly optimisation)
+
+coreWith :: FilePath -> CoreRequest -> FilePath -> IO CoreDump
+coreWith libDir request path = do
   dir <- ok (mkLibDir libDir)
   file <- ok (mkSourceFile path)
-  coreOf (ghcDeep dir) optimisation file >>= either (fail . show) pure
+  coreOf (ghcDeep dir) request file >>= either (fail . show) pure
+
+stgSections :: CoreDump -> [CoreSection]
+stgSections = filter ((== FinalStg) . sectionKind) . coreSections
 
 names :: CoreDump -> [Text]
 names = map sectionName . coreSections
@@ -60,7 +66,7 @@ realSpec libDir = do
     d <- coreOfPath libDir Unoptimised "test/fixtures/core/Spec.hs"
     names d `shouldSatisfy` elem "Tidy Core"
     coreRules d `shouldBe` []
-    coreOptimisation d `shouldBe` Unoptimised
+    coreRequest d `shouldBe` coreOnly Unoptimised
   it "coreModeLeavesNoFiles: the project folder, the working folder and the temporary folder are as they were" $ do
     temporary <- getTemporaryDirectory
     let mine = filter ("hinsight-core" `isPrefixOf`)
@@ -68,12 +74,28 @@ realSpec libDir = do
     untouched <- snapshot
     _ <- coreOfPath libDir Optimised "test/fixtures/core/Spec.hs"
     _ <- coreOfPath libDir Unoptimised "test/fixtures/core/UseDep.hs"
+    _ <- coreWith libDir (CoreRequest Optimised CoreAndStg) "test/fixtures/core/UseDep.hs"
     left <- snapshot
     (\(a, b, c) -> (sort a, sort b, sort c)) left `shouldBe` (\(a, b, c) -> (sort a, sort b, sort c)) untouched
   it "makes the Core of a file that imports a module of its project" $ do
     d <- coreOfPath libDir Optimised "test/fixtures/core/UseDep.hs"
     names d `shouldSatisfy` elem "Tidy Core"
     coreBlocked d `shouldBe` 0
+  it "gives no STG unless asked" $ do
+    d <- coreOfPath libDir Optimised "test/fixtures/core/Spec.hs"
+    stgSections d `shouldBe` []
+  it "gives the STG when asked, beside the Core" $ do
+    d <- coreWith libDir (CoreRequest Optimised CoreAndStg) "test/fixtures/core/Spec.hs"
+    map sectionKind (coreSections d) `shouldSatisfy` (\ks -> TidyCore `elem` ks && FinalStg `elem` ks)
+    coreUnread d `shouldBe` 0
+    coreBlocked d `shouldBe` 0
+  it "gives the STG of the file alone, not of its project imports" $ do
+    d <- coreWith libDir (CoreRequest Optimised CoreAndStg) "test/fixtures/core/UseDep.hs"
+    length (stgSections d) `shouldBe` 1
+  it "gives no STG for a file that does not typecheck, and says GHC was blocked" $ do
+    d <- coreWith libDir (CoreRequest Optimised CoreAndStg) "test/fixtures/TypeMismatch.hs"
+    coreSections d `shouldBe` []
+    coreBlocked d `shouldSatisfy` (>= 1)
   it "makes no Core for a file that does not typecheck, and says GHC was blocked" $ do
     d <- coreOfPath libDir Optimised "test/fixtures/TypeMismatch.hs"
     coreSections d `shouldBe` []
@@ -85,7 +107,7 @@ realSpec libDir = do
     env <- ok (mkEnvironment component root pinnedGhcVersion [flag])
     dir <- ok (mkLibDir libDir)
     file <- ok (mkSourceFile "test/fixtures/core/Spec.hs")
-    inEnv <- coreOf (ghcDeepIn dir env) Optimised file >>= either (fail . show) pure
+    inEnv <- coreOf (ghcDeepIn dir env) (coreOnly Optimised) file >>= either (fail . show) pure
     plain <- coreOfPath libDir Optimised "test/fixtures/core/Spec.hs"
     sort (coreRules inEnv) `shouldBe` sort (coreRules plain)
     names inEnv `shouldBe` names plain

@@ -3,7 +3,7 @@ module HInsight.CliSpec (spec) where
 import Data.Text qualified as T
 import HInsight.Chain (ChainView (..))
 import HInsight.Cli
-import HInsight.Core (Optimisation (..))
+import HInsight.Core (CoreDetail (..), CoreRequest (..), Optimisation (..), coreOnly)
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck
@@ -47,9 +47,15 @@ spec = describe "parseCommand" $ do
       parseCommand ["--core", "--splices", "A.hs"] `shouldBe` BadUsage "choose one of --chains, --splices and --core"
       parseCommand ["--chains", "--core", "A.hs"] `shouldBe` BadUsage "choose one of --chains, --splices and --core"
     it "asks for the Core, optimised or not, and the last core flag wins" $ do
-      parseCommand ["--core", "A.hs"] `shouldBe` ExplainCore Optimised "A.hs"
-      parseCommand ["A.hs", "--core=unoptimised"] `shouldBe` ExplainCore Unoptimised "A.hs"
-      parseCommand ["--core", "--core=unoptimised", "A.hs"] `shouldBe` ExplainCore Unoptimised "A.hs"
+      parseCommand ["--core", "A.hs"] `shouldBe` ExplainCore (coreOnly Optimised) "A.hs"
+      parseCommand ["A.hs", "--core=unoptimised"] `shouldBe` ExplainCore (coreOnly Unoptimised) "A.hs"
+      parseCommand ["--core", "--core=unoptimised", "A.hs"] `shouldBe` ExplainCore (coreOnly Unoptimised) "A.hs"
+    it "asks for the STG with --core --stg" $ do
+      parseCommand ["--core", "--stg", "A.hs"] `shouldBe` ExplainCore (CoreRequest Optimised CoreAndStg) "A.hs"
+      parseCommand ["--stg", "--core=unoptimised", "A.hs"] `shouldBe` ExplainCore (CoreRequest Unoptimised CoreAndStg) "A.hs"
+    it "refuses --stg without --core" $ do
+      parseCommand ["--stg", "A.hs"] `shouldBe` BadUsage "--stg goes with --core"
+      parseCommand ["--chains", "--stg", "A.hs"] `shouldBe` BadUsage "--stg goes with --core"
     it "still needs a file for the Core" $
       parseCommand ["--core"] `shouldBe` BadUsage "no file was given"
     it "still needs a file for splices" $

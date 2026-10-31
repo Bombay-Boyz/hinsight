@@ -38,9 +38,9 @@ run = \case
     (dir, file) <- inputs path
     result <- splicesFor (ghcDeep dir) file
     either (failWith (ExitFailure 1) . renderError) (TIO.putStr . renderSplices) result
-  ExplainCore optimisation path -> do
+  ExplainCore request path -> do
     (dir, file) <- inputs path
-    result <- coreOf (ghcDeep dir) optimisation file
+    result <- coreOf (ghcDeep dir) request file
     either (failWith (ExitFailure 1) . renderError) (TIO.putStr . renderCore) result
 
 -- | GHC's library directory and the file, or the reason they are unusable.

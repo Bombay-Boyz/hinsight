@@ -34,7 +34,7 @@ module HInsight.Ghc.Session
 where
 
 import Control.Exception (Handler (..), IOException, catches, evaluate)
-import Control.Monad (filterM, void)
+import Control.Monad (filterM, void, when)
 import Control.Monad.IO.Class (liftIO)
 import Data.Bifunctor (first)
 import Data.Containers.ListUtils (nubOrd)
@@ -69,6 +69,7 @@ import GHC
     typecheckModule,
   )
 import GHC.Data.Bag (bagToList)
+import GHC.Driver.Backend (platformDefaultBackend)
 import GHC.Driver.DynFlags (gopt_set)
 import GHC.Driver.Env.Types (HscEnv (..))
 import GHC.Driver.Errors.Types (GhcMessage)
@@ -87,6 +88,7 @@ import GHC.Types.Error (MessageClass (..), MsgEnvelope (..), Severity (..), getM
 import GHC.Types.SourceError (SourceError, srcErrorMessages)
 import GHC.Types.SrcLoc (unLoc)
 import GHC.Unit.Module (moduleNameString)
+import GHC.Unit.Module.Graph (emptyMG)
 import GHC.Unit.Module.ModSummary (ms_mod_name)
 import GHC.Utils.Logger (LogAction)
 import GHC.Utils.Outputable (ppr, (<+>))
@@ -94,7 +96,7 @@ import GHC.Utils.Panic (GhcException)
 import HInsight.Analysis (Analysis (..), Insight (..))
 import HInsight.Chain (ChainView, Chains (..), bindingsWithErrors, buildChains, emptyChains)
 import HInsight.Config (LibDir, libDirPath)
-import HInsight.Core (CoreDump (..), Optimisation, buildCore, emptyCore, isCoreMessage)
+import HInsight.Core (CoreDetail (..), CoreDump (..), CoreRequest (..), Optimisation, buildCore, emptyCore, isCoreMessage)
 import HInsight.Deep (Deep (..))
 import HInsight.Environment (Environment, EnvironmentSource (..), EnvironmentSummary, summarise)
 import HInsight.Error (EnvironmentError, InsightError (..), SessionError (..))
@@ -107,7 +109,7 @@ import HInsight.Ghc.Graph (RawModule, collectGraph, projectGraph)
 import HInsight.Ghc.HoleCapture (CapturedHole, holePlugin)
 import HInsight.Ghc.Holes (holeReports)
 import HInsight.Ghc.Messages (Extracted (..), extractMessages)
-import HInsight.Ghc.Trace (captureHook, coreFlags, enableFlags, errorSpans, spliceFlags, traceFlags)
+import HInsight.Ghc.Trace (captureHook, coreFlags, enableFlags, errorSpans, spliceFlags, stgBuildFlags, stgDumpFlags, traceFlags)
 import HInsight.Graph (ProjectGraph)
 import HInsight.Hole (HoleReport)
 import HInsight.Project (sourceRoot)
@@ -413,35 +415,39 @@ deepIn dir placement limit =
 
 -- | Make the Core of a file and read what GHC logged. Anything GHC writes goes
 -- to a folder made for this call and removed when it ends, however it ends.
-core :: LibDir -> Placement -> Optimisation -> SourceFile -> IO (Either InsightError CoreDump)
-core dir placement optimisation file = do
+core :: LibDir -> Placement -> CoreRequest -> SourceFile -> IO (Either InsightError CoreDump)
+core dir placement request file = do
   failure <- preflight dir file
   case failure of
     Just why -> pure (Left (SessionFailure why))
     Nothing -> catchSession path $ withSystemTempDirectory "hinsight-core" $ \folder -> do
       logged <- newIORef []
-      result <- runGhc (Just (libDirPath dir)) (corePass placement optimisation folder logged path)
+      result <- runGhc (Just (libDirPath dir)) (corePass placement request folder logged path)
       evaluate result
   where
     path :: FilePath
     path = sourceFilePath file
 
--- | Load the project, typecheck the file, then ask GHC for its simplified Core
--- with the Core dumps on. Typechecking first tells a file that does not
--- typecheck (GHC is blocked, 'coreBlocked') from a Core step that failed on a
--- file that does ('CoreFailed'). Only the file is desugared and simplified, so
--- the rule firings are its own; its dependencies are only typechecked.
-corePass :: Placement -> Optimisation -> FilePath -> IORef [Text] -> FilePath -> Ghc (Either InsightError CoreDump)
-corePass placement optimisation folder logged path = do
+-- | Load the project, typecheck the file, then ask GHC for its Core with the
+-- dumps on. Typechecking first tells a file that does not typecheck (GHC is
+-- blocked, 'coreBlocked') from a Core step that failed on a file that does
+-- ('CoreFailed'). Without STG only the file is desugared and simplified, so
+-- the rule firings are its own and its dependencies are only typechecked. With
+-- STG the dependencies are compiled to object code first, with no dump on, and
+-- then only the file is compiled with the dumps on. The bytecode backend makes
+-- no STG, so the native backend is used, with no link.
+corePass :: Placement -> CoreRequest -> FilePath -> IORef [Text] -> FilePath -> Ghc (Either InsightError CoreDump)
+corePass placement request folder logged path = do
   prepared <- prepareDeep placement logged path
   case prepared of
     Left failure -> pure (Left failure)
     Right (Left blocked) -> pure (Right (blocked' blocked))
     Right (Right located) -> do
-      enabled <- enableFlags (coreFlags optimisation folder)
+      enabled <- enableFlags buildFlags
       case enabled of
         Left failure -> pure (Left (EnvironmentFailure failure))
         Right () -> do
+          when (requestDetail request == CoreAndStg) useNativeBackend
           guessTarget located Nothing Nothing >>= setTargets . pure
           graph <- depanal [] False
           found <- targetSummary path (mgModSummaries graph)
@@ -451,25 +457,64 @@ corePass placement optimisation folder logged path = do
               checked <- handleSourceError (pure . Left . errorsOf) (Right <$> (parseModule summary >>= typecheckModule))
               case checked of
                 Left errors -> pure (Right (blocked' (length errors)))
-                Right _ -> makeCore located
+                Right _ -> case requestDetail request of
+                  CoreOnly -> simplified located
+                  CoreAndStg -> withStg located
   where
+    optimisation :: Optimisation
+    optimisation = requestOptimisation request
+    buildFlags :: [String]
+    buildFlags = case requestDetail request of
+      CoreOnly -> coreFlags optimisation folder
+      CoreAndStg -> stgBuildFlags optimisation folder
     blocked' :: Int -> CoreDump
-    blocked' n = (emptyCore optimisation) {coreBlocked = n}
-    makeCore :: FilePath -> Ghc (Either InsightError CoreDump)
-    makeCore located = do
+    blocked' n = (emptyCore request) {coreBlocked = n}
+    simplified :: FilePath -> Ghc (Either InsightError CoreDump)
+    simplified located = do
       ref <- liftIO (newIORef (emptyCapture defaultRecordLimit))
       pushLogHookM (captureHook ref isCoreMessage)
       -- GHC adds the file as a target itself, and a file given twice is an
       -- error, so the targets are cleared first.
       setTargets []
       made <- handleSourceError (pure . Left . errorsOf) (Right <$> compileToCoreSimplified located)
+      gather ref (either (const False) (const True) made)
+    withStg :: FilePath -> Ghc (Either InsightError CoreDump)
+    withStg located = do
+      graph <- depanal [] False
+      found <- targetSummary path (mgModSummaries graph)
+      case found of
+        Nothing -> pure (Left (SessionFailure (TargetNotInGraph path)))
+        Just summary -> do
+          dependencies <- loadDependencies logged graph summary
+          case dependencies of
+            Just why -> pure (Left (SessionFailure (CoreFailed path why)))
+            Nothing -> do
+              enabled <- enableFlags stgDumpFlags
+              case enabled of
+                Left failure -> pure (Left (EnvironmentFailure failure))
+                Right () -> do
+                  ref <- liftIO (newIORef (emptyCapture defaultRecordLimit))
+                  pushLogHookM (captureHook ref isCoreMessage)
+                  guessTarget located Nothing Nothing >>= setTargets . pure
+                  modifySession (\env -> env {hsc_mod_graph = emptyMG})
+                  made <- handleSourceError (pure . Left . errorsOf) (Right <$> load LoadAllTargets)
+                  gather ref $ case made of
+                    Right Succeeded -> True
+                    _ -> False
+    gather :: IORef Capture -> Bool -> Ghc (Either InsightError CoreDump)
+    gather ref succeeded = do
       captured <- liftIO (readIORef ref)
       errors <- liftIO (readIORef logged)
       pure $ do
         trace <- first TraceFailure (finishCapture captured)
-        case made of
-          Left _ -> Left (SessionFailure (CoreFailed path (describeErrors (reverse errors))))
-          Right _ -> Right (buildCore optimisation (map recordRaw (traceRecords trace)))
+        if succeeded
+          then Right (buildCore request (map recordRaw (traceRecords trace)))
+          else Left (SessionFailure (CoreFailed path (describeErrors (reverse errors))))
+
+useNativeBackend :: Ghc ()
+useNativeBackend = do
+  flags <- getSessionDynFlags
+  void (setSessionDynFlags flags {backend = platformDefaultBackend (targetPlatform flags)})
 
 -- | Run a second pass over a file and read what it logged.
 deep ::
