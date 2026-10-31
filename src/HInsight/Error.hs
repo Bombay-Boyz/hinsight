@@ -88,6 +88,12 @@ data DomainError
   | -- | A limit was below 1. Raised by 'HInsight.Trace.mkRecordLimit'; the
     -- first field names which limit, the second is the number given.
     NonPositiveLimit Text Int
+  | -- | The text of an edit held a NUL character. Raised by
+    -- 'HInsight.Edit.mkEdit'.
+    EditTextHasNul
+  | -- | Two edits of one file overlap: the line and column where each starts.
+    -- Raised by 'HInsight.Edit.mkEditSet'.
+    OverlappingEdits (Int, Int) (Int, Int)
   deriving stock (Eq, Show)
 
 -- | The typechecker trace could not be used. Raised by "HInsight.Trace".
@@ -179,6 +185,8 @@ renderDomainError = \case
   InvalidFlag f -> "the compiler flag " <> T.pack (show f) <> " is empty or contains a NUL character"
   MalformedVersion v -> "the compiler version " <> T.pack (show v) <> " is not dotted decimal numbers such as 9.10.3"
   NonPositiveLimit what n -> "the " <> what <> " is " <> tshow n <> "; it must be at least 1"
+  EditTextHasNul -> "the text of an edit holds a NUL character"
+  OverlappingEdits (l1, c1) (l2, c2) -> "the edits starting at " <> pos l1 c1 <> " and " <> pos l2 c2 <> " overlap"
   where
     pos :: Int -> Int -> Text
     pos l c = tshow l <> ":" <> tshow c

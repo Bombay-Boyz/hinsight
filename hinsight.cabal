@@ -72,6 +72,7 @@ library
     HInsight.Ghc.Session
     HInsight.Ghc.Trace
     HInsight.Graph
+    HInsight.Edit
     HInsight.Hole
     HInsight.Identifier
     HInsight.Instance
@@ -135,6 +136,7 @@ test-suite hinsight-test
     HInsight.CoreGhcSpec
     HInsight.CoreSpec
     HInsight.CliSpec
+    HInsight.EditSpec
     HInsight.EnvironmentSpec
     HInsight.ErrorSpec
     HInsight.EvidenceSpec

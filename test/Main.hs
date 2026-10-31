@@ -5,6 +5,7 @@ import HInsight.ChainSpec qualified
 import HInsight.CliSpec qualified
 import HInsight.CoreGhcSpec qualified
 import HInsight.CoreSpec qualified
+import HInsight.EditSpec qualified
 import HInsight.EnvironmentSpec qualified
 import HInsight.ErrorSpec qualified
 import HInsight.EvidenceSpec qualified
@@ -38,6 +39,7 @@ main = hspec $ do
   HInsight.FlowSpec.spec
   HInsight.GraphSpec.spec
   HInsight.HoleSpec.spec
+  HInsight.EditSpec.spec
   HInsight.IdentifierSpec.spec
   HInsight.InstanceSpec.spec
   HInsight.ProjectSpec.spec
