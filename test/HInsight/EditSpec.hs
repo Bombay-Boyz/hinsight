@@ -147,7 +147,7 @@ slice :: Int -> Int -> Text -> Text
 slice a b = T.take (b - a) . T.drop a
 
 expected :: Text -> [(Int, Int, Text)] -> Text
-expected src marks = T.concat (go 0 marks)
+expected src marks = T.concat (go 0 (sort marks))
   where
     go :: Int -> [(Int, Int, Text)] -> [Text]
     go from [] = [T.drop from src]
