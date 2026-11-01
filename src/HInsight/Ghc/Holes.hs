@@ -14,7 +14,9 @@ import HInsight.Hole
   ( HoleFit (..),
     HoleReport (..),
     Locality (..),
+    ModuleAlias,
     RefinementLevel,
+    mkModuleAlias,
     mkRefinementLevel,
     rankFits,
   )
@@ -41,12 +43,17 @@ fitOf file f =
     <*> refinement file (capturedFitRefinement f)
     <*> pure (locality (capturedFitLocal f))
     <*> traverse (convertText file) (capturedFitMatches f)
+    <*> traverse (moduleAlias file) (capturedFitQualifier f)
+    <*> pure (capturedFitOperator f)
 
 locality :: Bool -> Locality
 locality isLocal = if isLocal then Local else Imported
 
 identifier :: FilePath -> String -> Either InsightError Identifier
 identifier file = fromDomain file . mkIdentifier . T.pack
+
+moduleAlias :: FilePath -> String -> Either InsightError ModuleAlias
+moduleAlias file = fromDomain file . mkModuleAlias . T.pack
 
 refinement :: FilePath -> Int -> Either InsightError RefinementLevel
 refinement file = fromDomain file . mkRefinementLevel

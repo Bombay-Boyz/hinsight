@@ -20,14 +20,16 @@ where
 
 import Control.Monad.IO.Class (liftIO)
 import Data.IORef (IORef, modifyIORef')
-import Data.Maybe (mapMaybe)
-import GHC.Tc.Errors.Hole.FitTypes (HoleFit (..), TypedHole (..), hfIsLcl)
+import Data.Maybe (listToMaybe, mapMaybe)
+import GHC (moduleNameString)
+import GHC.Data.Bag (bagToList)
+import GHC.Tc.Errors.Hole.FitTypes (HoleFit (..), HoleFitCandidate (..), TypedHole (..), hfIsLcl)
 import GHC.Tc.Errors.Hole.Plugin qualified as Hole
 import GHC.Tc.Types (TcM)
 import GHC.Tc.Types.Constraint (Hole (..), ctLocSpan)
 import GHC.Tc.Utils.Monad (newTcRef)
-import GHC.Types.Name (getOccName, occNameString)
-import GHC.Types.Name.Reader (rdrNameOcc)
+import GHC.Types.Name (getOccName, isSymOcc, occNameString)
+import GHC.Types.Name.Reader (GlobalRdrEltX (..), ImpDeclSpec (..), ImportSpec (..), rdrNameOcc)
 import GHC.Types.SrcLoc (RealSrcSpan)
 import HInsight.Ghc.Convert (renderGhcType)
 
@@ -37,7 +39,9 @@ data CapturedFit = CapturedFit
     capturedFitType :: !String,
     capturedFitRefinement :: !Int,
     capturedFitLocal :: !Bool,
-    capturedFitMatches :: ![String]
+    capturedFitMatches :: ![String],
+    capturedFitQualifier :: !(Maybe String),
+    capturedFitOperator :: !Bool
   }
   deriving stock (Eq, Show)
 
@@ -87,13 +91,25 @@ capture typed fits = describe <$> th_hole typed
 -- structure to rank, so it is skipped.
 captureFit :: HoleFit -> Maybe CapturedFit
 captureFit = \case
-  fit@HoleFit {hfId = i, hfType = t, hfRefLvl = level, hfMatches = ms} ->
+  fit@HoleFit {hfId = i, hfCand = candidate, hfType = t, hfRefLvl = level, hfMatches = ms} ->
     Just
       CapturedFit
         { capturedFitName = occNameString (getOccName i),
           capturedFitType = renderGhcType t,
           capturedFitRefinement = level,
           capturedFitLocal = hfIsLcl fit,
-          capturedFitMatches = map renderGhcType ms
+          capturedFitMatches = map renderGhcType ms,
+          capturedFitQualifier = qualifierOf candidate,
+          capturedFitOperator = isSymOcc (getOccName i)
         }
   RawHoleFit _ -> Nothing
+
+-- | The alias of a fit that GHC's import data says is in scope only
+-- qualified; nothing for a fit in scope unqualified or defined here.
+qualifierOf :: HoleFitCandidate -> Maybe String
+qualifierOf = \case
+  GreHFCand gre
+    | specs@(_ : _) <- map is_decl (bagToList (gre_imp gre)),
+      all is_qual specs ->
+        moduleNameString . is_as <$> listToMaybe specs
+  _ -> Nothing

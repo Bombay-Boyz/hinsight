@@ -6,16 +6,23 @@ module HInsight.Hole
     mkRefinementLevel,
     unRefinementLevel,
     Locality (..),
+    ModuleAlias,
+    mkModuleAlias,
+    unModuleAlias,
     HoleFit (..),
     HoleReport (..),
     rankFits,
+    acceptFit,
   )
 where
 
 import Data.List (sortOn)
+import Data.Text (Text)
+import Data.Text qualified as T
+import HInsight.Edit (Edit, mkEdit)
 import HInsight.Error (DomainError (..))
-import HInsight.Identifier (Identifier)
-import HInsight.Source (Span)
+import HInsight.Identifier (Identifier, unIdentifier)
+import HInsight.Source (SourceFile, Span)
 import HInsight.TypeText (TypeText)
 
 -- | How many further holes a fit introduces. Zero means the fit fills the hole
@@ -40,6 +47,20 @@ unRefinementLevel (UnsafeRefinementLevel n) = n
 data Locality = Local | Imported
   deriving stock (Eq, Ord, Show, Enum, Bounded)
 
+-- | The alias a fit's module is imported under. Invariant: not blank.
+newtype ModuleAlias = UnsafeModuleAlias Text
+  deriving stock (Eq, Ord, Show)
+
+-- | Build a 'ModuleAlias'; the text must not be blank.
+mkModuleAlias :: Text -> Either DomainError ModuleAlias
+mkModuleAlias t
+  | T.null (T.strip t) = Left (BlankText "module alias")
+  | otherwise = Right (UnsafeModuleAlias (T.strip t))
+
+-- | The text inside a 'ModuleAlias'.
+unModuleAlias :: ModuleAlias -> Text
+unModuleAlias (UnsafeModuleAlias t) = t
+
 -- | One candidate that GHC found for a hole.
 data HoleFit = HoleFit
   { fitName :: !Identifier,
@@ -47,7 +68,12 @@ data HoleFit = HoleFit
     fitRefinement :: !RefinementLevel,
     fitLocality :: !Locality,
     -- | The types the fit's own new holes would have to fill.
-    fitMatches :: ![TypeText]
+    fitMatches :: ![TypeText],
+    -- | The alias the fit is in scope under, when GHC's import data says it
+    -- is imported only qualified.
+    fitQualifier :: !(Maybe ModuleAlias),
+    -- | Whether GHC counts the name as an operator symbol.
+    fitIsOperator :: !Bool
   }
   deriving stock (Eq, Ord, Show)
 
@@ -69,12 +95,29 @@ data HoleReport = HoleReport
 rankFits :: [HoleFit] -> [HoleFit]
 rankFits = sortOn key
   where
-    key :: HoleFit -> (RefinementLevel, Locality, Int, Identifier, TypeText, [TypeText])
+    key :: HoleFit -> (RefinementLevel, Locality, Int, Identifier, TypeText, [TypeText], Maybe ModuleAlias, Bool)
     key f =
       ( fitRefinement f,
         fitLocality f,
         length (fitMatches f),
         fitName f,
         fitType f,
-        fitMatches f
+        fitMatches f,
+        fitQualifier f,
+        fitIsOperator f
       )
+
+-- | The edit that puts a fit in the place of its hole. A fit that introduces
+-- new holes is written as an application to that many holes, in parentheses.
+acceptFit :: SourceFile -> HoleReport -> HoleFit -> Either DomainError Edit
+acceptFit file hole fit = mkEdit file (holeSpan hole) (renderAcceptance fit)
+
+renderAcceptance :: HoleFit -> Text
+renderAcceptance fit = case unRefinementLevel (fitRefinement fit) of
+  0 -> spelled
+  n -> "(" <> T.unwords (spelled : replicate n "_") <> ")"
+  where
+    qualified :: Text
+    qualified = maybe id (\a name -> unModuleAlias a <> "." <> name) (fitQualifier fit) (unIdentifier (fitName fit))
+    spelled :: Text
+    spelled = if fitIsOperator fit then "(" <> qualified <> ")" else qualified

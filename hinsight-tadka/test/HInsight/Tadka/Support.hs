@@ -79,7 +79,7 @@ holeAt sp wanted fits = do
   where
     mkFit :: (Text, Text, Int, Locality) -> IO HoleFit
     mkFit (n, t, level, locality) =
-      HoleFit <$> ident n <*> ty t <*> ok (mkRefinementLevel level) <*> pure locality <*> pure []
+      HoleFit <$> ident n <*> ty t <*> ok (mkRefinementLevel level) <*> pure locality <*> pure [] <*> pure Nothing <*> pure False
 
 -- | An unresolved constraint at a span, with the instances GHC lists for it.
 instanceAt :: Span -> Text -> [Text] -> Context -> IO UnresolvedInstance

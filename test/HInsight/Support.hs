@@ -84,6 +84,11 @@ genHoleFit =
     <*> genRefinement
     <*> elements [minBound .. maxBound]
     <*> resize 3 (listOf genTypeText)
+    <*> oneof [pure Nothing, Just <$> genModuleAlias]
+    <*> arbitrary
+
+genModuleAlias :: Gen ModuleAlias
+genModuleAlias = suchThatMap (T.pack <$> listOf1 (elements (['A' .. 'Z'] <> ".'"))) (rightToMaybe . mkModuleAlias)
 
 genDivergence :: Gen Divergence
 genDivergence = suchThatMap ((,) <$> genTypeText <*> genTypeText) (rightToMaybe . uncurry mkDivergence)

@@ -1,5 +1,6 @@
 module Main (main) where
 
+import HInsight.AcceptGhcSpec qualified
 import HInsight.ChainGhcSpec qualified
 import HInsight.ChainSpec qualified
 import HInsight.CliSpec qualified
@@ -49,6 +50,7 @@ main = hspec $ do
   HInsight.GhcSessionSpec.spec
   HInsight.GhcEnvironmentSpec.spec
   HInsight.EvidenceSpec.spec
+  HInsight.AcceptGhcSpec.spec
   HInsight.ChainGhcSpec.spec
   HInsight.SpliceGhcSpec.spec
   HInsight.CoreGhcSpec.spec

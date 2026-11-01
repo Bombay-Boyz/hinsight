@@ -131,6 +131,7 @@ test-suite hinsight-test
   hs-source-dirs:   test
   main-is:          Main.hs
   other-modules:
+    HInsight.AcceptGhcSpec
     HInsight.ChainGhcSpec
     HInsight.ChainSpec
     HInsight.CoreGhcSpec

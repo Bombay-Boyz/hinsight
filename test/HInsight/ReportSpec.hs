@@ -36,7 +36,7 @@ fitNamed name loc matches = do
   t <- ok (mkTypeText "Int")
   r <- ok (mkRefinementLevel (length matches))
   ms <- traverse (ok . mkTypeText . T.pack) matches
-  pure (HoleFit n t r loc ms)
+  pure (HoleFit n t r loc ms Nothing False)
 
 spec :: Spec
 spec = do
