@@ -96,7 +96,7 @@ import GHC.Utils.Panic (GhcException)
 import HInsight.Analysis (Analysis (..), Insight (..))
 import HInsight.Chain (ChainView, Chains (..), bindingsWithErrors, buildChains, emptyChains)
 import HInsight.Config (LibDir, libDirPath)
-import HInsight.Core (CoreDetail (..), CoreDump (..), CoreRequest (..), Optimisation, buildCore, emptyCore, isCoreMessage)
+import HInsight.Core (CoreDetail (..), CoreDump (..), CoreRequest (..), MissedWarning (..), Optimisation, buildCore, emptyCore, isCoreMessage, withMissed)
 import HInsight.Deep (Deep (..))
 import HInsight.Environment (Environment, EnvironmentSource (..), EnvironmentSummary, summarise)
 import HInsight.Error (EnvironmentError, InsightError (..), SessionError (..))
@@ -109,7 +109,7 @@ import HInsight.Ghc.Graph (RawModule, collectGraph, projectGraph)
 import HInsight.Ghc.HoleCapture (CapturedHole, holePlugin)
 import HInsight.Ghc.Holes (holeReports)
 import HInsight.Ghc.Messages (Extracted (..), extractMessages)
-import HInsight.Ghc.Trace (captureHook, coreFlags, enableFlags, errorSpans, spliceFlags, stgBuildFlags, stgDumpFlags, traceFlags)
+import HInsight.Ghc.Trace (RawMissed (..), captureHook, coreBuildFlags, coreDumpFlags, enableFlags, errorSpans, missedHook, spliceFlags, stgDumpFlags, traceFlags)
 import HInsight.Graph (ProjectGraph)
 import HInsight.Hole (HoleReport)
 import HInsight.Project (sourceRoot)
@@ -438,12 +438,12 @@ core dir placement request file = do
 -- no STG, so the native backend is used, with no link.
 corePass :: Placement -> CoreRequest -> FilePath -> IORef [Text] -> FilePath -> Ghc (Either InsightError CoreDump)
 corePass placement request folder logged path = do
-  prepared <- prepareDeep placement logged path
+  prepared <- prepareDeep placement (coreBuildFlags optimisation folder) logged path
   case prepared of
     Left failure -> pure (Left failure)
     Right (Left blocked) -> pure (Right (blocked' blocked))
     Right (Right located) -> do
-      enabled <- enableFlags buildFlags
+      enabled <- enableFlags dumpFlags
       case enabled of
         Left failure -> pure (Left (EnvironmentFailure failure))
         Right () -> do
@@ -463,21 +463,23 @@ corePass placement request folder logged path = do
   where
     optimisation :: Optimisation
     optimisation = requestOptimisation request
-    buildFlags :: [String]
-    buildFlags = case requestDetail request of
-      CoreOnly -> coreFlags optimisation folder
-      CoreAndStg -> stgBuildFlags optimisation folder
+    dumpFlags :: [String]
+    dumpFlags = case requestDetail request of
+      CoreOnly -> coreDumpFlags
+      CoreAndStg -> []
     blocked' :: Int -> CoreDump
     blocked' n = (emptyCore request) {coreBlocked = n}
     simplified :: FilePath -> Ghc (Either InsightError CoreDump)
     simplified located = do
+      missed <- liftIO (newIORef [])
+      pushLogHookM (missedHook missed)
       ref <- liftIO (newIORef (emptyCapture defaultRecordLimit))
       pushLogHookM (captureHook ref isCoreMessage)
       -- GHC adds the file as a target itself, and a file given twice is an
       -- error, so the targets are cleared first.
       setTargets []
       made <- handleSourceError (pure . Left . errorsOf) (Right <$> compileToCoreSimplified located)
-      gather ref (either (const False) (const True) made)
+      gather ref missed (either (const False) (const True) made)
     withStg :: FilePath -> Ghc (Either InsightError CoreDump)
     withStg located = do
       graph <- depanal [] False
@@ -485,6 +487,8 @@ corePass placement request folder logged path = do
       case found of
         Nothing -> pure (Left (SessionFailure (TargetNotInGraph path)))
         Just summary -> do
+          missed <- liftIO (newIORef [])
+          pushLogHookM (missedHook missed)
           dependencies <- loadDependencies logged graph summary
           case dependencies of
             Just why -> pure (Left (SessionFailure (CoreFailed path why)))
@@ -498,18 +502,23 @@ corePass placement request folder logged path = do
                   guessTarget located Nothing Nothing >>= setTargets . pure
                   modifySession (\env -> env {hsc_mod_graph = emptyMG})
                   made <- handleSourceError (pure . Left . errorsOf) (Right <$> load LoadAllTargets)
-                  gather ref $ case made of
+                  gather ref missed $ case made of
                     Right Succeeded -> True
                     _ -> False
-    gather :: IORef Capture -> Bool -> Ghc (Either InsightError CoreDump)
-    gather ref succeeded = do
+    gather :: IORef Capture -> IORef [RawMissed] -> Bool -> Ghc (Either InsightError CoreDump)
+    gather ref missed succeeded = do
       captured <- liftIO (readIORef ref)
       errors <- liftIO (readIORef logged)
+      warnings <- liftIO (readIORef missed >>= traverse placed . reverse)
       pure $ do
         trace <- first TraceFailure (finishCapture captured)
         if succeeded
-          then Right (buildCore request (map recordRaw (traceRecords trace)))
+          then Right (withMissed warnings (buildCore request (map recordRaw (traceRecords trace))))
           else Left (SessionFailure (CoreFailed path (describeErrors (reverse errors))))
+    placed :: RawMissed -> IO MissedWarning
+    placed raw = do
+      inFile <- if null (rawFile raw) then pure False else (==) <$> canonicalizePath path <*> canonicalizePath (rawFile raw)
+      pure (MissedWarning (rawKind raw) inFile (rawMessage raw))
 
 useNativeBackend :: Ghc ()
 useNativeBackend = do
@@ -566,13 +575,14 @@ data DeepRun = DeepRun
     runErrors :: [MsgEnvelope GhcMessage]
   }
 
--- | Configure the session and load the project as an analysis does. 'Left' says
--- how many errors stopped GHC before the file could be typechecked; 'Right' is
--- the target as GHC was given it.
-prepareDeep :: Placement -> IORef [Text] -> FilePath -> Ghc (Either InsightError (Either Int FilePath))
-prepareDeep placement logged path = do
+-- | Configure the session, switch on the given flags, and load the project as
+-- an analysis does. 'Left' says how many errors stopped GHC before the file
+-- could be typechecked; 'Right' is the target as GHC was given it.
+prepareDeep :: Placement -> [String] -> IORef [Text] -> FilePath -> Ghc (Either InsightError (Either Int FilePath))
+prepareDeep placement early logged path = do
   configured <- configure placement logged
-  case configured of
+  flagged <- either (pure . Left) (const (enableFlags early)) configured
+  case flagged of
     Left failure -> pure (Left (EnvironmentFailure failure))
     Right () -> do
       located <- liftIO (targetPath placement path)
@@ -596,7 +606,7 @@ deepPass ::
   FilePath ->
   Ghc (Either InsightError Deepened)
 deepPass placement limit scoping flags wanted logged path = do
-  prepared <- prepareDeep placement logged path
+  prepared <- prepareDeep placement [] logged path
   case prepared of
     Left failure -> pure (Left failure)
     Right (Left blocked) -> pure (Right (Blocked blocked))

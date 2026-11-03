@@ -8,6 +8,7 @@ module HInsight.CoreGhcSpec (spec) where
 
 import Data.List (isPrefixOf, sort)
 import Data.Text (Text)
+import Data.Text qualified as T
 import HInsight
 import HInsight.Environment (mkComponentName, mkEnvironment, mkGhcFlag, mkProjectRoot, pinnedGhcVersion)
 import HInsight.Ghc.Session (ghcDeep, ghcDeepIn)
@@ -81,6 +82,18 @@ realSpec libDir = do
     d <- coreOfPath libDir Optimised "test/fixtures/core/UseDep.hs"
     names d `shouldSatisfy` elem "Tidy Core"
     coreBlocked d `shouldBe` 0
+  it "lists the missed specialisation GHC warned of, at -O, for the file" $ do
+    d <- coreOfPath libDir Optimised "test/fixtures/core/MissedUse.hs"
+    map missedKind (coreMissed d) `shouldBe` [MissedSpecialisationAll]
+    map missedMessage (coreMissed d) `shouldSatisfy` all (T.isInfixOf "twiceOf")
+    coreMissedElsewhere d `shouldBe` 0
+  it "lists no missed specialisation at -O0, where the specialiser does not run" $ do
+    d <- coreOfPath libDir Unoptimised "test/fixtures/core/MissedUse.hs"
+    coreMissed d `shouldBe` []
+  it "lists the same missed specialisation when STG is asked for" $ do
+    d <- coreWith libDir (CoreRequest Optimised CoreAndStg) "test/fixtures/core/MissedUse.hs"
+    map missedKind (coreMissed d) `shouldBe` [MissedSpecialisationAll]
+    coreMissedElsewhere d `shouldBe` 0
   it "gives no STG unless asked" $ do
     d <- coreOfPath libDir Optimised "test/fixtures/core/Spec.hs"
     stgSections d `shouldBe` []

@@ -121,6 +121,20 @@ spec = describe "Core" $ do
       renderCore (buildCore asked [tidyCore, stgSection]) `shouldNotSatisfy` T.isInfixOf "no STG"
     it "names STG in the heading" $
       take 1 (T.lines (renderCore (buildCore asked [stgSection]))) `shouldSatisfy` all (T.isInfixOf ", with STG")
+  describe "missed specialisations" $ do
+    let inFile = MissedWarning MissedSpecialisationAll True "Could not specialise imported function \8216f\8217\nProbable fix: add INLINABLE pragma on \8216f\8217"
+        elsewhere = MissedWarning MissedSpecialisation False "Could not specialise imported function \8216g\8217"
+    it "keeps the warnings about the file and counts those about its imports" $ do
+      let d = withMissed [inFile, elsewhere, inFile] (emptyCore (coreOnly Optimised))
+      (coreMissed d, coreMissedElsewhere d) `shouldBe` ([inFile, inFile], 1)
+    it "says nothing when GHC warned of none" $
+      renderCore (emptyCore (coreOnly Optimised)) `shouldNotSatisfy` T.isInfixOf "missed specialisations"
+    it "gives the counts, then each warning of the file with its flag, on one line" $ do
+      let ls = T.lines (renderCore (withMissed [inFile, elsewhere] (emptyCore (coreOnly Optimised))))
+      ls `shouldSatisfy` elem "  missed specialisations: 1 in this file, 1 in modules it imports"
+      ls `shouldSatisfy` elem "    [-Wall-missed-specialisations] Could not specialise imported function \8216f\8217 Probable fix: add INLINABLE pragma on \8216f\8217"
+    it "names the first flag too" $
+      renderCore (withMissed [elsewhere {missedInFile = True}] (emptyCore (coreOnly Optimised))) `shouldSatisfy` T.isInfixOf "[-Wmissed-specialisations]"
   describe "rendering" $ do
     it "summarises the rules by how often each fired, most first" $ do
       let ls = T.lines (renderCore (buildCore (coreOnly Optimised) firings))

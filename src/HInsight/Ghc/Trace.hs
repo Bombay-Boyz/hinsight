@@ -10,10 +10,12 @@
 -- side's job.
 module HInsight.Ghc.Trace
   ( traceFlags,
-    coreFlags,
-    stgBuildFlags,
+    coreBuildFlags,
+    coreDumpFlags,
     stgDumpFlags,
     spliceFlags,
+    RawMissed (..),
+    missedHook,
     enableFlags,
     captureHook,
     errorSpans,
@@ -21,15 +23,18 @@ module HInsight.Ghc.Trace
 where
 
 import Control.Monad (void)
+import Data.Foldable (toList)
 import Data.IORef (IORef, modifyIORef')
 import Data.Text qualified as T
 import GHC (Ghc, getLogger, getSessionDynFlags, parseDynamicFlags, setSessionDynFlags)
+import GHC.Data.FastString (unpackFS)
 import GHC.Driver.Errors.Types (GhcMessage)
-import GHC.Types.Error (MessageClass (..), MsgEnvelope (..))
-import GHC.Types.SrcLoc (SrcSpan (..), noLoc, unLoc)
+import GHC.Driver.Flags (WarningFlag (..))
+import GHC.Types.Error (DiagnosticReason (..), MessageClass (..), MsgEnvelope (..), ResolvedDiagnosticReason (..))
+import GHC.Types.SrcLoc (SrcSpan (..), UnhelpfulSpanReason (..), noLoc, srcSpanFile, unLoc)
 import GHC.Utils.Logger (LogAction, LogFlags (..))
 import GHC.Utils.Outputable (renderWithContext)
-import HInsight.Core (Optimisation (..))
+import HInsight.Core (MissedKind (..), Optimisation (..))
 import HInsight.Error (EnvironmentError (..), InsightError)
 import HInsight.Ghc.Convert (convertSpan)
 import HInsight.Source (Span)
@@ -43,15 +48,17 @@ traceFlags = ["-ddump-tc-trace", "-dppr-debug", "-ferror-spans"]
 spliceFlags :: [String]
 spliceFlags = ["-ddump-splices", "-ferror-spans"]
 
--- | The flags of the Core dumps, and a folder for anything GHC writes while it
--- makes Core. The folder is the caller's to remove.
-coreFlags :: Optimisation -> FilePath -> [String]
-coreFlags optimisation folder = optimisationFlag optimisation : coreDumps <> folderFlags folder
+-- | The flags of a Core question with no dump on, and a folder for anything
+-- GHC writes while it makes Core; the folder is the caller's to remove. They
+-- are switched on before the dependencies of the file load, because a module
+-- loaded without them is not optimised against later.
+coreBuildFlags :: Optimisation -> FilePath -> [String]
+coreBuildFlags optimisation folder = optimisationFlag optimisation : missedFlags <> folderFlags folder
 
--- | The flags of a compile with no dump on, so the dependencies of a file can
--- be compiled without logging anything.
-stgBuildFlags :: Optimisation -> FilePath -> [String]
-stgBuildFlags optimisation folder = optimisationFlag optimisation : folderFlags folder
+-- | The dumps of Core, specialisation and rule firings, switched on once the
+-- dependencies are loaded.
+coreDumpFlags :: [String]
+coreDumpFlags = coreDumps
 
 -- | The dumps to switch on once the dependencies are compiled.
 stgDumpFlags :: [String]
@@ -61,6 +68,9 @@ optimisationFlag :: Optimisation -> String
 optimisationFlag = \case
   Optimised -> "-O"
   Unoptimised -> "-O0"
+
+missedFlags :: [String]
+missedFlags = ["-Wmissed-specialisations", "-Wall-missed-specialisations"]
 
 coreDumps :: [String]
 coreDumps = ["-ddump-simpl", "-ddump-spec", "-ddump-rule-firings"]
@@ -93,6 +103,37 @@ captureHook ref wanted original flags messageClass location doc = case messageCl
     -- The style GHC itself dumps in, which with -dppr-debug is the debug
     -- style the reader expects (variables printed with their unique).
     message = T.pack (renderWithContext (log_default_dump_context flags) doc)
+
+-- | A missed-specialisation warning as GHC logged it: which flag, the file
+-- GHC names for it (it names no line or column) and its text.
+data RawMissed = RawMissed
+  { rawKind :: !MissedKind,
+    rawFile :: !FilePath,
+    rawMessage :: !T.Text
+  }
+  deriving stock (Eq, Show)
+
+-- | A log hook that keeps the warnings of the two missed-specialisation flags,
+-- classified by the flag in the warning's reason, and passes every other
+-- message on to the hook that was there before.
+missedHook :: IORef [RawMissed] -> LogAction -> LogAction
+missedHook ref original flags messageClass location doc = case messageClass of
+  MCDiagnostic _ (ResolvedDiagnosticReason (WarningWithFlags reasons)) _
+    | Just kind <- kindOf (toList reasons) -> message `seq` modifyIORef' ref (RawMissed kind file message :)
+  _ -> original flags messageClass location doc
+  where
+    message :: T.Text
+    message = T.strip (T.pack (renderWithContext (log_default_dump_context flags) doc))
+    file :: FilePath
+    file = case location of
+      RealSrcSpan rs _ -> unpackFS (srcSpanFile rs)
+      UnhelpfulSpan (UnhelpfulOther name) -> unpackFS name
+      UnhelpfulSpan _ -> ""
+    kindOf :: [WarningFlag] -> Maybe MissedKind
+    kindOf fs
+      | Opt_WarnMissedSpecs `elem` fs = Just MissedSpecialisation
+      | Opt_WarnAllMissedSpecs `elem` fs = Just MissedSpecialisationAll
+      | otherwise = Nothing
 
 -- | The spans of the errors that have one. An error without a real source
 -- span is left out; the caller counts it from the total.

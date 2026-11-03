@@ -80,6 +80,8 @@ module HInsight
     Optimisation (..),
     CoreDetail (..),
     CoreRequest (..),
+    MissedKind (..),
+    MissedWarning (..),
     coreOnly,
     SectionKind (..),
     sectionKind,
@@ -109,7 +111,7 @@ import HInsight.Analysis (Analysis (..), Insight (..), emptyAnalysis)
 import HInsight.Chain (Chain, ChainStep, ChainView (..), Chains (..), chainOmitted, chainSpan, chainStepKindLevel, chainStepRaw, chainStepSpan, chainStepSummary, chainSteps, chainView, emptyChains, renderChain, renderChains)
 import HInsight.Config (LibDir, libDirPath, mkLibDir)
 import HInsight.Context (Context (..))
-import HInsight.Core (CoreDetail (..), CoreDump (..), CoreRequest (..), CoreSection (..), Optimisation (..), RuleFiring (..), SectionKind (..), coreOnly, emptyCore, renderCore, sectionKind)
+import HInsight.Core (CoreDetail (..), CoreDump (..), CoreRequest (..), CoreSection (..), MissedKind (..), MissedWarning (..), Optimisation (..), RuleFiring (..), SectionKind (..), coreOnly, emptyCore, renderCore, sectionKind)
 import HInsight.Deep (Deep (..))
 import HInsight.Error (EnvironmentError (..), InsightError (..), renderError)
 import HInsight.Explanation (Explanation (..), renderExplanation)

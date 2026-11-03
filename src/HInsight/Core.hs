@@ -27,9 +27,12 @@ module HInsight.Core
     CoreRead (..),
     readCore,
     isCoreMessage,
+    MissedKind (..),
+    MissedWarning (..),
     CoreDump (..),
     emptyCore,
     buildCore,
+    withMissed,
     renderCore,
   )
 where
@@ -154,6 +157,20 @@ isCoreMessage r = case readCore (recordRaw r) of
   NotCore -> False
   _ -> True
 
+-- | Which of GHC's two missed-specialisation warning flags produced a warning.
+data MissedKind = MissedSpecialisation | MissedSpecialisationAll
+  deriving stock (Eq, Ord, Show, Enum, Bounded)
+
+-- | A warning GHC logged that the specialiser did not specialise something.
+-- The text is GHC's; GHC gives no line or column for it, only the file.
+data MissedWarning = MissedWarning
+  { missedKind :: !MissedKind,
+    -- | Whether the warning is about the file asked about, not a module it imports.
+    missedInFile :: !Bool,
+    missedMessage :: !Text
+  }
+  deriving stock (Eq, Show)
+
 -- | What GHC said about the Core of a file.
 data CoreDump = CoreDump
   { coreRequest :: !CoreRequest,
@@ -165,25 +182,34 @@ data CoreDump = CoreDump
     coreUnread :: !Int,
     -- | Errors that stopped GHC before it made any Core, such as a type error
     -- or a parse error: Core is made only for a file that typechecks.
-    coreBlocked :: !Int
+    coreBlocked :: !Int,
+    -- | Missed-specialisation warnings about the file, in the order logged.
+    coreMissed :: ![MissedWarning],
+    -- | How many such warnings were about modules the file imports.
+    coreMissedElsewhere :: !Int
   }
   deriving stock (Eq, Show)
 
 -- | Nothing logged and nothing wrong.
 emptyCore :: CoreRequest -> CoreDump
-emptyCore r = CoreDump r [] [] 0 0
+emptyCore r = CoreDump r [] [] 0 0 [] 0
 
 -- | The dump in the messages GHC logged, in the order it logged them.
 buildCore :: CoreRequest -> [Text] -> CoreDump
-buildCore r messages = CoreDump r [s | ReadSection s <- reads'] (concat [rs | ReadRules rs <- reads']) (length [() | UnreadCore _ <- reads']) 0
+buildCore r messages = CoreDump r [s | ReadSection s <- reads'] (concat [rs | ReadRules rs <- reads']) (length [() | UnreadCore _ <- reads']) 0 [] 0
   where
     reads' :: [CoreRead]
     reads' = map readCore messages
 
+-- | Add the missed-specialisation warnings GHC logged: those about the file are
+-- kept, those about its imports are counted.
+withMissed :: [MissedWarning] -> CoreDump -> CoreDump
+withMissed ws d = d {coreMissed = filter missedInFile ws, coreMissedElsewhere = length (filter (not . missedInFile) ws)}
+
 -- | The dump as plain text: what was asked, the rules by how often each fired,
 -- then each section as GHC printed it.
 renderCore :: CoreDump -> Text
-renderCore d = T.unlines (heading : blocked <> unread <> noStg <> rules <> concatMap sectionLines (coreSections d))
+renderCore d = T.unlines (heading : blocked <> unread <> noStg <> missed <> rules <> concatMap sectionLines (coreSections d))
   where
     heading :: Text
     heading =
@@ -198,6 +224,18 @@ renderCore d = T.unlines (heading : blocked <> unread <> noStg <> rules <> conca
     wantsStg = requestDetail (coreRequest d) == CoreAndStg
     noStg :: [Text]
     noStg = ["  no STG: GHC logged none" | wantsStg, coreBlocked d == 0, FinalStg `notElem` map sectionKind (coreSections d)]
+    missed :: [Text]
+    missed
+      | null (coreMissed d) && coreMissedElsewhere d == 0 = []
+      | otherwise =
+          ("  missed specialisations: " <> T.pack (show (length (coreMissed d))) <> " in this file, " <> T.pack (show (coreMissedElsewhere d)) <> " in modules it imports")
+            : map missedLine (coreMissed d)
+    missedLine :: MissedWarning -> Text
+    missedLine w = "    [" <> flagName (missedKind w) <> "] " <> T.unwords (T.words (missedMessage w))
+    flagName :: MissedKind -> Text
+    flagName = \case
+      MissedSpecialisation -> "-Wmissed-specialisations"
+      MissedSpecialisationAll -> "-Wall-missed-specialisations"
     modeName :: Optimisation -> Text
     modeName = \case
       Optimised -> "optimised"
