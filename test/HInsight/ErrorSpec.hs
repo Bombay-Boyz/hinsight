@@ -76,3 +76,7 @@ spec = describe "renderError" $ do
     mapM_
       (\e -> renderRefactorError e `shouldNotBe` "")
       [EmptySelection, SelectionNotInDeclaration, SelectionNotInText, SelectionHasTabIndent, SelectionLeavesLayout]
+  it "says what a selection that is not an expression is" $
+    rendered (RefactorFailure SelectionNotAnExpression) `shouldSatisfy` T.isInfixOf "one expression"
+  it "says how many errors stop a refactoring" $
+    rendered (RefactorFailure (FileDoesNotCompile 3)) `shouldSatisfy` T.isInfixOf "3 errors"

@@ -30,6 +30,7 @@ module HInsight.Ghc.Session
     ghcDeep,
     ghcDeepIn,
     ghcDeepLimited,
+    ghcExtractFacts,
   )
 where
 
@@ -99,7 +100,7 @@ import HInsight.Config (LibDir, libDirPath)
 import HInsight.Core (CoreDetail (..), CoreDump (..), CoreRequest (..), MissedWarning (..), Optimisation, buildCore, emptyCore, isCoreMessage, withMissed)
 import HInsight.Deep (Deep (..))
 import HInsight.Environment (Environment, EnvironmentSource (..), EnvironmentSummary, summarise)
-import HInsight.Error (EnvironmentError, InsightError (..), SessionError (..))
+import HInsight.Error (EnvironmentError, InsightError (..), RefactorError (..), SessionError (..))
 import HInsight.Flow (Pipeline)
 import HInsight.Ghc.Bindings (Binding, bindingSpans, collectBindings)
 import HInsight.Ghc.Convert (renderGhc)
@@ -109,10 +110,12 @@ import HInsight.Ghc.Graph (RawModule, collectGraph, projectGraph)
 import HInsight.Ghc.HoleCapture (CapturedHole, holePlugin)
 import HInsight.Ghc.Holes (holeReports)
 import HInsight.Ghc.Messages (Extracted (..), extractMessages)
+import HInsight.Ghc.Refactor (selectionFacts)
 import HInsight.Ghc.Trace (RawMissed (..), captureHook, coreBuildFlags, coreDumpFlags, enableFlags, errorSpans, missedHook, spliceFlags, stgDumpFlags, traceFlags)
 import HInsight.Graph (ProjectGraph)
 import HInsight.Hole (HoleReport)
 import HInsight.Project (sourceRoot)
+import HInsight.Refactor (ExtractFacts)
 import HInsight.Source (SourceFile, Span, sourceFilePath)
 import HInsight.Splice (Splices (..), buildSplices, emptySplices, splicesIn)
 import HInsight.Trace (Capture, RecordLimit, Trace (..), TraceRecord (..), defaultRecordLimit, emptyCapture, finishCapture, locatedIn)
@@ -412,6 +415,46 @@ deepIn dir placement limit =
         deep dir placement limit EveryBinding spliceFlags (\ghcPath _ -> splicesIn ghcPath) splicesOf,
       coreOf = core dir placement
     }
+
+-- | What GHC's renamed program says about a selection of a file that
+-- typechecks, placed by its header.
+ghcExtractFacts :: LibDir -> SourceFile -> Span -> IO (Either InsightError ExtractFacts)
+ghcExtractFacts dir file selection = do
+  failure <- preflight dir file
+  case failure of
+    Just why -> pure (Left (SessionFailure why))
+    Nothing -> catchSession (sourceFilePath file) $ do
+      logged <- newIORef []
+      result <- runGhc (Just (libDirPath dir)) (factsPass FromHeader logged file selection)
+      evaluate result
+
+factsPass :: Placement -> IORef [Text] -> SourceFile -> Span -> Ghc (Either InsightError ExtractFacts)
+factsPass placement logged file selection = do
+  configured <- configure placement logged
+  case configured of
+    Left failure -> pure (Left (EnvironmentFailure failure))
+    Right () -> do
+      located <- liftIO (targetPath placement path)
+      target <- guessTarget located Nothing Nothing
+      setTargets [target]
+      prepared <- handleSourceError (pure . Left . broken) (first SessionFailure <$> prepareProject placement logged path)
+      case prepared of
+        Left failure -> pure (Left failure)
+        Right (_, summary) -> do
+          parsed <- parseModule summary
+          checked <- handleSourceError (pure . Left . broken) (Right <$> typecheckModule parsed)
+          pure (checked >>= factsOf parsed)
+  where
+    path :: FilePath
+    path = sourceFilePath file
+    broken :: SourceError -> InsightError
+    broken = RefactorFailure . FileDoesNotCompile . length . errorsOf
+    factsOf :: ParsedModule -> TypecheckedModule -> Either InsightError ExtractFacts
+    factsOf parsed checked = case tm_renamed_source checked of
+      Nothing -> Left (SessionFailure (GhcThrew path "GHC kept no renamed source"))
+      Just (group, _, _, _, _) -> do
+        declarations <- bindingSpans path (collectBindings (hsmodDecls (unLoc (pm_parsed_source parsed))))
+        selectionFacts file selection declarations group
 
 -- | Make the Core of a file and read what GHC logged. Anything GHC writes goes
 -- to a folder made for this call and removed when it ends, however it ends.

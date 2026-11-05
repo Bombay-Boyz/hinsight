@@ -19,6 +19,7 @@ import HInsight.HoleSpec qualified
 import HInsight.IdentifierSpec qualified
 import HInsight.InstanceSpec qualified
 import HInsight.ProjectSpec qualified
+import HInsight.RefactorGhcSpec qualified
 import HInsight.RefactorSpec qualified
 import HInsight.ReportSpec qualified
 import HInsight.SourceSpec qualified
@@ -56,3 +57,4 @@ main = hspec $ do
   HInsight.ChainGhcSpec.spec
   HInsight.SpliceGhcSpec.spec
   HInsight.CoreGhcSpec.spec
+  HInsight.RefactorGhcSpec.spec

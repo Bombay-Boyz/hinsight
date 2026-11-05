@@ -119,6 +119,10 @@ data RefactorError
   | -- | A line of the selection after its first would be left of the
     -- indentation a top-level binding allows once moved.
     SelectionLeavesLayout
+  | -- | The selection is not exactly one expression of the program.
+    SelectionNotAnExpression
+  | -- | The file does not typecheck; the field is the number of errors.
+    FileDoesNotCompile Int
   deriving stock (Eq, Show)
 
 -- | The typechecker trace could not be used. Raised by "HInsight.Trace".
@@ -270,3 +274,5 @@ renderRefactorError = \case
   SelectionNotInText -> "the selection is not a position of the text; the file changed after it was read"
   SelectionHasTabIndent -> "a line of the selection after the first is indented with a tab; indent it with spaces"
   SelectionLeavesLayout -> "a line of the selection after the first would be indented too little once the code is moved to the top level"
+  SelectionNotAnExpression -> "the selection is not exactly one expression"
+  FileDoesNotCompile n -> "the file does not typecheck (" <> tshow n <> " errors); fix them before refactoring"
