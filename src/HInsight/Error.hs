@@ -15,6 +15,7 @@ module HInsight.Error
   ( InsightError (..),
     DomainError (..),
     TraceError (..),
+    RefactorError (..),
     SessionError (..),
     ExtractionError (..),
     EnvironmentError (..),
@@ -22,6 +23,7 @@ module HInsight.Error
     renderDomainError,
     renderEnvironmentError,
     renderTraceError,
+    renderRefactorError,
   )
 where
 
@@ -40,6 +42,8 @@ data InsightError
     EnvironmentFailure EnvironmentError
   | -- | The typechecker trace could not be used.
     TraceFailure TraceError
+  | -- | A refactoring was refused.
+    RefactorFailure RefactorError
   deriving stock (Eq, Show)
 
 -- | A smart constructor rejected its input. Raised by the pure domain layer.
@@ -94,6 +98,27 @@ data DomainError
   | -- | Two edits of one file overlap: the line and column where each starts.
     -- Raised by 'HInsight.Edit.mkEditSet'.
     OverlappingEdits (Int, Int) (Int, Int)
+  deriving stock (Eq, Show)
+
+-- | A refactoring was refused. Raised by "HInsight.Refactor".
+data RefactorError
+  = -- | The new function's name is not a Haskell variable name.
+    InvalidFunctionName Text
+  | -- | A name the selection uses cannot be passed as an ordinary parameter.
+    FreeVariableNotAVariable Text
+  | -- | The new function's name is a name the selection uses.
+    NameClashesWithVariable Text
+  | -- | The selection holds no text.
+    EmptySelection
+  | -- | The selection is not inside the declaration it was said to be in.
+    SelectionNotInDeclaration
+  | -- | The selection is not a position of the text it was made for.
+    SelectionNotInText
+  | -- | A line of the selection after its first is indented with a tab.
+    SelectionHasTabIndent
+  | -- | A line of the selection after its first would be left of the
+    -- indentation a top-level binding allows once moved.
+    SelectionLeavesLayout
   deriving stock (Eq, Show)
 
 -- | The typechecker trace could not be used. Raised by "HInsight.Trace".
@@ -163,6 +188,7 @@ renderError = \case
   ExtractionFailure e -> renderExtraction e
   EnvironmentFailure e -> renderEnvironmentError e
   TraceFailure e -> renderTraceError e
+  RefactorFailure e -> renderRefactorError e
 
 -- | Render a 'DomainError'.
 renderDomainError :: DomainError -> Text
@@ -232,3 +258,15 @@ renderTraceError = \case
     "the trace holds more than "
       <> tshow n
       <> " relevant records, so none are shown rather than a truncated part of it"
+
+-- | Render a 'RefactorError'.
+renderRefactorError :: RefactorError -> Text
+renderRefactorError = \case
+  InvalidFunctionName n -> "the name " <> T.pack (show n) <> " is not a Haskell function name"
+  FreeVariableNotAVariable n -> "the selection uses " <> n <> ", which is not a variable name and cannot be passed as a parameter"
+  NameClashesWithVariable n -> "the new function name " <> n <> " is also a name the selection uses; choose another name"
+  EmptySelection -> "the selection is empty"
+  SelectionNotInDeclaration -> "the selection is not inside the declaration it was said to be in"
+  SelectionNotInText -> "the selection is not a position of the text; the file changed after it was read"
+  SelectionHasTabIndent -> "a line of the selection after the first is indented with a tab; indent it with spaces"
+  SelectionLeavesLayout -> "a line of the selection after the first would be indented too little once the code is moved to the top level"

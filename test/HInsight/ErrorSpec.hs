@@ -66,3 +66,13 @@ spec = describe "renderError" $ do
     T.pack p `T.isInfixOf` rendered (SessionFailure (SourceFileNotFound p))
   prop "always names the offending number" $ \n ->
     T.pack (show n) `T.isInfixOf` rendered (DomainFailure (NonPositiveColumn n))
+  it "names the function name that is not valid" $
+    rendered (RefactorFailure (InvalidFunctionName "Bad")) `shouldSatisfy` T.isInfixOf "Bad"
+  it "names the variable that cannot be a parameter" $
+    rendered (RefactorFailure (FreeVariableNotAVariable "+.")) `shouldSatisfy` T.isInfixOf "+."
+  it "names the clash between the new name and a variable" $
+    rendered (RefactorFailure (NameClashesWithVariable "x")) `shouldSatisfy` T.isInfixOf "x"
+  it "renders every other refusal of a refactoring as non-empty text" $
+    mapM_
+      (\e -> renderRefactorError e `shouldNotBe` "")
+      [EmptySelection, SelectionNotInDeclaration, SelectionNotInText, SelectionHasTabIndent, SelectionLeavesLayout]

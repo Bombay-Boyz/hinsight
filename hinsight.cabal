@@ -77,6 +77,7 @@ library
     HInsight.Identifier
     HInsight.Instance
     HInsight.Project
+    HInsight.Refactor
     HInsight.Report
     HInsight.Source
     HInsight.Splice
@@ -150,6 +151,7 @@ test-suite hinsight-test
     HInsight.IdentifierSpec
     HInsight.InstanceSpec
     HInsight.ProjectSpec
+    HInsight.RefactorSpec
     HInsight.ReportSpec
     HInsight.SourceSpec
     HInsight.SpliceGhcSpec
