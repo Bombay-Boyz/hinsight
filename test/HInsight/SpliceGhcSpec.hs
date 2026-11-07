@@ -11,7 +11,6 @@ import Data.Text (Text)
 import HInsight
 import HInsight.Environment (mkComponentName, mkEnvironment, mkGhcFlag, mkProjectRoot, pinnedGhcVersion)
 import HInsight.Ghc.Session (ghcDeep, ghcDeepIn)
-import HInsight.Source (renderPosition, spanStart)
 import HInsight.Support (ok)
 import HInsight.Toolchain (findGhcLibDir)
 import System.Directory (canonicalizePath, createDirectoryIfMissing, getTemporaryDirectory, removeDirectoryRecursive)

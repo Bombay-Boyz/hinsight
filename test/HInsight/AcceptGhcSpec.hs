@@ -7,10 +7,8 @@ import Control.Exception (finally)
 import Data.Map.Strict qualified as M
 import Data.Text.IO qualified as TIO
 import HInsight
-import HInsight.Edit (applyEditSet, mkEditSet)
 import HInsight.Environment (mkComponentName, mkEnvironment, mkGhcFlag, mkProjectRoot, pinnedGhcVersion)
 import HInsight.Ghc.Session (ghcInsight, ghcInsightIn)
-import HInsight.Hole (acceptFit, unModuleAlias, unRefinementLevel)
 import HInsight.Support (ok)
 import HInsight.Toolchain (findGhcLibDir)
 import System.Directory (canonicalizePath, createDirectoryIfMissing, getTemporaryDirectory, removeDirectoryRecursive)

@@ -16,8 +16,6 @@ import HInsight
 import HInsight.Error (SessionError (..))
 import HInsight.Ghc.Session (ghcInsight)
 import HInsight.Graph (emptyGraph)
-import HInsight.Hole (Locality (..), unRefinementLevel)
-import HInsight.Source (positionLine, spanStart, unLine)
 import HInsight.Support (ok)
 import HInsight.Toolchain (findGhcLibDir)
 import HInsight.TypeText (unTypeText)

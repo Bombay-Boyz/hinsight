@@ -15,9 +15,7 @@ import Data.Maybe (mapMaybe)
 import Data.Text qualified as T
 import HInsight
 import HInsight.Ghc.Session (ghcDeep, ghcInsight)
-import HInsight.Hole (Locality (..), mkRefinementLevel)
 import HInsight.Report (renderAnalysis)
-import HInsight.Source (mkColumn, mkLine, mkPosition, mkSpan)
 import HInsight.Toolchain (findGhcLibDir)
 import HInsight.TypeText (mkTypeText)
 import Test.Tasty.Bench
