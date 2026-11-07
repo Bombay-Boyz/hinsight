@@ -100,10 +100,61 @@ module HInsight
     renderSplice,
     renderSplices,
 
+    -- * Positions
+    Position,
+    mkPosition,
+    positionLine,
+    positionColumn,
+    Line,
+    mkLine,
+    unLine,
+    Column,
+    mkColumn,
+    unColumn,
+    Span,
+    mkSpan,
+    spanStart,
+    spanEnd,
+    spanContains,
+    renderPosition,
+
+    -- * Edits
+    Edit,
+    mkEdit,
+    editFile,
+    editSpan,
+    editText,
+    EditSet,
+    mkEditSet,
+    editSetEdits,
+    EditError (..),
+    applyEditSet,
+    offsetOf,
+    renderEditError,
+    acceptFit,
+    ModuleAlias,
+    mkModuleAlias,
+    unModuleAlias,
+    RefinementLevel,
+    mkRefinementLevel,
+    unRefinementLevel,
+    Locality (..),
+
+    -- * Refactoring
+    Refactor (..),
+    FunctionName,
+    mkFunctionName,
+    unFunctionName,
+    VerifiedPlan,
+    planEdits,
+    planNotes,
+
     -- * Failures
     InsightError (..),
     EnvironmentError (..),
+    RefactorError (..),
     renderError,
+    renderRefactorError,
   )
 where
 
@@ -113,13 +164,17 @@ import HInsight.Config (LibDir, libDirPath, mkLibDir)
 import HInsight.Context (Context (..))
 import HInsight.Core (CoreDetail (..), CoreDump (..), CoreRequest (..), CoreSection (..), MissedKind (..), MissedWarning (..), Optimisation (..), RuleFiring (..), SectionKind (..), coreOnly, emptyCore, renderCore, sectionKind)
 import HInsight.Deep (Deep (..))
-import HInsight.Error (EnvironmentError (..), InsightError (..), renderError)
+import HInsight.Edit (Edit, EditError (..), EditSet, applyEditSet, editFile, editSetEdits, editSpan, editText, mkEdit, mkEditSet, offsetOf, renderEditError)
+import HInsight.Error (EnvironmentError (..), InsightError (..), RefactorError (..), renderError, renderRefactorError)
 import HInsight.Explanation (Explanation (..), renderExplanation)
 import HInsight.Flow (FlowKind (..), Pipeline, Stage (..), StageText, pipelineContext, pipelineKind, pipelineSpan, pipelineStages, pipelineType, renderPipeline, unStageText)
 import HInsight.Graph (ModuleName, ProjectGraph, dependencyOrder, graphImportCount, graphModules, importCycles, importsOf, renderGraph, unModuleName)
-import HInsight.Hole (HoleFit (..), HoleReport (..), rankFits)
+import HInsight.Hole (HoleFit (..), HoleReport (..), Locality (..), ModuleAlias, RefinementLevel, acceptFit, mkModuleAlias, mkRefinementLevel, rankFits, unModuleAlias, unRefinementLevel)
 import HInsight.Identifier (Identifier, mkIdentifier, unIdentifier)
 import HInsight.Instance (InstanceText, UnresolvedInstance (..), renderUnresolvedInstance, unInstanceText)
-import HInsight.Source (SourceFile, mkSourceFile, sourceFilePath)
+import HInsight.Refactor (FunctionName, mkFunctionName, unFunctionName)
+import HInsight.Refactor.Handle (Refactor (..))
+import HInsight.Refactor.Verify (VerifiedPlan, planEdits, planNotes)
+import HInsight.Source (Column, Line, Position, SourceFile, Span, mkColumn, mkLine, mkPosition, mkSourceFile, mkSpan, positionColumn, positionLine, renderPosition, sourceFilePath, spanContains, spanEnd, spanStart, unColumn, unLine)
 import HInsight.Splice (Splice, SpliceKind (..), Splices (..), emptySplices, renderSplice, renderSplices, spliceKind, splicePending, spliceRaw, spliceResult, spliceSource, spliceSpan)
 import HInsight.Suggestion (HintKind (..), Suggested (..), Suggestion, renderSuggested, suggestionKind, suggestionText)

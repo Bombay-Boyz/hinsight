@@ -9,10 +9,10 @@ import Data.Map.Strict qualified as M
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.IO qualified as TIO
-import HInsight (analyseFile, analysisHoles, analysisMismatches, analysisUnexplained, mkLibDir)
+import HInsight (Refactor (..), analyseFile, analysisHoles, analysisMismatches, analysisUnexplained, mkLibDir)
 import HInsight.Edit (applyEditSet)
 import HInsight.Error (InsightError (..), RefactorError (..))
-import HInsight.Ghc.Session (ghcExtractFacts, ghcExtractFunction, ghcInsight)
+import HInsight.Ghc.Session (ghcExtractFacts, ghcInsight, ghcRefactor)
 import HInsight.Identifier (mkIdentifier)
 import HInsight.Refactor (CallContext (..), ExtractFacts (..), mkFunctionName)
 import HInsight.Refactor.Verify (VerifiedPlan, planEdits, planNotes)
@@ -89,7 +89,7 @@ planned libDir from to name = do
   file <- ok (mkSourceFile fixture)
   selection <- spanOf from to
   function <- either (fail . show) pure (mkFunctionName name)
-  ghcExtractFunction dir file selection function
+  extractFunction (ghcRefactor dir) file selection function
 
 applyPlan :: VerifiedPlan -> IO Text
 applyPlan plan = do
@@ -99,7 +99,7 @@ applyPlan plan = do
   maybe (fail "the plan gave no text") pure (M.lookup file texts)
 
 realExtractSpec :: FilePath -> Spec
-realExtractSpec libDir = describe "ghcExtractFunction" $ do
+realExtractSpec libDir = describe "extractFunction of ghcRefactor" $ do
   it "extracts an expression with the signature GHC gave" $ do
     Right plan <- planned libDir (4, 17) (4, 22) "twice"
     planNotes plan `shouldBe` []

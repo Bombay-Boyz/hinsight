@@ -31,7 +31,7 @@ module HInsight.Ghc.Session
     ghcDeepIn,
     ghcDeepLimited,
     ghcExtractFacts,
-    ghcExtractFunction,
+    ghcRefactor,
   )
 where
 
@@ -128,6 +128,7 @@ import HInsight.Hole (HoleReport)
 import HInsight.Identifier (mkIdentifier)
 import HInsight.Project (sourceRoot)
 import HInsight.Refactor (ExtractFacts, FunctionName)
+import HInsight.Refactor.Handle (Refactor (..))
 import HInsight.Refactor.Verify (Checked (..), Checker (..), VerifiedPlan, verifyExtract)
 import HInsight.Source (SourceFile, Span, sourceFilePath)
 import HInsight.Splice (Splices (..), buildSplices, emptySplices, splicesIn)
@@ -468,6 +469,10 @@ factsPass placement logged file selection = do
       Just (group, _, _, _, _) -> do
         declarations <- bindingSpans path (collectBindings (hsmodDecls (unLoc (pm_parsed_source parsed))))
         selectionFacts file selection declarations group
+
+-- | The GHC-backed implementation of 'Refactor'.
+ghcRefactor :: LibDir -> Refactor IO
+ghcRefactor dir = Refactor {extractFunction = ghcExtractFunction dir}
 
 -- | The plan that extracts a selection into a new top-level function, as GHC
 -- accepted it: the file with the plan's edits made typechecks.

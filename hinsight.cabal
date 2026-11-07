@@ -80,6 +80,7 @@ library
     HInsight.Instance
     HInsight.Project
     HInsight.Refactor
+    HInsight.Refactor.Handle
     HInsight.Refactor.Verify
     HInsight.Report
     HInsight.Source
