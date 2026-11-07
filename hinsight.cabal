@@ -48,6 +48,7 @@ library
     , ghc        ==9.10.3
     , temporary  >=1.3  && <1.4
     , text       >=2.1  && <2.2
+    , time       >=1.12 && <1.15
   exposed-modules:
     HInsight
     HInsight.Analysis
@@ -79,6 +80,7 @@ library
     HInsight.Instance
     HInsight.Project
     HInsight.Refactor
+    HInsight.Refactor.Verify
     HInsight.Report
     HInsight.Source
     HInsight.Splice
@@ -161,6 +163,7 @@ test-suite hinsight-test
     HInsight.SuggestionSpec
     HInsight.Support
     HInsight.TraceSpec
+    HInsight.VerifySpec
   build-depends:
     , base
     , hinsight

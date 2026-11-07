@@ -123,6 +123,8 @@ data RefactorError
     SelectionNotAnExpression
   | -- | The file does not typecheck; the field is the number of errors.
     FileDoesNotCompile Int
+  | -- | GHC rejected the result of the refactoring; the field is its first error.
+    VerificationFailed Text
   deriving stock (Eq, Show)
 
 -- | The typechecker trace could not be used. Raised by "HInsight.Trace".
@@ -276,3 +278,4 @@ renderRefactorError = \case
   SelectionLeavesLayout -> "a line of the selection after the first would be indented too little once the code is moved to the top level"
   SelectionNotAnExpression -> "the selection is not exactly one expression"
   FileDoesNotCompile n -> "the file does not typecheck (" <> tshow n <> " errors); fix them before refactoring"
+  VerificationFailed why -> "GHC rejected the result of the refactoring: " <> why

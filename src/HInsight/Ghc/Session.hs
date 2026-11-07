@@ -31,6 +31,7 @@ module HInsight.Ghc.Session
     ghcDeepIn,
     ghcDeepLimited,
     ghcExtractFacts,
+    ghcExtractFunction,
   )
 where
 
@@ -41,9 +42,12 @@ import Data.Bifunctor (first)
 import Data.Containers.ListUtils (nubOrd)
 import Data.Either (fromLeft)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
+import Data.Map.Strict qualified as M
 import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Text (Text)
 import Data.Text qualified as T
+import Data.Text.IO qualified as TIO
+import Data.Time.Clock (getCurrentTime)
 import GHC
   ( DynFlags (..),
     Ghc,
@@ -54,6 +58,7 @@ import GHC
     ModuleGraph,
     ParsedModule (..),
     SuccessFlag (..),
+    Target (..),
     TypecheckedModule (..),
     compileToCoreSimplified,
     depanal,
@@ -64,12 +69,14 @@ import GHC
     mgModSummaries,
     noBackend,
     parseModule,
+    printException,
     runGhc,
     setSessionDynFlags,
     setTargets,
     typecheckModule,
   )
 import GHC.Data.Bag (bagToList)
+import GHC.Data.StringBuffer (stringToStringBuffer)
 import GHC.Driver.Backend (platformDefaultBackend)
 import GHC.Driver.DynFlags (gopt_set)
 import GHC.Driver.Env.Types (HscEnv (..))
@@ -84,10 +91,14 @@ import GHC.Driver.Plugins
     StaticPlugin (..),
     defaultPlugin,
   )
-import GHC.Hs (HsModule (..))
+import GHC.Hs (ABExport (..), AbsBinds (..), GhcTc, HsBindLR (..), HsModule (..))
 import GHC.Types.Error (MessageClass (..), MsgEnvelope (..), Severity (..), getMessages)
+import GHC.Types.Id (idName, idType)
+import GHC.Types.Name (nameOccName)
+import GHC.Types.Name.Occurrence (occNameString)
 import GHC.Types.SourceError (SourceError, srcErrorMessages)
-import GHC.Types.SrcLoc (unLoc)
+import GHC.Types.SrcLoc (GenLocated (..), unLoc)
+import GHC.Types.Var (Id)
 import GHC.Unit.Module (moduleNameString)
 import GHC.Unit.Module.Graph (emptyMG)
 import GHC.Unit.Module.ModSummary (ms_mod_name)
@@ -103,7 +114,7 @@ import HInsight.Environment (Environment, EnvironmentSource (..), EnvironmentSum
 import HInsight.Error (EnvironmentError, InsightError (..), RefactorError (..), SessionError (..))
 import HInsight.Flow (Pipeline)
 import HInsight.Ghc.Bindings (Binding, bindingSpans, collectBindings)
-import HInsight.Ghc.Convert (renderGhc)
+import HInsight.Ghc.Convert (convertText, fromDomain, renderGhc, renderGhcType)
 import HInsight.Ghc.Environment (applyEnvironment)
 import HInsight.Ghc.Flow (RawPipeline, collect, pipelines)
 import HInsight.Ghc.Graph (RawModule, collectGraph, projectGraph)
@@ -114,8 +125,10 @@ import HInsight.Ghc.Refactor (selectionFacts)
 import HInsight.Ghc.Trace (RawMissed (..), captureHook, coreBuildFlags, coreDumpFlags, enableFlags, errorSpans, missedHook, spliceFlags, stgDumpFlags, traceFlags)
 import HInsight.Graph (ProjectGraph)
 import HInsight.Hole (HoleReport)
+import HInsight.Identifier (mkIdentifier)
 import HInsight.Project (sourceRoot)
-import HInsight.Refactor (ExtractFacts)
+import HInsight.Refactor (ExtractFacts, FunctionName)
+import HInsight.Refactor.Verify (Checked (..), Checker (..), VerifiedPlan, verifyExtract)
 import HInsight.Source (SourceFile, Span, sourceFilePath)
 import HInsight.Splice (Splices (..), buildSplices, emptySplices, splicesIn)
 import HInsight.Trace (Capture, RecordLimit, Trace (..), TraceRecord (..), defaultRecordLimit, emptyCapture, finishCapture, locatedIn)
@@ -455,6 +468,66 @@ factsPass placement logged file selection = do
       Just (group, _, _, _, _) -> do
         declarations <- bindingSpans path (collectBindings (hsmodDecls (unLoc (pm_parsed_source parsed))))
         selectionFacts file selection declarations group
+
+-- | The plan that extracts a selection into a new top-level function, as GHC
+-- accepted it: the file with the plan's edits made typechecks.
+ghcExtractFunction :: LibDir -> SourceFile -> Span -> FunctionName -> IO (Either InsightError VerifiedPlan)
+ghcExtractFunction dir file selection name = do
+  facts <- ghcExtractFacts dir file selection
+  case facts of
+    Left failure -> pure (Left failure)
+    Right known -> do
+      text <- catchSession path (Right <$> TIO.readFile path)
+      case text of
+        Left failure -> pure (Left failure)
+        Right source -> verifyExtract (Checker (ghcCheck dir file)) source known name
+  where
+    path :: FilePath
+    path = sourceFilePath file
+
+-- | What GHC says of a text given in place of the file, with the rest of the
+-- project as it is on disk.
+ghcCheck :: LibDir -> SourceFile -> Text -> IO (Either InsightError Checked)
+ghcCheck dir file contents = catchSession (sourceFilePath file) $ do
+  logged <- newIORef []
+  result <- runGhc (Just (libDirPath dir)) (checkPass FromHeader logged file contents)
+  evaluate result
+
+checkPass :: Placement -> IORef [Text] -> SourceFile -> Text -> Ghc (Either InsightError Checked)
+checkPass placement logged file contents = do
+  configured <- configure placement logged
+  case configured of
+    Left failure -> pure (Left (EnvironmentFailure failure))
+    Right () -> do
+      located <- liftIO (targetPath placement path)
+      target <- guessTarget located Nothing Nothing
+      now <- liftIO getCurrentTime
+      setTargets [target {targetContents = Just (stringToStringBuffer (T.unpack contents), now)}]
+      prepared <- attempt (prepareProject placement logged path)
+      case prepared of
+        Left errors -> pure (Right (Checked errors M.empty))
+        Right (Left failure) -> pure (Left (SessionFailure failure))
+        Right (Right (_, summary)) -> do
+          checked <- attempt (parseModule summary >>= typecheckModule)
+          pure $ case checked of
+            Left errors -> Right (Checked errors M.empty)
+            Right typechecked -> Checked [] . M.fromList <$> traverse typeOf (topLevelIds typechecked)
+  where
+    path :: FilePath
+    path = sourceFilePath file
+    attempt :: Ghc a -> Ghc (Either [Text] a)
+    attempt act = handleSourceError (\e -> printException e >> Left . reverse <$> liftIO (readIORef logged)) (Right <$> act)
+    typeOf i = do
+      name <- fromDomain path (mkIdentifier (T.pack (occNameString (nameOccName (idName i)))))
+      shown <- convertText path (renderGhcType (idType i))
+      pure (name, shown)
+    topLevelIds :: TypecheckedModule -> [Id]
+    topLevelIds typechecked = [i | L _ b <- bagToList (tm_typechecked_source typechecked), i <- idsOf b]
+    idsOf :: HsBindLR GhcTc GhcTc -> [Id]
+    idsOf = \case
+      FunBind {fun_id = L _ i} -> [i]
+      XHsBindsLR AbsBinds {abs_exports = es} -> map abe_poly es
+      _ -> []
 
 -- | Make the Core of a file and read what GHC logged. Anything GHC writes goes
 -- to a folder made for this call and removed when it ends, however it ends.

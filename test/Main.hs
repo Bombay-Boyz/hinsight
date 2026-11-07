@@ -27,6 +27,7 @@ import HInsight.SpliceGhcSpec qualified
 import HInsight.SpliceSpec qualified
 import HInsight.SuggestionSpec qualified
 import HInsight.TraceSpec qualified
+import HInsight.VerifySpec qualified
 import Test.Hspec (hspec)
 
 main :: IO ()
@@ -47,6 +48,7 @@ main = hspec $ do
   HInsight.InstanceSpec.spec
   HInsight.ProjectSpec.spec
   HInsight.RefactorSpec.spec
+  HInsight.VerifySpec.spec
   HInsight.ErrorSpec.spec
   HInsight.ReportSpec.spec
   HInsight.CliSpec.spec

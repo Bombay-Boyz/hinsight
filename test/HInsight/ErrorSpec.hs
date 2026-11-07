@@ -80,3 +80,5 @@ spec = describe "renderError" $ do
     rendered (RefactorFailure SelectionNotAnExpression) `shouldSatisfy` T.isInfixOf "one expression"
   it "says how many errors stop a refactoring" $
     rendered (RefactorFailure (FileDoesNotCompile 3)) `shouldSatisfy` T.isInfixOf "3 errors"
+  it "carries GHC's message when it rejects the result of a refactoring" $
+    rendered (RefactorFailure (VerificationFailed "E.hs:3:1: error: boom")) `shouldSatisfy` T.isInfixOf "E.hs:3:1: error: boom"
