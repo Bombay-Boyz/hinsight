@@ -125,6 +125,8 @@ data RefactorError
     FileDoesNotCompile Int
   | -- | GHC rejected the result of the refactoring; the field is its first error.
     VerificationFailed Text
+  | -- | The definition to move does not start at the first column of a line.
+    NotATopLevelDefinition
   deriving stock (Eq, Show)
 
 -- | The typechecker trace could not be used. Raised by "HInsight.Trace".
@@ -279,3 +281,4 @@ renderRefactorError = \case
   SelectionNotAnExpression -> "the selection is not exactly one expression"
   FileDoesNotCompile n -> "the file does not typecheck (" <> tshow n <> " errors); fix them before refactoring"
   VerificationFailed why -> "GHC rejected the result of the refactoring: " <> why
+  NotATopLevelDefinition -> "the definition does not start at the first column of a line, so it is not a top-level definition"

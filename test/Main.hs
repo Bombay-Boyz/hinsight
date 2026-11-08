@@ -18,6 +18,7 @@ import HInsight.GraphSpec qualified
 import HInsight.HoleSpec qualified
 import HInsight.IdentifierSpec qualified
 import HInsight.InstanceSpec qualified
+import HInsight.MoveSpec qualified
 import HInsight.ProjectSpec qualified
 import HInsight.RefactorGhcSpec qualified
 import HInsight.RefactorSpec qualified
@@ -48,6 +49,7 @@ main = hspec $ do
   HInsight.InstanceSpec.spec
   HInsight.ProjectSpec.spec
   HInsight.RefactorSpec.spec
+  HInsight.MoveSpec.spec
   HInsight.VerifySpec.spec
   HInsight.ErrorSpec.spec
   HInsight.ReportSpec.spec

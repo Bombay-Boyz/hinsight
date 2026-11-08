@@ -13,6 +13,7 @@ module HInsight.Edit
     EditError (..),
     applyEditSet,
     offsetOf,
+    endOfText,
     renderEditError,
   )
 where
@@ -120,6 +121,12 @@ offsetOf src pos = do
       | otherwise = case T.uncons rest of
           Nothing -> Nothing
           Just (c, more) -> walk more (advanceColumn col c) (idx + 1)
+
+-- | The position just past the last character of a text, counted as GHC counts.
+endOfText :: Text -> Either DomainError Position
+endOfText src = mkPosition <$> mkLine count <*> mkColumn (T.foldl' advanceColumn 1 lastLine)
+  where
+    (count, lastLine) = foldl' (\(n, _) l -> (n + 1, l)) (0 :: Int, T.empty) (T.splitOn "\n" src)
 
 lineStart :: Text -> Int -> Maybe (Int, Text)
 lineStart src wanted = go 1 0 (T.splitOn "\n" src)

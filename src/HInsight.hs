@@ -130,6 +130,7 @@ module HInsight
     EditError (..),
     applyEditSet,
     offsetOf,
+    endOfText,
     renderEditError,
     acceptFit,
     ModuleAlias,
@@ -164,7 +165,7 @@ import HInsight.Config (LibDir, libDirPath, mkLibDir)
 import HInsight.Context (Context (..))
 import HInsight.Core (CoreDetail (..), CoreDump (..), CoreRequest (..), CoreSection (..), MissedKind (..), MissedWarning (..), Optimisation (..), RuleFiring (..), SectionKind (..), coreOnly, emptyCore, renderCore, sectionKind)
 import HInsight.Deep (Deep (..))
-import HInsight.Edit (Edit, EditError (..), EditSet, applyEditSet, editFile, editSetEdits, editSpan, editText, mkEdit, mkEditSet, offsetOf, renderEditError)
+import HInsight.Edit (Edit, EditError (..), EditSet, applyEditSet, editFile, editSetEdits, editSpan, editText, endOfText, mkEdit, mkEditSet, offsetOf, renderEditError)
 import HInsight.Error (EnvironmentError (..), InsightError (..), RefactorError (..), renderError, renderRefactorError)
 import HInsight.Explanation (Explanation (..), renderExplanation)
 import HInsight.Flow (FlowKind (..), Pipeline, Stage (..), StageText, pipelineContext, pipelineKind, pipelineSpan, pipelineStages, pipelineType, renderPipeline, unStageText)

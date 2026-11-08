@@ -119,6 +119,20 @@ spec = describe "Edit" $ do
         forAll (choose (0, T.length src)) $ \offset ->
           let (l, c) = positionAt src offset
            in ioProperty (at l c >>= \p -> pure (offsetOf src p === Just offset))
+  describe "endOfText" $ do
+    it "is the start of an empty text" $ do
+      p <- ok (endOfText "")
+      offsetOf "" p `shouldBe` Just 0
+    it "is just past the last character, and on the next line after a final newline" $ do
+      p <- ok (endOfText "ab\ncd")
+      q <- ok (endOfText "ab\n")
+      p' <- at 2 3
+      q' <- at 2 1
+      (p, q) `shouldBe` (p', q')
+    prop "is the offset just past the whole text" $
+      forAll genSource $ \src -> ioProperty $ do
+        p <- ok (endOfText src)
+        pure (offsetOf src p === Just (T.length src))
   describe "properties" $ do
     prop "no edits give no files" $
       forAll genSource $ \src -> ioProperty $ do

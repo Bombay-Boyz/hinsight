@@ -81,6 +81,7 @@ library
     HInsight.Project
     HInsight.Refactor
     HInsight.Refactor.Handle
+    HInsight.Refactor.Move
     HInsight.Refactor.Verify
     HInsight.Report
     HInsight.Source
@@ -155,6 +156,7 @@ test-suite hinsight-test
     HInsight.IdentifierSpec
     HInsight.InstanceSpec
     HInsight.ProjectSpec
+    HInsight.MoveSpec
     HInsight.RefactorGhcSpec
     HInsight.RefactorSpec
     HInsight.ReportSpec
