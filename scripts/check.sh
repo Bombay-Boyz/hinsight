@@ -94,14 +94,21 @@ compat() {
   return $failed
 }
 
+# Weeder must be built with the GHC that wrote the HIE files, so it is kept
+# per GHC version and a weeder on the PATH is never used.
+WEEDER_DIR="$HOME/.cache/hinsight-checks/weeder-$WEEDER_VERSION-ghc-$(default_ghc)"
+WEEDER="$WEEDER_DIR/weeder"
+
 ensure_weeder() {
-  command -v weeder >/dev/null 2>&1 && return 0
-  echo "== installing weeder-$WEEDER_VERSION (once)"
+  [ -x "$WEEDER" ] && return 0
+  echo "== building weeder-$WEEDER_VERSION with GHC $(default_ghc) (once)"
+  mkdir -p "$WEEDER_DIR"
+  ghcv=$(default_ghc)
   tmp=$(mktemp -d)
   # Outside the project so the project's freeze file does not constrain weeder.
-  ( cd "$tmp" && cabal install "weeder-$WEEDER_VERSION" --with-compiler="ghc-$(default_ghc)" \
-      --installdir="$HOME/.local/bin" --overwrite-policy=always ) || return 1
-  command -v weeder >/dev/null 2>&1
+  ( cd "$tmp" && cabal install "weeder-$WEEDER_VERSION" --with-compiler="ghc-$ghcv" \
+      --installdir="$WEEDER_DIR" --install-method=copy --overwrite-policy=always ) || return 1
+  [ -x "$WEEDER" ]
 }
 
 dead() {
@@ -119,8 +126,13 @@ dead() {
   ensure_weeder || { echo "weeder is not available"; return 1; }
   echo "== weeder"
   # shellcheck disable=SC2086
-  weeder $args | tee "$OUT/weeder.txt"
+  "$WEEDER" $args >"$OUT/weeder.txt" 2>&1
   s=$?
+  cat "$OUT/weeder.txt"
+  if grep -qi "incompatible hie file" "$OUT/weeder.txt"; then
+    echo "weeder could not read the HIE files: no verdict"
+    return 1
+  fi
   [ "$s" -eq 0 ] && echo "Dead code: none"
   return $s
 }
