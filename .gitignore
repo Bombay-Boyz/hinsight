@@ -1,3 +1,4 @@
 dist-newstyle/
 .hie/
 sage_full_vision_spec*.md
+.check/
