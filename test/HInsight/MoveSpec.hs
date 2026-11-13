@@ -176,3 +176,21 @@ spec = describe "planMove" $ do
   it "refuses a span the text does not have" $ do
     fs <- facts "moved" (80, 1) (90, 50)
     run [] sourceA sourceB fs `shouldReturn` Left (RefactorFailure SelectionNotInText)
+  describe "headerEnd" $ do
+    let end text (l, c) = do
+          from <- at (l, c)
+          pure (headerEnd text from)
+    it "finds the end of where after a module name" $ do
+      r <- end "module B where\n" (1, 9)
+      expected <- at (1, 15)
+      r `shouldBe` Right expected
+    it "skips a comment and a pragma between the export list and where" $ do
+      r <- end "module B (x) {-# WARNING x \"w\" #-} -- note\n  {- block {- nested -} -} where\nx = 1\n" (1, 13)
+      expected <- at (2, 33)
+      r `shouldBe` Right expected
+    it "does not take a name that merely starts with where" $ do
+      r <- end "module B wherever\n" (1, 9)
+      r `shouldBe` Left ModuleHeaderNotRecognised
+    it "refuses text it cannot read as a header" $ do
+      r <- end "module B\nimport A\n" (1, 9)
+      r `shouldBe` Left ModuleHeaderNotRecognised

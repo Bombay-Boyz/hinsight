@@ -127,6 +127,23 @@ data RefactorError
     VerificationFailed Text
   | -- | The definition to move does not start at the first column of a line.
     NotATopLevelDefinition
+  | -- | The module has no top-level definition of that name.
+    DefinitionNotFound Text
+  | -- | The definition has a type signature that is not directly above it.
+    SignatureNotAdjacent
+  | -- | The definition's type signature also declares other names.
+    SignatureNamesOthers
+  | -- | A pragma, warning, rule or annotation names the definition.
+    HasPragmaOrAnnotation
+  | -- | The definition uses these other names defined in its own module.
+    UsesNamesOfItsModule [Text]
+  | -- | The text after the module name is not a header GHC's layout allows
+    -- this refactoring to place imports after.
+    ModuleHeaderNotRecognised
+  | -- | The target is the module the definition is already in.
+    MoveToSameModule
+  | -- | The target module already defines a name of that spelling.
+    TargetAlreadyDefines Text
   deriving stock (Eq, Show)
 
 -- | The typechecker trace could not be used. Raised by "HInsight.Trace".
@@ -282,3 +299,11 @@ renderRefactorError = \case
   FileDoesNotCompile n -> "the file does not typecheck (" <> tshow n <> " errors); fix them before refactoring"
   VerificationFailed why -> "GHC rejected the result of the refactoring: " <> why
   NotATopLevelDefinition -> "the definition does not start at the first column of a line, so it is not a top-level definition"
+  DefinitionNotFound n -> "the module has no top-level definition named " <> n
+  SignatureNotAdjacent -> "the definition's type signature is not directly above it; put them together first"
+  SignatureNamesOthers -> "the definition's type signature also declares other names; give it a signature of its own first"
+  HasPragmaOrAnnotation -> "a pragma, warning, rule or annotation names the definition, and moving would leave it behind"
+  UsesNamesOfItsModule ns -> "the definition uses " <> T.intercalate ", " ns <> ", defined in its own module; moving it would need a cyclic import"
+  ModuleHeaderNotRecognised -> "the module header is not in a form this refactoring can place imports after"
+  MoveToSameModule -> "the target is the module the definition is already in"
+  TargetAlreadyDefines n -> "the target module already defines " <> n

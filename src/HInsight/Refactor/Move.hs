@@ -6,12 +6,13 @@ module HInsight.Refactor.Move
     ExportClose (..),
     MoveFacts (..),
     planMove,
+    headerEnd,
   )
 where
 
 import Control.Monad (unless)
 import Data.Bifunctor (first)
-import Data.Char (isAlpha, isSpace)
+import Data.Char (isAlpha, isAlphaNum, isSpace)
 import Data.List (findIndices)
 import Data.Maybe (listToMaybe)
 import Data.Text (Text)
@@ -164,3 +165,36 @@ haddockStart ls defLine = case above of
     fromBlock block = case [(i, l) | (i, l) <- zip [0 :: Int ..] block, "{-" `T.isPrefixOf` l] of
       (i, l) : _ | "{- |" `T.isPrefixOf` l || "{-|" `T.isPrefixOf` l -> defLine - 1 - i
       _ -> defLine
+
+-- | The position just past the @where@ that ends a module header, found by
+-- reading the text from a position inside the header (the end of the module
+-- name or of the export list). Spaces, comments and pragmas are skipped;
+-- anything else is not a header this can place imports after.
+headerEnd :: Text -> Position -> Either RefactorError Position
+headerEnd src from = do
+  start <- maybe (Left SelectionNotInText) Right (offsetOf src from)
+  used <- maybe (Left ModuleHeaderNotRecognised) Right (skipToWhere 0 (T.drop start src))
+  first (const ModuleHeaderNotRecognised) (endOfText (T.take (start + used) src))
+
+-- | How many characters come before the end of the first @where@, when only
+-- spaces and comments come before it.
+skipToWhere :: Int -> Text -> Maybe Int
+skipToWhere n t = case T.uncons t of
+  Nothing -> Nothing
+  Just (c, more)
+    | isSpace c -> skipToWhere (n + 1) more
+    | "--" `T.isPrefixOf` t -> let (line, rest) = T.break (== '\n') t in skipToWhere (n + T.length line) rest
+    | "{-" `T.isPrefixOf` t -> skipBlock (n + 2) (1 :: Int) (T.drop 2 t)
+    | Just after <- T.stripPrefix "where" t,
+      maybe True (not . isNameChar . fst) (T.uncons after) ->
+        Just (n + 5)
+    | otherwise -> Nothing
+  where
+    skipBlock :: Int -> Int -> Text -> Maybe Int
+    skipBlock m 0 rest = skipToWhere m rest
+    skipBlock m depth rest
+      | "-}" `T.isPrefixOf` rest = skipBlock (m + 2) (depth - 1) (T.drop 2 rest)
+      | "{-" `T.isPrefixOf` rest = skipBlock (m + 2) (depth + 1) (T.drop 2 rest)
+      | otherwise = T.uncons rest >>= \(_, more) -> skipBlock (m + 1) depth more
+    isNameChar :: Char -> Bool
+    isNameChar ch = isAlphaNum ch || ch `elem` ("_'" :: String)

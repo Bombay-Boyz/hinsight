@@ -75,7 +75,11 @@ spec = describe "renderError" $ do
   it "renders every other refusal of a refactoring as non-empty text" $
     mapM_
       (\e -> renderRefactorError e `shouldNotBe` "")
-      [EmptySelection, SelectionNotInDeclaration, SelectionNotInText, SelectionHasTabIndent, SelectionLeavesLayout]
+      [EmptySelection, SelectionNotInDeclaration, SelectionNotInText, SelectionHasTabIndent, SelectionLeavesLayout, NotATopLevelDefinition, SignatureNotAdjacent, SignatureNamesOthers, HasPragmaOrAnnotation, ModuleHeaderNotRecognised, MoveToSameModule]
+  it "names what a refused move involves" $ do
+    rendered (RefactorFailure (DefinitionNotFound "moved")) `shouldSatisfy` T.isInfixOf "moved"
+    rendered (RefactorFailure (UsesNamesOfItsModule ["helper", "Box"])) `shouldSatisfy` T.isInfixOf "helper, Box"
+    rendered (RefactorFailure (TargetAlreadyDefines "moved")) `shouldSatisfy` T.isInfixOf "moved"
   it "says what a selection that is not an expression is" $
     rendered (RefactorFailure SelectionNotAnExpression) `shouldSatisfy` T.isInfixOf "one expression"
   it "says how many errors stop a refactoring" $
