@@ -63,11 +63,18 @@ movedFacts :: IO MoveFacts
 movedFacts = facts "moved" (8, 1) (9, 50)
 
 run :: [Span] -> Text -> Text -> MoveFacts -> IO (Either InsightError (Text, Text))
-run dropped fromSrc toSrc fs = case planMove dropped fromSrc toSrc fs of
+run dropped fromSrc toSrc fs = case planMove (Pruning dropped []) fromSrc toSrc fs of
   Left e -> pure (Left e)
   Right set -> case applyEditSet (\f -> if f == moveFrom fs then Just fromSrc else Just toSrc) set of
     Left e -> fail (show e)
     Right m -> pure (Right (M.findWithDefault fromSrc (moveFrom fs) m, M.findWithDefault toSrc (moveTo fs) m))
+
+planFor :: Pruning -> MoveFacts -> IO (Either InsightError Text)
+planFor pruning fs = case planMove pruning sourceA sourceB fs of
+  Left e -> pure (Left e)
+  Right set -> case applyEditSet (\f -> if f == moveFrom fs then Just sourceA else Just sourceB) set of
+    Left e -> fail (show e)
+    Right m -> pure (Right (M.findWithDefault sourceA (moveFrom fs) m))
 
 spec :: Spec
 spec = describe "planMove" $ do
@@ -176,6 +183,33 @@ spec = describe "planMove" $ do
   it "refuses a span the text does not have" $ do
     fs <- facts "moved" (80, 1) (90, 50)
     run [] sourceA sourceB fs `shouldReturn` Left (RefactorFailure SelectionNotInText)
+  describe "pruning" $ do
+    it "removes a source import that is pruned, with its whole line" $ do
+      fs <- movedFacts
+      gone <- spanOf (4, 1) (4, 26)
+      Right a <- planFor (Pruning [] [gone]) fs
+      a `shouldSatisfy` (not . T.isInfixOf "Data.List")
+      a `shouldSatisfy` T.isInfixOf "import Data.Char (toUpper)\nimport qualified Data.Map as M\nimport B (moved)\n"
+    it "puts the import back in the place of the last import when that one is pruned" $ do
+      fs <- movedFacts
+      gone <- spanOf (5, 1) (5, 31)
+      Right a <- planFor (Pruning [] [gone]) fs
+      T.lines a `shouldSatisfy` (\ls -> take 5 ls == ["module A (keep, helper) where", "", "import Data.Char (toUpper)", "import Data.List (sortOn)", "import B (moved)"])
+    it "leaves alone a pruned import that shares its line" $ do
+      fs <- movedFacts
+      shared <- spanOf (3, 1) (3, 10)
+      Right a <- planFor (Pruning [] [shared]) fs
+      a `shouldSatisfy` T.isInfixOf "import Data.Char (toUpper)"
+    it "says on which line of the target each copied import starts" $ do
+      fs <- movedFacts
+      spans <- sequence [spanOf (3, 1) (3, 27), spanOf (4, 1) (4, 26), spanOf (5, 1) (5, 31)]
+      copiedImportLines mempty sourceA sourceB fs `shouldBe` Right (zip spans [4, 5, 6])
+    it "counts the lines of a copied import that is pruned or already there" $ do
+      fs <- movedFacts
+      first' <- spanOf (3, 1) (3, 27)
+      later <- spanOf (5, 1) (5, 31)
+      copiedImportLines (Pruning [first'] []) sourceA sourceB fs `shouldSatisfy` either (const False) ((== 2) . length)
+      copiedImportLines (Pruning [first'] []) sourceA sourceB fs `shouldSatisfy` either (const False) (elem (later, 5))
   describe "headerEnd" $ do
     let end text (l, c) = do
           from <- at (l, c)

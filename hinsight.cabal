@@ -158,6 +158,7 @@ test-suite hinsight-test
     HInsight.InstanceSpec
     HInsight.ProjectSpec
     HInsight.MoveGhcSpec
+    HInsight.MoveVerifySpec
     HInsight.MoveSpec
     HInsight.RefactorGhcSpec
     HInsight.RefactorSpec

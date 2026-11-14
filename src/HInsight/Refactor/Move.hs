@@ -5,7 +5,9 @@ module HInsight.Refactor.Move
   ( Anchor (..),
     ExportClose (..),
     MoveFacts (..),
+    Pruning (..),
     planMove,
+    copiedImportLines,
     headerEnd,
   )
 where
@@ -73,10 +75,25 @@ data MoveFacts = MoveFacts
   }
   deriving stock (Eq, Show)
 
+-- | Imports to leave out: of the copies made for the target, and of the
+-- source module's own. Both name imports by where they are written in the
+-- source module.
+data Pruning = Pruning
+  { pruneCopied :: ![Span],
+    pruneSource :: ![Span]
+  }
+  deriving stock (Eq, Ord, Show)
+
+instance Semigroup Pruning where
+  Pruning a b <> Pruning c d = Pruning (a <> c) (b <> d)
+
+instance Monoid Pruning where
+  mempty = Pruning [] []
+
 -- | The edits that take the definition out of the source module and put it,
--- with the source's imports minus the ones listed as dropped, in the target.
-planMove :: [Span] -> Text -> Text -> MoveFacts -> Either InsightError EditSet
-planMove dropped fromSrc toSrc facts = do
+-- with the source's imports minus the ones pruned, in the target.
+planMove :: Pruning -> Text -> Text -> MoveFacts -> Either InsightError EditSet
+planMove pruning fromSrc toSrc facts = do
   let definition = moveDefinition facts
       defLine = unLine (positionLine (spanStart definition))
   unless (unColumn (positionColumn (spanStart definition)) == 1) (refuse NotATopLevelDefinition)
@@ -87,11 +104,12 @@ planMove dropped fromSrc toSrc facts = do
   removal <- edit (moveFrom facts) from upTo ""
   eof <- domain (endOfText toSrc)
   added <- edit (moveTo facts) eof eof ((if "\n" `T.isSuffixOf` toSrc then "\n" else "\n\n") <> moved <> "\n")
-  copied <- copiedImports
-  imports <- anchored (moveTo facts) (moveToAnchor facts) copied
-  back <- anchored (moveFrom facts) (moveFromAnchor facts) [importLine | moveKeepsImport facts]
+  copied <- copiedImports pruning fromSrc toSrc facts
+  imports <- anchored (moveTo facts) (moveToAnchor facts) (map snd copied)
+  back <- importBack
+  pruned <- traverse pruneEdit prunable
   exports <- exportEdit
-  domain (mkEditSet (removal : added : imports <> back <> exports))
+  domain (mkEditSet (removal : added : imports <> back <> pruned <> exports))
   where
     fromLines :: [Text]
     fromLines = T.splitOn "\n" fromSrc
@@ -126,13 +144,35 @@ planMove dropped fromSrc toSrc facts = do
     nameText = case T.uncons (unIdentifier (moveName facts)) of
       Just (c, _) | isAlpha c || c == '_' -> unIdentifier (moveName facts)
       _ -> "(" <> unIdentifier (moveName facts) <> ")"
-    copiedImports :: Either InsightError [Text]
-    copiedImports = do
-      wanted <- traverse (refuse' . slice fromSrc) (filter (`notElem` dropped) (moveFromImports facts))
-      present <- traverse (refuse' . slice toSrc) (moveToImports facts)
-      pure [t | t <- wanted, normalised t `notElem` map normalised present]
-    normalised :: Text -> Text
-    normalised = T.unwords . T.words
+    -- The pruned source imports that sit alone on their lines.
+    prunable :: [Span]
+    prunable = [sp | sp <- pruneSource pruning, wholeLines sp]
+    wholeLines :: Span -> Bool
+    wholeLines sp =
+      unColumn (positionColumn (spanStart sp)) == 1
+        && maybe False (T.all isSpace . T.drop (unColumn (positionColumn (spanEnd sp)) - 1)) (lineAt (unLine (positionLine (spanEnd sp))))
+    lineAt :: Int -> Maybe Text
+    lineAt n = listToMaybe (drop (n - 1) fromLines)
+    pruneEdit :: Span -> Either InsightError Edit
+    pruneEdit sp = do
+      start <- domain (position (unLine (positionLine (spanStart sp))) 1)
+      let endLine = unLine (positionLine (spanEnd sp))
+      end <-
+        if endLine >= length fromLines
+          then Right (spanEnd sp)
+          else domain (position (endLine + 1) 1)
+      edit (moveFrom facts) start end ""
+    -- The import that gives the source the name back. When the import it
+    -- would follow is pruned, it takes that import's place.
+    importBack :: Either InsightError [Edit]
+    importBack
+      | not (moveKeepsImport facts) = Right []
+      | otherwise = case moveFromAnchor facts of
+          AfterImport p
+            | (sp : _) <- [sp | sp <- prunable, spanEnd sp == p] -> do
+                start <- domain (position (unLine (positionLine (spanStart sp))) 1)
+                pure <$> edit (moveFrom facts) start start (importLine <> "\n")
+          anchor -> anchored (moveFrom facts) anchor [importLine]
     anchored :: SourceFile -> Anchor -> [Text] -> Either InsightError [Edit]
     anchored _ _ [] = Right []
     anchored file anchor texts = case anchor of
@@ -142,6 +182,30 @@ planMove dropped fromSrc toSrc facts = do
     exportEdit = case moveToExports facts of
       Just (ExportClose (p, nonEmpty)) | moveKeepsImport facts -> pure <$> edit (moveTo facts) p p ((if nonEmpty then ", " else "") <> nameText)
       _ -> Right []
+
+-- | The source's imports that are copied to the target, each with its text:
+-- not the pruned ones, and not those the target already has, whatever their
+-- spacing.
+copiedImports :: Pruning -> Text -> Text -> MoveFacts -> Either InsightError [(Span, Text)]
+copiedImports pruning fromSrc toSrc facts = do
+  let wanted = filter (`notElem` pruneCopied pruning) (moveFromImports facts)
+  texts <- traverse (first RefactorFailure . slice fromSrc) wanted
+  present <- traverse (first RefactorFailure . slice toSrc) (moveToImports facts)
+  pure [(sp, t) | (sp, t) <- zip wanted texts, normalised t `notElem` map normalised present]
+  where
+    normalised :: Text -> Text
+    normalised = T.unwords . T.words
+
+-- | Where each copied import starts in the target once the plan is applied:
+-- the import as written in the source, and its line in the target's new text.
+copiedImportLines :: Pruning -> Text -> Text -> MoveFacts -> Either InsightError [(Span, Int)]
+copiedImportLines pruning fromSrc toSrc facts = do
+  copied <- copiedImports pruning fromSrc toSrc facts
+  let (anchorLine, gap) = case moveToAnchor facts of
+        AfterImport p -> (unLine (positionLine p), 1)
+        AfterModuleHeader p -> (unLine (positionLine p), 2)
+      starts = scanl (+) (anchorLine + gap) [T.count "\n" t + 1 | (_, t) <- copied]
+  pure (zip (map fst copied) starts)
 
 slice :: Text -> Span -> Either RefactorError Text
 slice src sp = case (offsetOf src (spanStart sp), offsetOf src (spanEnd sp)) of

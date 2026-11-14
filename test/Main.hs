@@ -20,6 +20,7 @@ import HInsight.IdentifierSpec qualified
 import HInsight.InstanceSpec qualified
 import HInsight.MoveGhcSpec qualified
 import HInsight.MoveSpec qualified
+import HInsight.MoveVerifySpec qualified
 import HInsight.ProjectSpec qualified
 import HInsight.RefactorGhcSpec qualified
 import HInsight.RefactorSpec qualified
@@ -51,6 +52,7 @@ main = hspec $ do
   HInsight.ProjectSpec.spec
   HInsight.RefactorSpec.spec
   HInsight.MoveGhcSpec.spec
+  HInsight.MoveVerifySpec.spec
   HInsight.MoveSpec.spec
   HInsight.VerifySpec.spec
   HInsight.ErrorSpec.spec
