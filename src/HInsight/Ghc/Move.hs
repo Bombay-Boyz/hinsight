@@ -86,7 +86,7 @@ located path = \case
 moduleShape :: FilePath -> Text -> HsModule GhcPs -> Either InsightError Shape
 moduleShape path src parsed = do
   imports <- traverse (\(L loc _) -> located path (locA loc)) (hsmodImports parsed)
-  exports <- traverse (\(L loc ies) -> do { sp <- located path (locA loc); pure (sp, not (null ies)) }) (hsmodExports parsed)
+  exports <- traverse (\(L loc ies) -> do sp <- located path (locA loc); pure (sp, not (null ies))) (hsmodExports parsed)
   closing <- traverse (\(sp, nonEmpty) -> (\p -> ExportClose (p, nonEmpty)) <$> before (spanEnd sp)) exports
   anchor <- case reverse imports of
     lastImport : _ -> Right (AfterImport (spanEnd lastImport))
@@ -174,7 +174,7 @@ sourceSide :: (Data g, Data e) => SourceFile -> Text -> Identifier -> Ghc.Module
 sourceSide file src name this parsed group exports = do
   shape <- moduleShape path src parsed
   definition <- definitionSpan path name (hsmodDecls parsed)
-  placed <- traverse (\(rs, n) -> do { sp <- convertSpan path rs; pure (sp, spelledName n) }) (filter (isOwn . snd) (namesIn group))
+  placed <- traverse (\(rs, n) -> do sp <- convertSpan path rs; pure (sp, spelledName n)) (filter (isOwn . snd) (namesIn group))
   let inside = [occ | (sp, occ) <- placed, spanContains definition sp]
       outside = [occ | (sp, occ) <- placed, not (spanContains definition sp)]
       needs = sort (nubOrd (filter (/= wanted) inside))

@@ -31,10 +31,12 @@ module HInsight.Ghc.Session
     ghcDeepIn,
     ghcDeepLimited,
     ghcExtractFacts,
+    ghcMoveFacts,
     ghcRefactor,
   )
 where
 
+import Control.Applicative ((<|>))
 import Control.Exception (Handler (..), IOException, catches, evaluate)
 import Control.Monad (filterM, void, when)
 import Control.Monad.IO.Class (liftIO)
@@ -121,14 +123,16 @@ import HInsight.Ghc.Graph (RawModule, collectGraph, projectGraph)
 import HInsight.Ghc.HoleCapture (CapturedHole, holePlugin)
 import HInsight.Ghc.Holes (holeReports)
 import HInsight.Ghc.Messages (Extracted (..), extractMessages)
+import HInsight.Ghc.Move (SourceSide, TargetSide, moveFacts, sourceSide, targetSide)
 import HInsight.Ghc.Refactor (selectionFacts)
 import HInsight.Ghc.Trace (RawMissed (..), captureHook, coreBuildFlags, coreDumpFlags, enableFlags, errorSpans, missedHook, spliceFlags, stgDumpFlags, traceFlags)
 import HInsight.Graph (ProjectGraph)
 import HInsight.Hole (HoleReport)
-import HInsight.Identifier (mkIdentifier)
+import HInsight.Identifier (Identifier, mkIdentifier)
 import HInsight.Project (sourceRoot)
 import HInsight.Refactor (ExtractFacts, FunctionName)
 import HInsight.Refactor.Handle (Refactor (..))
+import HInsight.Refactor.Move (MoveFacts)
 import HInsight.Refactor.Verify (Checked (..), Checker (..), VerifiedPlan, verifyExtract)
 import HInsight.Source (SourceFile, Span, sourceFilePath)
 import HInsight.Splice (Splices (..), buildSplices, emptySplices, splicesIn)
@@ -469,6 +473,75 @@ factsPass placement logged file selection = do
       Just (group, _, _, _, _) -> do
         declarations <- bindingSpans path (collectBindings (hsmodDecls (unLoc (pm_parsed_source parsed))))
         selectionFacts file selection declarations group
+
+-- | What GHC's parsed and renamed programs say about moving a top-level
+-- definition of a file that typechecks into another file, both placed by
+-- their headers.
+ghcMoveFacts :: LibDir -> SourceFile -> SourceFile -> Identifier -> IO (Either InsightError MoveFacts)
+ghcMoveFacts dir from to name = do
+  failure <- (<|>) <$> preflight dir from <*> preflight dir to
+  case failure of
+    Just why -> pure (Left (SessionFailure why))
+    Nothing -> do
+      texts <- catchSession fromPath (Right <$> ((,) <$> TIO.readFile fromPath <*> TIO.readFile toPath))
+      case texts of
+        Left problem -> pure (Left problem)
+        Right (fromText, toText) -> do
+          source <- catchSession fromPath $ do
+            logged <- newIORef []
+            result <- runGhc (Just (libDirPath dir)) (sourcePass logged from fromText)
+            evaluate result
+          target <- catchSession toPath $ do
+            logged <- newIORef []
+            result <- runGhc (Just (libDirPath dir)) (targetPass logged to toText)
+            evaluate result
+          pure (source >>= \s -> target >>= moveFacts from to name s)
+  where
+    fromPath :: FilePath
+    fromPath = sourceFilePath from
+    toPath :: FilePath
+    toPath = sourceFilePath to
+    sourcePass :: IORef [Text] -> SourceFile -> Text -> Ghc (Either InsightError SourceSide)
+    sourcePass logged file text = do
+      found <- preparedSummary logged file
+      case found of
+        Left problem -> pure (Left problem)
+        Right summary -> do
+          parsed <- parseModule summary
+          checked <- handleSourceError (pure . Left . brokenSource) (Right <$> typecheckModule parsed)
+          pure $
+            checked >>= \typechecked -> case tm_renamed_source typechecked of
+              Nothing -> Left (SessionFailure (GhcThrew (sourceFilePath file) "GHC kept no renamed source"))
+              Just (group, _, exports, _, _) ->
+                sourceSide file text name (ms_mod_name summary) (unLoc (pm_parsed_source parsed)) group exports
+    targetPass :: IORef [Text] -> SourceFile -> Text -> Ghc (Either InsightError TargetSide)
+    targetPass logged file text = do
+      found <- preparedSummary logged file
+      case found of
+        Left problem -> pure (Left problem)
+        Right summary -> handleSourceError (pure . Left . brokenSource) $ do
+          parsed <- parseModule summary
+          pure (targetSide file text name (unLoc (pm_parsed_source parsed)))
+
+-- | The module summary of a file, placed by its header, once its
+-- dependencies typecheck.
+preparedSummary :: IORef [Text] -> SourceFile -> Ghc (Either InsightError ModSummary)
+preparedSummary logged file = do
+  configured <- configure FromHeader logged
+  case configured of
+    Left failure -> pure (Left (EnvironmentFailure failure))
+    Right () -> do
+      located <- liftIO (targetPath FromHeader path)
+      target <- guessTarget located Nothing Nothing
+      setTargets [target]
+      prepared <- handleSourceError (pure . Left . brokenSource) (first SessionFailure <$> prepareProject FromHeader logged path)
+      pure (snd <$> prepared)
+  where
+    path :: FilePath
+    path = sourceFilePath file
+
+brokenSource :: SourceError -> InsightError
+brokenSource = RefactorFailure . FileDoesNotCompile . length . errorsOf
 
 -- | The GHC-backed implementation of 'Refactor'.
 ghcRefactor :: LibDir -> Refactor IO

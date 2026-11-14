@@ -27,7 +27,7 @@ spanOf from to = do
 folder :: FilePath
 folder = "test/fixtures/move/"
 
-factsOf :: FilePath -> FilePath -> String -> IO (Either InsightError MoveFacts)
+factsOf :: FilePath -> FilePath -> FilePath -> String -> IO (Either InsightError MoveFacts)
 factsOf libDir from to name = do
   dir <- ok (mkLibDir libDir)
   source <- ok (mkSourceFile (folder <> from <> ".hs"))

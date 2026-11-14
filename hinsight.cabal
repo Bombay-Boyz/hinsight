@@ -70,6 +70,7 @@ library
     HInsight.Ghc.HoleCapture
     HInsight.Ghc.Holes
     HInsight.Ghc.Messages
+    HInsight.Ghc.Move
     HInsight.Ghc.Refactor
     HInsight.Ghc.Session
     HInsight.Ghc.Trace
@@ -156,6 +157,7 @@ test-suite hinsight-test
     HInsight.IdentifierSpec
     HInsight.InstanceSpec
     HInsight.ProjectSpec
+    HInsight.MoveGhcSpec
     HInsight.MoveSpec
     HInsight.RefactorGhcSpec
     HInsight.RefactorSpec
