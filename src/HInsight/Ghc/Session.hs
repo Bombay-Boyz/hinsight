@@ -44,6 +44,8 @@ import Data.Bifunctor (first)
 import Data.Containers.ListUtils (nubOrd)
 import Data.Either (fromLeft)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
+import Data.List (find)
+import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as M
 import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Text (Text)
@@ -78,12 +80,13 @@ import GHC
     typecheckModule,
   )
 import GHC.Data.Bag (bagToList)
+import GHC.Data.FastString (unpackFS)
 import GHC.Data.StringBuffer (stringToStringBuffer)
 import GHC.Driver.Backend (platformDefaultBackend)
-import GHC.Driver.DynFlags (gopt_set)
+import GHC.Driver.DynFlags (gopt_set, wopt_set)
 import GHC.Driver.Env.Types (HscEnv (..))
 import GHC.Driver.Errors.Types (GhcMessage)
-import GHC.Driver.Flags (GeneralFlag (..))
+import GHC.Driver.Flags (GeneralFlag (..), WarningFlag (..))
 import GHC.Driver.Make (depanalPartial)
 import GHC.Driver.Monad (modifySession, pushLogHookM)
 import GHC.Driver.Plugins
@@ -94,12 +97,12 @@ import GHC.Driver.Plugins
     defaultPlugin,
   )
 import GHC.Hs (ABExport (..), AbsBinds (..), GhcTc, HsBindLR (..), HsModule (..))
-import GHC.Types.Error (MessageClass (..), MsgEnvelope (..), Severity (..), getMessages)
+import GHC.Types.Error (DiagnosticReason (..), MessageClass (..), MsgEnvelope (..), Severity (..), getMessages, ResolvedDiagnosticReason (..))
 import GHC.Types.Id (idName, idType)
 import GHC.Types.Name (nameOccName)
 import GHC.Types.Name.Occurrence (occNameString)
 import GHC.Types.SourceError (SourceError, srcErrorMessages)
-import GHC.Types.SrcLoc (GenLocated (..), unLoc)
+import GHC.Types.SrcLoc (GenLocated (..), SrcSpan (..), srcSpanFile, unLoc)
 import GHC.Types.Var (Id)
 import GHC.Unit.Module (moduleNameString)
 import GHC.Unit.Module.Graph (emptyMG)
@@ -116,7 +119,7 @@ import HInsight.Environment (Environment, EnvironmentSource (..), EnvironmentSum
 import HInsight.Error (EnvironmentError, InsightError (..), RefactorError (..), SessionError (..))
 import HInsight.Flow (Pipeline)
 import HInsight.Ghc.Bindings (Binding, bindingSpans, collectBindings)
-import HInsight.Ghc.Convert (convertText, fromDomain, renderGhc, renderGhcType)
+import HInsight.Ghc.Convert (convertSpan, convertText, fromDomain, renderGhc, renderGhcType)
 import HInsight.Ghc.Environment (applyEnvironment)
 import HInsight.Ghc.Flow (RawPipeline, collect, pipelines)
 import HInsight.Ghc.Graph (RawModule, collectGraph, projectGraph)
@@ -133,12 +136,12 @@ import HInsight.Project (sourceRoot)
 import HInsight.Refactor (ExtractFacts, FunctionName)
 import HInsight.Refactor.Handle (Refactor (..))
 import HInsight.Refactor.Move (MoveFacts)
-import HInsight.Refactor.Verify (Checked (..), Checker (..), VerifiedPlan, verifyExtract)
-import HInsight.Source (SourceFile, Span, sourceFilePath)
+import HInsight.Refactor.Verify (Checked (..), Checker (..), Diagnostic (..), MoveChecked (..), MoveChecker (..), VerifiedPlan, verifyExtract, verifyMove)
+import HInsight.Source (SourceFile, Span, mkSourceFile, sourceFilePath)
 import HInsight.Splice (Splices (..), buildSplices, emptySplices, splicesIn)
 import HInsight.Trace (Capture, RecordLimit, Trace (..), TraceRecord (..), defaultRecordLimit, emptyCapture, finishCapture, locatedIn)
 import System.Directory (canonicalizePath, doesDirectoryExist, doesFileExist)
-import System.FilePath (takeDirectory)
+import System.FilePath (normalise, takeDirectory)
 import System.IO.Temp (withSystemTempDirectory)
 
 -- | What one typecheck produced.
@@ -543,9 +546,112 @@ preparedSummary logged file = do
 brokenSource :: SourceError -> InsightError
 brokenSource = RefactorFailure . FileDoesNotCompile . length . errorsOf
 
+-- | What GHC says of texts given in place of files, with the rest of the
+-- project, and the files it is told to watch, as they are on disk: its
+-- errors, and the imports it calls unused.
+ghcMoveCheck :: LibDir -> SourceFile -> [SourceFile] -> Map SourceFile Text -> IO (Either InsightError MoveChecked)
+ghcMoveCheck dir anchor others texts = catchSession (sourceFilePath anchor) $ do
+  logged <- newIORef []
+  moves <- newIORef []
+  result <- runGhc (Just (libDirPath dir)) (movePass logged moves anchor others texts)
+  evaluate result
+
+data LoggedKind = LoggedError | LoggedUnused
+
+data Logged = Logged
+  { loggedKind :: !LoggedKind,
+    loggedAt :: !SrcSpan,
+    loggedText :: !Text
+  }
+
+-- | Keep the errors GHC logs and the imports it calls unused; drop the rest.
+recordMoves :: IORef [Logged] -> LogAction -> LogAction
+recordMoves moves _original _flags messageClass location doc = case kindOf messageClass of
+  Nothing -> pure ()
+  Just kind -> message `seq` modifyIORef' moves (Logged kind location message :)
+  where
+    message :: Text
+    message = T.pack (renderGhc doc)
+    kindOf :: MessageClass -> Maybe LoggedKind
+    kindOf = \case
+      MCFatal -> Just LoggedError
+      MCDiagnostic SevError _ _ -> Just LoggedError
+      MCDiagnostic SevWarning (ResolvedDiagnosticReason (WarningWithFlag Opt_WarnUnusedImports)) _ -> Just LoggedUnused
+      _ -> Nothing
+
+movePass :: IORef [Text] -> IORef [Logged] -> SourceFile -> [SourceFile] -> Map SourceFile Text -> Ghc (Either InsightError MoveChecked)
+movePass logged moves anchor others texts = do
+  configured <- configure FromHeader logged
+  case configured of
+    Left failure -> pure (Left (EnvironmentFailure failure))
+    Right () -> do
+      pushLogHookM (recordMoves moves)
+      flags <- getSessionDynFlags
+      void (setSessionDynFlags (wopt_set flags Opt_WarnUnusedImports))
+      -- The anchor's own header says where the source folder is.
+      setImportPath (takeDirectory path)
+      first' <- guessTarget path Nothing Nothing
+      setTargets [first']
+      (_, guess) <- depanalPartial [] False
+      guessed <- targetSummary path (mgModSummaries guess)
+      setImportPath (maybe (takeDirectory path) (sourceRoot path . moduleNameString . ms_mod_name) guessed)
+      now <- liftIO getCurrentTime
+      targets <- traverse (targetFor now) watched
+      setTargets targets
+      void (handleSourceError (\e -> printException e >> pure Nothing) (Just <$> (depanal [] False >> load LoadAllTargets)))
+      entries <- liftIO (reverse <$> readIORef moves)
+      pure $ do
+        found <- traverse diagnosed entries
+        Right (MoveChecked [d | (LoggedError, d) <- found] [d | (LoggedUnused, d) <- found])
+  where
+    path :: FilePath
+    path = sourceFilePath anchor
+    watched :: [SourceFile]
+    watched = M.keys texts <> filter (`M.notMember` texts) others
+    targetFor now file = do
+      target <- guessTarget (sourceFilePath file) Nothing Nothing
+      pure (maybe target (\text -> target {targetContents = Just (stringToStringBuffer (T.unpack text), now)}) (M.lookup file texts))
+    diagnosed :: Logged -> Either InsightError (LoggedKind, Diagnostic)
+    diagnosed logged' =
+      (loggedKind logged',) <$> case loggedAt logged' of
+        RealSrcSpan rs _ -> do
+          let named = unpackFS (srcSpanFile rs)
+          place <- convertSpan named rs
+          file <- fileNamed named
+          pure (Diagnostic file (Just place) (loggedText logged'))
+        _ -> pure (Diagnostic anchor Nothing (loggedText logged'))
+    fileNamed :: FilePath -> Either InsightError SourceFile
+    fileNamed named = case find ((== normalise named) . normalise . sourceFilePath) watched of
+      Just file -> Right file
+      Nothing -> fromDomain named (mkSourceFile named)
+
+-- | The plan that moves a top-level definition into another module, as GHC
+-- accepted it: both files with the plan's edits made typecheck. The other
+-- files are checked too, and what GHC still reports in them is in the plan's
+-- notes.
+ghcMoveDefinition :: LibDir -> SourceFile -> SourceFile -> Identifier -> [SourceFile] -> IO (Either InsightError VerifiedPlan)
+ghcMoveDefinition dir from to name others = do
+  facts <- ghcMoveFacts dir from to name
+  case facts of
+    Left failure -> pure (Left failure)
+    Right known -> do
+      texts <- catchSession fromPath (Right <$> ((,) <$> TIO.readFile fromPath <*> TIO.readFile toPath))
+      case texts of
+        Left failure -> pure (Left failure)
+        Right (fromText, toText) -> verifyMove (MoveChecker (ghcMoveCheck dir from (filter (`notElem` [from, to]) others))) fromText toText known
+  where
+    fromPath :: FilePath
+    fromPath = sourceFilePath from
+    toPath :: FilePath
+    toPath = sourceFilePath to
+
 -- | The GHC-backed implementation of 'Refactor'.
 ghcRefactor :: LibDir -> Refactor IO
-ghcRefactor dir = Refactor {extractFunction = ghcExtractFunction dir}
+ghcRefactor dir =
+  Refactor
+    { extractFunction = ghcExtractFunction dir,
+      moveDefinition = ghcMoveDefinition dir
+    }
 
 -- | The plan that extracts a selection into a new top-level function, as GHC
 -- accepted it: the file with the plan's edits made typechecks.

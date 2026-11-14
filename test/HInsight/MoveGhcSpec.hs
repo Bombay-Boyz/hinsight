@@ -3,13 +3,18 @@
 -- Description : GHC's parsed and renamed programs supply the facts of a move.
 module HInsight.MoveGhcSpec (spec) where
 
+import Data.Map.Strict qualified as M
+import Data.Text (Text)
 import Data.Text qualified as T
-import HInsight (mkLibDir)
+import Data.Text.IO qualified as TIO
+import HInsight (Refactor (..), mkLibDir)
+import HInsight.Edit (applyEditSet)
 import HInsight.Error (InsightError (..), RefactorError (..))
-import HInsight.Ghc.Session (ghcMoveFacts)
+import HInsight.Ghc.Session (ghcMoveFacts, ghcRefactor)
 import HInsight.Graph (mkModuleName)
 import HInsight.Identifier (mkIdentifier)
 import HInsight.Refactor.Move (Anchor (..), ExportClose (..), MoveFacts (..))
+import HInsight.Refactor.Verify (VerifiedPlan, planEdits, planNotes)
 import HInsight.Source (Position, Span, mkColumn, mkLine, mkPosition, mkSourceFile, mkSpan)
 import HInsight.Support (ok)
 import HInsight.Toolchain (findGhcLibDir)
@@ -43,6 +48,31 @@ spec = describe "ghcMoveFacts, read from GHC" $ do
     realSpec
     libDir
 
+movedBy :: FilePath -> FilePath -> FilePath -> String -> [FilePath] -> IO (Either InsightError VerifiedPlan)
+movedBy libDir from to name others = do
+  dir <- ok (mkLibDir libDir)
+  source <- ok (mkSourceFile (folder <> from <> ".hs"))
+  target <- ok (mkSourceFile (folder <> to <> ".hs"))
+  identifier <- ok (mkIdentifier (T.pack name))
+  watched <- traverse (\o -> ok (mkSourceFile (folder <> o <> ".hs"))) others
+  moveDefinition (ghcRefactor dir) source target identifier watched
+
+-- | The two files as the plan leaves them.
+changed :: FilePath -> FilePath -> VerifiedPlan -> IO (Text, Text)
+changed from to plan = do
+  source <- ok (mkSourceFile (folder <> from <> ".hs"))
+  target <- ok (mkSourceFile (folder <> to <> ".hs"))
+  fromText <- TIO.readFile (folder <> from <> ".hs")
+  toText <- TIO.readFile (folder <> to <> ".hs")
+  case applyEditSet (\f -> if f == source then Just fromText else Just toText) (planEdits plan) of
+    Left e -> fail (show e)
+    Right m -> pure (M.findWithDefault fromText source m, M.findWithDefault toText target m)
+
+isVerificationFailure :: Either InsightError a -> Bool
+isVerificationFailure = \case
+  Left (RefactorFailure (VerificationFailed _)) -> True
+  _ -> False
+
 refusal :: RefactorError -> Either InsightError MoveFacts
 refusal = Left . RefactorFailure
 
@@ -66,7 +96,7 @@ realSpec libDir = do
             moveFrom = source,
             moveTo = target,
             moveToModule = targetName,
-            moveDefinition = definition,
+            moveSpan = definition,
             moveFromImports = fromImports,
             moveFromAnchor = fromAnchor,
             moveToImports = toImports,
@@ -78,7 +108,7 @@ realSpec libDir = do
     Right facts <- factsOf libDir "A" "B" "shout"
     moveKeepsImport facts `shouldBe` False
     expected <- spanOf (14, 1) (15, 20)
-    moveDefinition facts `shouldBe` expected
+    moveSpan facts `shouldBe` expected
   it "places imports after the module header of a target that has none, and adds no export" $ do
     Right facts <- factsOf libDir "A" "Bare" "moved"
     anchor <- AfterModuleHeader <$> at (1, 18)
@@ -95,3 +125,18 @@ realSpec libDir = do
     factsOf libDir "A" "Clash" "moved" `shouldReturn` refusal (TargetAlreadyDefines "moved")
   it "refuses a definition a pragma names" $
     factsOf libDir "Pragma" "B" "inlined" `shouldReturn` refusal HasPragmaOrAnnotation
+  it "moves a definition and leaves out the imports GHC calls unused afterwards" $ do
+    Right plan <- movedBy libDir "A" "B" "moved" []
+    planNotes plan `shouldBe` []
+    (a, b) <- changed "A" "B" plan
+    a `shouldBe` "module A (keep, moved) where\n\nimport Data.Char (toUpper)\nimport B (moved)\n\nkeep :: Int -> Int\nkeep = succ\n\nshout :: String -> String\nshout = map toUpper\n"
+    b `shouldBe` "module B (other, moved) where\n\nimport Data.List (sort)\nimport Data.List (sortOn)\nimport qualified Data.Map as M\n\nother :: [Int] -> [Int]\nother = sort\n\n-- | Pairs each number with its place in descending order.\nmoved :: [Int] -> M.Map Int Int\nmoved xs = M.fromList (zip (sortOn negate xs) xs)\n"
+  it "lists the places in other files that GHC says still need a fix" $ do
+    Right plan <- movedBy libDir "NoList" "B" "moved" ["Caller"]
+    case planNotes plan of
+      [note] -> do
+        note `shouldSatisfy` T.isInfixOf "Caller.hs"
+        note `shouldSatisfy` T.isInfixOf "does not export"
+      notes -> expectationFailure ("expected one note, got " <> show notes)
+  it "refuses a move that makes the modules import each other, with GHC's message" $
+    movedBy libDir "A" "Back" "moved" [] >>= (`shouldSatisfy` isVerificationFailure)

@@ -61,7 +61,7 @@ data MoveFacts = MoveFacts
     moveTo :: !SourceFile,
     moveToModule :: !ModuleName,
     -- | The signature, when there is one, through the end of the last equation.
-    moveDefinition :: !Span,
+    moveSpan :: !Span,
     -- | Every import declaration of the source module, as written.
     moveFromImports :: ![Span],
     moveFromAnchor :: !Anchor,
@@ -94,7 +94,7 @@ instance Monoid Pruning where
 -- with the source's imports minus the ones pruned, in the target.
 planMove :: Pruning -> Text -> Text -> MoveFacts -> Either InsightError EditSet
 planMove pruning fromSrc toSrc facts = do
-  let definition = moveDefinition facts
+  let definition = moveSpan facts
       defLine = unLine (positionLine (spanStart definition))
   unless (unColumn (positionColumn (spanStart definition)) == 1) (refuse NotATopLevelDefinition)
   let firstLine = haddockStart fromLines defLine
@@ -129,11 +129,11 @@ planMove pruning fromSrc toSrc facts = do
     edit file a b t = domain (mkSpan a b) >>= \sp -> domain (mkEdit file sp t)
     removalEnd :: Either InsightError Position
     removalEnd
-      | endLine >= length fromLines = Right (spanEnd (moveDefinition facts))
+      | endLine >= length fromLines = Right (spanEnd (moveSpan facts))
       | otherwise = domain (position next 1)
       where
         endLine :: Int
-        endLine = unLine (positionLine (spanEnd (moveDefinition facts)))
+        endLine = unLine (positionLine (spanEnd (moveSpan facts)))
         next :: Int
         next = case [n | (n, l) <- zip [1 ..] fromLines, n > endLine, not (T.all isSpace l)] of
           n : _ -> n
