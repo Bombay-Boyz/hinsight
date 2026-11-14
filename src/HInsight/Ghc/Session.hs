@@ -97,7 +97,7 @@ import GHC.Driver.Plugins
     defaultPlugin,
   )
 import GHC.Hs (ABExport (..), AbsBinds (..), GhcTc, HsBindLR (..), HsModule (..))
-import GHC.Types.Error (DiagnosticReason (..), MessageClass (..), MsgEnvelope (..), Severity (..), getMessages, ResolvedDiagnosticReason (..))
+import GHC.Types.Error (DiagnosticReason (..), MessageClass (..), MsgEnvelope (..), ResolvedDiagnosticReason (..), Severity (..), getMessages)
 import GHC.Types.Id (idName, idType)
 import GHC.Types.Name (nameOccName)
 import GHC.Types.Name.Occurrence (occNameString)
