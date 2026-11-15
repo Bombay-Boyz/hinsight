@@ -22,6 +22,7 @@ import HInsight.Hole
   ( HoleFit (..),
     HoleReport (..),
     Locality (..),
+    unUseCount,
   )
 import HInsight.Identifier (unIdentifier)
 import HInsight.Instance (renderUnresolvedInstance)
@@ -56,8 +57,11 @@ renderFit f =
     <> "  ["
     <> locality (fitLocality f)
     <> newHoles (fitMatches f)
+    <> used
     <> "]"
   where
+    used :: Text
+    used = maybe "" (\u -> ", used " <> T.pack (show (unUseCount u)) <> " in this file, counted by hinsight") (fitUses f)
     locality :: Locality -> Text
     locality = \case
       Local -> "local"

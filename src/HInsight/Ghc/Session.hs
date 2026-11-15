@@ -130,6 +130,7 @@ import HInsight.Ghc.Messages (Extracted (..), extractMessages)
 import HInsight.Ghc.Move (SourceSide, TargetSide, moveFacts, sourceSide, targetSide)
 import HInsight.Ghc.Refactor (selectionFacts)
 import HInsight.Ghc.Trace (RawMissed (..), captureHook, coreBuildFlags, coreDumpFlags, enableFlags, errorSpans, missedHook, spliceFlags, stgDumpFlags, traceFlags)
+import HInsight.Ghc.Uses (countUses, withUses)
 import HInsight.Graph (ProjectGraph)
 import HInsight.Hole (HoleReport)
 import HInsight.Identifier (Identifier, mkIdentifier)
@@ -405,17 +406,20 @@ deferredPipelines sink path = do
   seen <- liftIO (readIORef sink)
   flags <- getSessionDynFlags
   setSessionDynFlags (foldl' gopt_set flags [Opt_DeferTypeErrors, Opt_DeferTypedHoles, Opt_DeferOutOfScopeVariables])
-  flows <- handleSourceError (const (pure [])) $ do
+  found <- handleSourceError (const (pure Nothing)) $ do
     graph <- depanal [] False
-    found <- targetSummary path (mgModSummaries graph)
-    case found of
-      Nothing -> pure []
+    located <- targetSummary path (mgModSummaries graph)
+    case located of
+      Nothing -> pure Nothing
       Just summary -> do
         parsed <- parseModule summary
         typechecked <- typecheckModule parsed
-        pure (collect (tm_typechecked_source typechecked))
-  liftIO (writeIORef sink seen)
-  pure flows
+        let source = tm_typechecked_source typechecked
+            uses = countUses source
+        _ <- liftIO (evaluate (sum (M.elems uses)))
+        pure (Just (collect source, uses))
+  liftIO (writeIORef sink (maybe seen (\(_, uses) -> map (withUses uses) seen) found))
+  pure (maybe [] fst found)
 
 -- | The GHC-backed implementation of 'Deep', placing the file by its header.
 ghcDeep :: LibDir -> Deep IO

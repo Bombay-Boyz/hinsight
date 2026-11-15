@@ -86,6 +86,10 @@ genHoleFit =
     <*> resize 3 (listOf genTypeText)
     <*> oneof [pure Nothing, Just <$> genModuleAlias]
     <*> arbitrary
+    <*> oneof [pure Nothing, Just <$> genUseCount]
+
+genUseCount :: Gen UseCount
+genUseCount = suchThatMap (getNonNegative <$> arbitrary) (rightToMaybe . mkUseCount)
 
 genModuleAlias :: Gen ModuleAlias
 genModuleAlias = suchThatMap (T.pack <$> listOf1 (elements (['A' .. 'Z'] <> ".'"))) (rightToMaybe . mkModuleAlias)

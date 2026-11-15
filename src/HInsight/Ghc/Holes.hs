@@ -18,6 +18,7 @@ import HInsight.Hole
     RefinementLevel,
     mkModuleAlias,
     mkRefinementLevel,
+    mkUseCount,
     rankFits,
   )
 import HInsight.Identifier (Identifier, mkIdentifier)
@@ -45,6 +46,7 @@ fitOf file f =
     <*> traverse (convertText file) (capturedFitMatches f)
     <*> traverse (moduleAlias file) (capturedFitQualifier f)
     <*> pure (capturedFitOperator f)
+    <*> traverse (fromDomain file . mkUseCount) (capturedFitUses f)
 
 locality :: Bool -> Locality
 locality isLocal = if isLocal then Local else Imported

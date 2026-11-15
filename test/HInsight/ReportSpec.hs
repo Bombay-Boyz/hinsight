@@ -36,10 +36,16 @@ fitNamed name loc matches = do
   t <- ok (mkTypeText "Int")
   r <- ok (mkRefinementLevel (length matches))
   ms <- traverse (ok . mkTypeText . T.pack) matches
-  pure (HoleFit n t r loc ms Nothing False)
+  pure (HoleFit n t r loc ms Nothing False Nothing)
 
 spec :: Spec
 spec = do
+  describe "renderFit" $
+    it "says how often the name is used, and that hinsight counted it" $ do
+      f <- fitNamed "x" Local []
+      c <- ok (mkUseCount 3)
+      h <- holeAt [f {fitUses = Just c}]
+      T.lines (renderHoleReport h) `shouldBe` ["typed hole _ at 4:10, wanted type: Int", "  fits, best first:", "    x :: Int  [local, used 3 in this file, counted by hinsight]"]
   describe "renderHoleReport" $ do
     it "says when there are no fits" $ do
       h <- holeAt []

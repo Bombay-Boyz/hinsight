@@ -123,7 +123,7 @@ syntheticFit i = do
   name <- hush (mkIdentifier (T.pack ("f" <> show (i `mod` 977))))
   ty <- hush (mkTypeText (T.pack ("Int -> T" <> show (i `mod` 13))))
   level <- hush (mkRefinementLevel (i `mod` 3))
-  pure (HoleFit name ty level (if even i then Local else Imported) [] Nothing False)
+  pure (HoleFit name ty level (if even i then Local else Imported) [] Nothing False Nothing)
 
 analysisWithHoles :: Int -> Analysis
 analysisWithHoles n = emptyAnalysis {analysisHoles = mapMaybe holeAt [1 .. n]}

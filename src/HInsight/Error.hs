@@ -69,6 +69,8 @@ data DomainError
   | -- | A refinement level was negative. Raised by
     -- 'HInsight.Hole.mkRefinementLevel'.
     NegativeRefinement Int
+  | -- | A use count was negative. Raised by 'HInsight.Hole.mkUseCount'.
+    NegativeCount Int
   | -- | A pipeline was built with fewer than two stages. Raised by
     -- 'HInsight.Flow.mkPipeline'; carries the number given.
     TooFewStages Int
@@ -229,6 +231,7 @@ renderDomainError = \case
   BlankText what -> "the " <> what <> " is empty or only whitespace"
   IdenticalDivergence t -> "cannot diverge: both types are identical (" <> t <> ")"
   NegativeRefinement n -> "refinement level " <> tshow n <> " is negative"
+  NegativeCount n -> "use count " <> tshow n <> " is negative"
   TooFewStages n -> "a pipeline needs at least 2 stages but was given " <> tshow n
   DuplicateModule m -> "module " <> m <> " is listed twice in the project graph"
   UnknownImport m missing -> "module " <> m <> " imports " <> missing <> ", which is not in the project graph"

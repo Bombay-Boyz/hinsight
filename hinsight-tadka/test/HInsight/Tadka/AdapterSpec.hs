@@ -6,13 +6,17 @@ import Data.Maybe (isJust)
 import Data.Text qualified as T
 import HInsight.Analysis (emptyAnalysis)
 import HInsight.Analysis qualified as A
+import HInsight.Chain (ChainView (..), Chains (..), buildChains)
 import HInsight.Context (Context (..))
+import HInsight.Core (Optimisation (..), buildCore, coreOnly)
 import HInsight.Environment (mkComponentName, mkEnvironment, mkGhcFlag, mkProjectRoot, pinnedGhcVersion, summarise)
 import HInsight.Flow (FlowKind (..))
 import HInsight.Hole (Locality (..))
+import HInsight.Splice (buildSplices)
 import HInsight.Suggestion (HintKind (..))
 import HInsight.Tadka
 import HInsight.Tadka.Support
+import HInsight.Trace (parseRecord)
 import Tadka qualified as Td
 import Test.Hspec
 
@@ -128,6 +132,64 @@ spec = describe "findings" $ do
     fmap length (findings src (analysisOf [e] [] [])) `shouldBe` Left (UnusableSpan 9 1 9 4)
   it "refuses an empty source name" $
     void (namedSource "" "x") `shouldBe` Left UnnamedSource
+  describe "chainFindings" $ do
+    let chainsFor view = do
+          src <- sourceOf "abcd efgh ijkl\n"
+          binding <- span' (1, 1) (1, 15)
+          err <- span' (1, 5) (1, 7)
+          let records =
+                map
+                  parseRecord
+                  [ "Sample.hs:1:1-2:: u_tys tclvl 0 v2_b[tau:0] ~nominal Bool",
+                    "Sample.hs:1:5-6:: u_tys tclvl 0 v1_a[tau:0] ~nominal Int",
+                    "Sample.hs:1:5-6:: utype_defer nominal Int Bool"
+                  ]
+          pure (src, buildChains view [binding] [err] records)
+    it "draws a chain as advice with its own code, one related note per record" $ do
+      (src, chains) <- chainsFor WholeBinding
+      fs <- ok (chainFindings src chains)
+      case fs of
+        [f] -> do
+          fmap Td.unDiagnosticCode (Td.code f) `shouldBe` Just "hinsight::E0006"
+          Td.severity f `shouldBe` Td.SevAdvice
+          length (Td.related f) `shouldBe` 3
+          length (Td.contextLabelStates (Td.context f)) `shouldBe` 1
+        _ -> expectationFailure ("expected one finding, got " <> show (length fs))
+    it "draws nothing for no chains, and says how many errors had none" $ do
+      src <- sourceOf "x = 1\n"
+      fmap length (ok (chainFindings src (Chains [] 2))) `shouldReturn` 0
+      renderChainExtras (Chains [] 0) `shouldBe` ""
+      renderChainExtras (Chains [] 1) `shouldBe` "1 error has no chain: GHC logged no deferral at its place\n"
+      renderChainExtras (Chains [] 2) `shouldBe` "2 errors have no chain: GHC logged no deferral at its place\n"
+    it "refuses a chain whose span is not in the text" $ do
+      src <- sourceOf "x\n"
+      binding <- span' (1, 1) (1, 15)
+      err <- span' (1, 5) (1, 7)
+      let chains = buildChains WholeBinding [binding] [err] (map parseRecord ["Sample.hs:1:5-6:: utype_defer nominal Int Bool"])
+      fmap length (chainFindings src chains) `shouldBe` Left (UnusableSpan 1 5 1 7)
+  describe "spliceFindings" $ do
+    it "draws a splice at its span with what GHC says it produced, as advice with its own code" $ do
+      src <- sourceOf "x = $(litE (integerL 7))\n"
+      let splices = buildSplices ["Sample.hs:1:5-23: Splicing expression litE (integerL 7) ======> 7"]
+      fs <- ok (spliceFindings src splices)
+      case fs of
+        [f] -> do
+          fmap Td.unDiagnosticCode (Td.code f) `shouldBe` Just "hinsight::E0007"
+          Td.severity f `shouldBe` Td.SevAdvice
+          narrate f `shouldSatisfy` T.isInfixOf "produced: \"7\""
+          narrate f `shouldSatisfy` T.isInfixOf "litE (integerL 7)"
+          narrate f `shouldSatisfy` T.isInfixOf "as GHC logged it"
+        _ -> expectationFailure ("expected one finding, got " <> show (length fs))
+    it "draws nothing for no splices" $ do
+      src <- sourceOf "x = 1\n"
+      fmap length (ok (spliceFindings src (buildSplices []))) `shouldReturn` 0
+    it "says how many messages could not be read" $
+      renderSpliceExtras (buildSplices ["Sample.hs:1:5-9: Splicing expression"]) `shouldBe` "1 splice message(s) could not be read\n"
+  describe "coreLines" $
+    it "gives the Core view as lines, the first saying what was asked" $
+      case coreLines (buildCore (coreOnly Unoptimised) []) of
+        heading : _ -> heading `shouldSatisfy` T.isPrefixOf "what GHC logged for the Core of this file (unoptimised)"
+        [] -> expectationFailure "no lines"
   describe "renderExtras" $ do
     it "is empty when there is nothing beyond the diagnostics" $
       renderExtras emptyAnalysis `shouldBe` ""

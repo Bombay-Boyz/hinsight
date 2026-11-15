@@ -75,6 +75,7 @@ library
     HInsight.Ghc.Refactor
     HInsight.Ghc.Session
     HInsight.Ghc.Trace
+    HInsight.Ghc.Uses
     HInsight.Graph
     HInsight.Edit
     HInsight.Hole

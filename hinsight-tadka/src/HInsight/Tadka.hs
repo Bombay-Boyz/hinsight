@@ -12,7 +12,12 @@ module HInsight.Tadka
     FindingKind (..),
     findingKind,
     findings,
+    chainFindings,
+    spliceFindings,
+    coreLines,
     renderExtras,
+    renderChainExtras,
+    renderSpliceExtras,
     AdaptError (..),
     renderAdaptError,
     namedSource,
@@ -24,7 +29,9 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.Text (Text)
 import Data.Text qualified as T
 import HInsight.Analysis (Analysis (..))
+import HInsight.Chain (Chain, ChainView (..), Chains (..), chainOmitted, chainSpan, chainStepKindLevel, chainStepSpan, chainStepSummary, chainSteps, chainView)
 import HInsight.Context (Context (..))
+import HInsight.Core (CoreDump, renderCore)
 import HInsight.Explanation (Divergence, Explanation (..), divergenceLeft, divergenceRight)
 import HInsight.Flow (FlowKind (..), Pipeline, Stage (..), pipelineContext, pipelineKind, pipelineSpan, pipelineStages, pipelineType, unStageText)
 import HInsight.Graph (graphImportCount, renderGraph)
@@ -32,7 +39,9 @@ import HInsight.Hole (HoleFit (..), HoleReport (..), Locality (..))
 import HInsight.Identifier (unIdentifier)
 import HInsight.Instance (InstanceText, UnresolvedInstance (..), shownCandidates, unInstanceText)
 import HInsight.Report (renderEnvironmentSummary)
-import HInsight.Source (Span, positionColumn, positionLine, spanEnd, spanStart, unColumn, unLine)
+import HInsight.Source (Span, positionColumn, positionLine, renderPosition, spanEnd, spanStart, unColumn, unLine)
+import HInsight.Splice (Splice, SpliceKind (..), Splices (..), splicePending, spliceRaw, spliceResult, spliceSource, spliceSpan)
+import HInsight.Splice qualified as Splice
 import HInsight.Suggestion (Suggested (..), Suggestion, suggestionText)
 import HInsight.Tadka.Locate (offsetsOf)
 import HInsight.TypeText (TypeText, unTypeText)
@@ -75,6 +84,8 @@ data FindingKind
   | HoleKind
   | PipelineKind
   | HintsKind
+  | ChainKind
+  | SpliceFindingKind
   deriving stock (Eq, Show, Enum, Bounded)
 
 -- | Something hinsight found, ready for Tadka to draw. The constructor is not
@@ -116,6 +127,8 @@ kindCode kind = either (const Nothing) Just (Td.mkDiagnosticCode text)
       PipelineKind -> "hinsight::E0003"
       UnresolvedInstanceKind -> "hinsight::E0004"
       HintsKind -> "hinsight::E0005"
+      ChainKind -> "hinsight::E0006"
+      SpliceFindingKind -> "hinsight::E0007"
 
 -- | GHC rejects a module with a mismatch or a hole; a pipeline is only shown.
 kindSeverity :: FindingKind -> Td.Severity
@@ -125,6 +138,8 @@ kindSeverity = \case
   HoleKind -> Td.SevError
   PipelineKind -> Td.SevAdvice
   HintsKind -> Td.SevAdvice
+  ChainKind -> Td.SevAdvice
+  SpliceFindingKind -> Td.SevAdvice
 
 -- | Every finding of an analysis, mismatches first, then unresolved
 -- constraints, then holes, then pipelines, then GHC's suggestions, each group
@@ -160,6 +175,84 @@ renderExtras a = T.concat (graph <> unexplained <> environment)
     n = analysisUnexplained a
     noun :: Text
     noun = if n == 1 then "error" else "errors"
+
+-- | One finding per chain: the error's span, and one related note per record
+-- GHC logged on the way to it, in the order it logged them. A record that is
+-- between kinds is marked. The records not shown because they are not
+-- interpreted are counted in the last note.
+chainFindings :: Td.NamedSource -> Chains -> Either AdaptError [Finding]
+chainFindings src = traverse chainFinding . chainsFound
+  where
+    chainFinding :: Chain -> Either AdaptError Finding
+    chainFinding c = do
+      primary <- label src Td.Primary (chainSpan c) "GHC's trace leads up to the error here"
+      pure
+        Finding
+          { findingKind = ChainKind,
+            findingMessage = "what GHC logged on the way to an error",
+            findingContext = Td.mkContextDegrading src (primary :| []),
+            findingHelp = Just (viewHeading (chainView c)),
+            findingNotes = map stepDoc (chainSteps c) <> [pretty (T.pack (show (chainOmitted c)) <> " records not shown: not interpreted") | chainOmitted c > 0]
+          }
+    stepDoc s = pretty (renderPosition (spanStart (chainStepSpan s))) <+> pretty (chainStepSummary s) <> (if chainStepKindLevel s then " (between kinds)" else "")
+    viewHeading :: ChainView -> Doc Td.Ann
+    viewHeading = \case
+      FollowingVariables -> "the records at the error and those linked to them by a type variable, in the order GHC logged them"
+      WholeBinding -> "every record in the binding up to the error, in the order GHC logged them"
+
+-- | One finding per splice, at the splice's span, with what GHC says it
+-- produced. The notes GHC made of nested splices, and the message as GHC
+-- logged it, are carried.
+spliceFindings :: Td.NamedSource -> Splices -> Either AdaptError [Finding]
+spliceFindings src = traverse spliceFinding . splicesFound
+  where
+    spliceFinding :: Splice -> Either AdaptError Finding
+    spliceFinding s = do
+      primary <- label src Td.Primary (spliceSpan s) (producedLabel (spliceResult s))
+      pure
+        Finding
+          { findingKind = SpliceFindingKind,
+            findingMessage = textDoc (kindName (Splice.spliceKind s)) <+> "splice",
+            findingContext = Td.mkContextDegrading src (primary :| []),
+            findingHelp = Just ("source:" <+> textDoc (spliceSource s)),
+            findingNotes = map (pretty . ("GHC noted nested splices: " <>)) (splicePending s) <> map (\r -> "produced:" <+> textDoc r) (spliceResult s) <> ["as GHC logged it:" <+> pretty (T.unwords (T.words (spliceRaw s)))]
+          }
+    producedLabel :: [Text] -> Doc Td.Ann
+    producedLabel = \case
+      [] -> "produced nothing"
+      [one] -> "produced:" <+> textDoc one
+      many -> "produced" <+> pretty (length many) <+> "declarations"
+    kindName :: SpliceKind -> Text
+    kindName = \case
+      ExpressionSplice -> "expression"
+      DeclarationSplice -> "declaration"
+      TypeSplice -> "type"
+      PatternSplice -> "pattern"
+      OtherSplice word -> word
+
+-- | The Core view as lines for a pane: not a diagnostic, so drawing it is
+-- left to the application.
+coreLines :: CoreDump -> [Text]
+coreLines = T.lines . renderCore
+
+-- | What the chains could not say: how many errors have none.
+renderChainExtras :: Chains -> Text
+renderChainExtras cs
+  | n <= 0 = ""
+  | otherwise = T.pack (show n) <> (if n == 1 then " error has" else " errors have") <> " no chain: GHC logged no deferral at its place\n"
+  where
+    n :: Int
+    n = chainsMissing cs
+
+-- | What the splices could not say: errors that stopped GHC, and messages it
+-- logged that were not read.
+renderSpliceExtras :: Splices -> Text
+renderSpliceExtras ss = T.concat (blocked <> unread)
+  where
+    blocked :: [Text]
+    blocked = [T.pack (show (splicesBlocked ss)) <> " error(s) stopped GHC before it could run any splice\n" | splicesBlocked ss > 0]
+    unread :: [Text]
+    unread = [T.pack (show (splicesUnread ss)) <> " splice message(s) could not be read\n" | splicesUnread ss > 0]
 
 mismatchFinding :: Td.NamedSource -> Explanation -> Either AdaptError Finding
 mismatchFinding src e = do

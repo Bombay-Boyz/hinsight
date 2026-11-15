@@ -55,6 +55,9 @@ module HInsight
     renderSuggested,
     HoleReport (..),
     HoleFit (..),
+    UseCount,
+    mkUseCount,
+    unUseCount,
     rankFits,
 
     -- * Questions that cost a second pass
@@ -170,7 +173,7 @@ import HInsight.Error (EnvironmentError (..), InsightError (..), RefactorError (
 import HInsight.Explanation (Explanation (..), renderExplanation)
 import HInsight.Flow (FlowKind (..), Pipeline, Stage (..), StageText, pipelineContext, pipelineKind, pipelineSpan, pipelineStages, pipelineType, renderPipeline, unStageText)
 import HInsight.Graph (ModuleName, ProjectGraph, dependencyOrder, graphImportCount, graphModules, importCycles, importsOf, renderGraph, unModuleName)
-import HInsight.Hole (HoleFit (..), HoleReport (..), Locality (..), ModuleAlias, RefinementLevel, acceptFit, mkModuleAlias, mkRefinementLevel, rankFits, unModuleAlias, unRefinementLevel)
+import HInsight.Hole (HoleFit (..), HoleReport (..), Locality (..), ModuleAlias, RefinementLevel, UseCount, acceptFit, mkModuleAlias, mkRefinementLevel, mkUseCount, rankFits, unModuleAlias, unRefinementLevel, unUseCount)
 import HInsight.Identifier (Identifier, mkIdentifier, unIdentifier)
 import HInsight.Instance (InstanceText, UnresolvedInstance (..), renderUnresolvedInstance, unInstanceText)
 import HInsight.Refactor (FunctionName, mkFunctionName, unFunctionName)

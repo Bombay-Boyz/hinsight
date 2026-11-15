@@ -19,14 +19,14 @@ fitWith name level loc matches = do
   n <- ok (mkIdentifier (T.pack name))
   t <- ok (mkTypeText "Int")
   r <- ok (mkRefinementLevel level)
-  pure (HoleFit n t r loc (replicate matches t) Nothing False)
+  pure (HoleFit n t r loc (replicate matches t) Nothing False Nothing)
 
 syntheticFit :: Int -> Maybe HoleFit
 syntheticFit i = do
   n <- rightToMaybe (mkIdentifier (T.pack ("f" <> show i)))
   t <- rightToMaybe (mkTypeText "Int")
   r <- rightToMaybe (mkRefinementLevel (i `mod` 4))
-  pure (HoleFit n t r (if even i then Local else Imported) (replicate (i `mod` 3) t) Nothing False)
+  pure (HoleFit n t r (if even i then Local else Imported) (replicate (i `mod` 3) t) Nothing False Nothing)
 
 levels :: [HoleFit] -> [Int]
 levels = map (unRefinementLevel . fitRefinement)
@@ -39,6 +39,11 @@ adjacentOk fs = and (zipWith pairOk fs (drop 1 fs))
 
 spec :: Spec
 spec = do
+  describe "mkUseCount" $ do
+    it "rejects the value just below zero" $
+      mkUseCount (-1) `shouldBe` Left (NegativeCount (-1))
+    it "accepts zero" $
+      (unUseCount <$> mkUseCount 0) `shouldBe` Right 0
   describe "mkRefinementLevel" $ do
     it "rejects the value just below zero" $
       mkRefinementLevel (-1) `shouldBe` Left (NegativeRefinement (-1))

@@ -63,6 +63,13 @@ realSpec libDir = do
     results <- acceptedIn dir (ghcInsight dir) "test/fixtures/accept/Accept.hs" (\f -> unRefinementLevel (fitRefinement f) == 0)
     results `shouldSatisfy` (not . null)
     mapM_ (\(_, a) -> (analysisHoles a, analysisMismatches a, analysisUnexplained a) `shouldBe` ([], [], 0)) results
+  it "counts the places in the file that refer to a fit, and none for a fit nothing refers to" $ do
+    dir <- ok (mkLibDir libDir)
+    file <- ok (mkSourceFile "test/fixtures/uses/Uses.hs")
+    a <- analyseFile (ghcInsight dir) file >>= either (fail . show) pure
+    let usesOf name = [fmap unUseCount (fitUses f) | h <- analysisHoles a, f <- holeFits h, unIdentifier (fitName f) == name]
+    usesOf "shared" `shouldBe` [Just 3]
+    usesOf "unused" `shouldBe` [Just 0]
   it "reads the alias of a fit imported only qualified" $ do
     dir <- ok (mkLibDir libDir)
     file <- ok (mkSourceFile "test/fixtures/accept/Accept.hs")

@@ -9,6 +9,9 @@ module HInsight.Hole
     ModuleAlias,
     mkModuleAlias,
     unModuleAlias,
+    UseCount,
+    mkUseCount,
+    unUseCount,
     HoleFit (..),
     HoleReport (..),
     rankFits,
@@ -61,6 +64,21 @@ mkModuleAlias t
 unModuleAlias :: ModuleAlias -> Text
 unModuleAlias (UnsafeModuleAlias t) = t
 
+-- | How many places in a module refer to a name. Counted by hinsight over
+-- GHC's typechecked program; not a statement of GHC's. Invariant: not negative.
+newtype UseCount = UnsafeUseCount Int
+  deriving stock (Eq, Ord, Show)
+
+-- | Build a 'UseCount'; the number must not be negative.
+mkUseCount :: Int -> Either DomainError UseCount
+mkUseCount n
+  | n >= 0 = Right (UnsafeUseCount n)
+  | otherwise = Left (NegativeCount n)
+
+-- | The number inside a 'UseCount'.
+unUseCount :: UseCount -> Int
+unUseCount (UnsafeUseCount n) = n
+
 -- | One candidate that GHC found for a hole.
 data HoleFit = HoleFit
   { fitName :: !Identifier,
@@ -73,7 +91,10 @@ data HoleFit = HoleFit
     -- is imported only qualified.
     fitQualifier :: !(Maybe ModuleAlias),
     -- | Whether GHC counts the name as an operator symbol.
-    fitIsOperator :: !Bool
+    fitIsOperator :: !Bool,
+    -- | How many places in the file refer to the name, counted by hinsight;
+    -- absent for a name that is not at module level.
+    fitUses :: !(Maybe UseCount)
   }
   deriving stock (Eq, Ord, Show)
 
@@ -95,7 +116,7 @@ data HoleReport = HoleReport
 rankFits :: [HoleFit] -> [HoleFit]
 rankFits = sortOn key
   where
-    key :: HoleFit -> (RefinementLevel, Locality, Int, Identifier, TypeText, [TypeText], Maybe ModuleAlias, Bool)
+    key :: HoleFit -> (RefinementLevel, Locality, Int, Identifier, TypeText, [TypeText], Maybe ModuleAlias, Bool, Maybe UseCount)
     key f =
       ( fitRefinement f,
         fitLocality f,
@@ -104,7 +125,8 @@ rankFits = sortOn key
         fitType f,
         fitMatches f,
         fitQualifier f,
-        fitIsOperator f
+        fitIsOperator f,
+        fitUses f
       )
 
 -- | The edit that puts a fit in the place of its hole. A fit that introduces

@@ -21,14 +21,14 @@ where
 import Control.Monad.IO.Class (liftIO)
 import Data.IORef (IORef, modifyIORef')
 import Data.Maybe (listToMaybe, mapMaybe)
-import GHC (moduleNameString)
+import GHC (moduleName, moduleNameString)
 import GHC.Data.Bag (bagToList)
 import GHC.Tc.Errors.Hole.FitTypes (HoleFit (..), HoleFitCandidate (..), TypedHole (..), hfIsLcl)
 import GHC.Tc.Errors.Hole.Plugin qualified as Hole
 import GHC.Tc.Types (TcM)
 import GHC.Tc.Types.Constraint (Hole (..), ctLocSpan)
 import GHC.Tc.Utils.Monad (newTcRef)
-import GHC.Types.Name (getOccName, isSymOcc, occNameString)
+import GHC.Types.Name (getName, getOccName, isSymOcc, nameModule_maybe, occNameString)
 import GHC.Types.Name.Reader (GlobalRdrEltX (..), ImpDeclSpec (..), ImportSpec (..), rdrNameOcc)
 import GHC.Types.SrcLoc (RealSrcSpan)
 import HInsight.Ghc.Convert (renderGhcType)
@@ -41,7 +41,11 @@ data CapturedFit = CapturedFit
     capturedFitLocal :: !Bool,
     capturedFitMatches :: ![String],
     capturedFitQualifier :: !(Maybe String),
-    capturedFitOperator :: !Bool
+    capturedFitOperator :: !Bool,
+    -- | The module and name, for a name that belongs to a module.
+    capturedFitKey :: !(Maybe (String, String)),
+    -- | How many places refer to it; filled in once the module is typechecked.
+    capturedFitUses :: !(Maybe Int)
   }
   deriving stock (Eq, Show)
 
@@ -100,7 +104,9 @@ captureFit = \case
           capturedFitLocal = hfIsLcl fit,
           capturedFitMatches = map renderGhcType ms,
           capturedFitQualifier = qualifierOf candidate,
-          capturedFitOperator = isSymOcc (getOccName i)
+          capturedFitOperator = isSymOcc (getOccName i),
+          capturedFitKey = (\m -> (moduleNameString (moduleName m), occNameString (getOccName i))) <$> nameModule_maybe (getName i),
+          capturedFitUses = Nothing
         }
   RawHoleFit _ -> Nothing
 
