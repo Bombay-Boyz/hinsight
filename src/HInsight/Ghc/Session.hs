@@ -126,6 +126,7 @@ import HInsight.Ghc.Graph (RawModule, collectGraph, projectGraph)
 import HInsight.Ghc.HoleCapture (CapturedHole, holePlugin)
 import HInsight.Ghc.Holes (holeReports)
 import HInsight.Ghc.Messages (Extracted (..), extractMessages)
+import HInsight.Ghc.ChangeType (changeFacts)
 import HInsight.Ghc.Move (SourceSide, TargetSide, moveFacts, sourceSide, targetSide)
 import HInsight.Ghc.Refactor (selectionFacts)
 import HInsight.Ghc.Trace (RawMissed (..), captureHook, coreBuildFlags, coreDumpFlags, enableFlags, errorSpans, missedHook, spliceFlags, stgDumpFlags, traceFlags)
@@ -135,9 +136,11 @@ import HInsight.Identifier (Identifier, mkIdentifier)
 import HInsight.Project (sourceRoot)
 import HInsight.Refactor (ExtractFacts, FunctionName)
 import HInsight.Refactor.Handle (Refactor (..))
+import HInsight.Refactor.ChangeType (ChangeFacts)
 import HInsight.Refactor.Move (MoveFacts)
-import HInsight.Refactor.Verify (Checked (..), Checker (..), Diagnostic (..), MoveChecked (..), MoveChecker (..), VerifiedPlan, verifyExtract, verifyMove)
+import HInsight.Refactor.Verify (ChangeChecker (..), Checked (..), Checker (..), Diagnostic (..), MoveChecked (..), MoveChecker (..), VerifiedPlan, verifyChangeType, verifyExtract, verifyMove)
 import HInsight.Source (SourceFile, Span, mkSourceFile, sourceFilePath)
+import HInsight.TypeText (TypeText)
 import HInsight.Splice (Splices (..), buildSplices, emptySplices, splicesIn)
 import HInsight.Trace (Capture, RecordLimit, Trace (..), TraceRecord (..), defaultRecordLimit, emptyCapture, finishCapture, locatedIn)
 import System.Directory (canonicalizePath, doesDirectoryExist, doesFileExist)
@@ -549,11 +552,11 @@ brokenSource = RefactorFailure . FileDoesNotCompile . length . errorsOf
 -- | What GHC says of texts given in place of files, with the rest of the
 -- project, and the files it is told to watch, as they are on disk: its
 -- errors, and the imports it calls unused.
-ghcMoveCheck :: LibDir -> SourceFile -> [SourceFile] -> Map SourceFile Text -> IO (Either InsightError MoveChecked)
-ghcMoveCheck dir anchor others texts = catchSession (sourceFilePath anchor) $ do
+ghcMoveCheck :: Bool -> LibDir -> SourceFile -> [SourceFile] -> Map SourceFile Text -> IO (Either InsightError MoveChecked)
+ghcMoveCheck deferring dir anchor others texts = catchSession (sourceFilePath anchor) $ do
   logged <- newIORef []
   moves <- newIORef []
-  result <- runGhc (Just (libDirPath dir)) (movePass logged moves anchor others texts)
+  result <- runGhc (Just (libDirPath dir)) (movePass deferring logged moves anchor others texts)
   evaluate result
 
 data LoggedKind = LoggedError | LoggedUnused
@@ -565,8 +568,8 @@ data Logged = Logged
   }
 
 -- | Keep the errors GHC logs and the imports it calls unused; drop the rest.
-recordMoves :: IORef [Logged] -> LogAction -> LogAction
-recordMoves moves _original _flags messageClass location doc = case kindOf messageClass of
+recordMoves :: Bool -> IORef [Logged] -> LogAction -> LogAction
+recordMoves deferring moves _original _flags messageClass location doc = case kindOf messageClass of
   Nothing -> pure ()
   Just kind -> message `seq` modifyIORef' moves (Logged kind location message :)
   where
@@ -577,17 +580,19 @@ recordMoves moves _original _flags messageClass location doc = case kindOf messa
       MCFatal -> Just LoggedError
       MCDiagnostic SevError _ _ -> Just LoggedError
       MCDiagnostic SevWarning (ResolvedDiagnosticReason (WarningWithFlag Opt_WarnUnusedImports)) _ -> Just LoggedUnused
+      MCDiagnostic SevWarning (ResolvedDiagnosticReason (WarningWithFlag flag)) _
+        | deferring && flag `elem` [Opt_WarnDeferredTypeErrors, Opt_WarnTypedHoles, Opt_WarnDeferredOutOfScopeVariables] -> Just LoggedError
       _ -> Nothing
 
-movePass :: IORef [Text] -> IORef [Logged] -> SourceFile -> [SourceFile] -> Map SourceFile Text -> Ghc (Either InsightError MoveChecked)
-movePass logged moves anchor others texts = do
+movePass :: Bool -> IORef [Text] -> IORef [Logged] -> SourceFile -> [SourceFile] -> Map SourceFile Text -> Ghc (Either InsightError MoveChecked)
+movePass deferring logged moves anchor others texts = do
   configured <- configure FromHeader logged
   case configured of
     Left failure -> pure (Left (EnvironmentFailure failure))
     Right () -> do
-      pushLogHookM (recordMoves moves)
+      pushLogHookM (recordMoves deferring moves)
       flags <- getSessionDynFlags
-      void (setSessionDynFlags (wopt_set flags Opt_WarnUnusedImports))
+      void (setSessionDynFlags (deferral (wopt_set flags Opt_WarnUnusedImports)))
       -- The anchor's own header says where the source folder is.
       setImportPath (takeDirectory path)
       first' <- guessTarget path Nothing Nothing
@@ -604,6 +609,10 @@ movePass logged moves anchor others texts = do
         found <- traverse diagnosed entries
         Right (MoveChecked [d | (LoggedError, d) <- found] [d | (LoggedUnused, d) <- found])
   where
+    deferral :: DynFlags -> DynFlags
+    deferral flags
+      | deferring = foldl' gopt_set flags [Opt_DeferTypeErrors, Opt_DeferTypedHoles, Opt_DeferOutOfScopeVariables]
+      | otherwise = flags
     path :: FilePath
     path = sourceFilePath anchor
     watched :: [SourceFile]
@@ -638,19 +647,50 @@ ghcMoveDefinition dir from to name others = do
       texts <- catchSession fromPath (Right <$> ((,) <$> TIO.readFile fromPath <*> TIO.readFile toPath))
       case texts of
         Left failure -> pure (Left failure)
-        Right (fromText, toText) -> verifyMove (MoveChecker (ghcMoveCheck dir from (filter (`notElem` [from, to]) others))) fromText toText known
+        Right (fromText, toText) -> verifyMove (MoveChecker (ghcMoveCheck False dir from (filter (`notElem` [from, to]) others))) fromText toText known
   where
     fromPath :: FilePath
     fromPath = sourceFilePath from
     toPath :: FilePath
     toPath = sourceFilePath to
 
+-- | The plan that gives a top-level binding the type written, as GHC
+-- accepted it: the file must typecheck as it is, and with the change no
+-- error may be in it. What GHC reports in the other files is in the notes.
+ghcChangeType :: LibDir -> SourceFile -> Identifier -> TypeText -> [SourceFile] -> IO (Either InsightError VerifiedPlan)
+ghcChangeType dir file name wanted others = do
+  loaded <- catchSession path (Right <$> TIO.readFile path)
+  case loaded of
+    Left failure -> pure (Left failure)
+    Right text -> do
+      found <- catchSession path (evaluate =<< runGhc (Just (libDirPath dir)) parsedFacts)
+      case found of
+        Left failure -> pure (Left failure)
+        Right facts -> verifyChangeType checker text facts wanted
+  where
+    path :: FilePath
+    path = sourceFilePath file
+    watched :: [SourceFile]
+    watched = filter (/= file) others
+    checker :: ChangeChecker IO
+    checker = ChangeChecker (ghcMoveCheck False dir file watched) (ghcMoveCheck True dir file watched)
+    parsedFacts :: Ghc (Either InsightError ChangeFacts)
+    parsedFacts = do
+      logged <- liftIO (newIORef [])
+      found <- preparedSummary logged file
+      case found of
+        Left problem -> pure (Left problem)
+        Right summary -> handleSourceError (pure . Left . brokenSource) $ do
+          parsed <- parseModule summary
+          pure (changeFacts file name (unLoc (pm_parsed_source parsed)))
+
 -- | The GHC-backed implementation of 'Refactor'.
 ghcRefactor :: LibDir -> Refactor IO
 ghcRefactor dir =
   Refactor
     { extractFunction = ghcExtractFunction dir,
-      moveDefinition = ghcMoveDefinition dir
+      moveDefinition = ghcMoveDefinition dir,
+      changeType = ghcChangeType dir
     }
 
 -- | The plan that extracts a selection into a new top-level function, as GHC

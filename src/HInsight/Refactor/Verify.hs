@@ -7,6 +7,7 @@
 -- changed file typechecks; the plan does not claim more than that.
 module HInsight.Refactor.Verify
   ( Checked (..),
+    ChangeChecker (..),
     Checker (..),
     Diagnostic (..),
     MoveChecked (..),
@@ -14,6 +15,7 @@ module HInsight.Refactor.Verify
     VerifiedPlan,
     planEdits,
     planNotes,
+    verifyChangeType,
     verifyExtract,
     verifyMove,
   )
@@ -28,6 +30,7 @@ import Data.Text qualified as T
 import HInsight.Edit (EditSet, applyEditSet)
 import HInsight.Error (InsightError (..), RefactorError (..))
 import HInsight.Identifier (Identifier, mkIdentifier)
+import HInsight.Refactor.ChangeType (ChangeFacts (..), planChangeType)
 import HInsight.Refactor (ExtractFacts (..), FunctionName, planExtract, unFunctionName)
 import HInsight.Refactor.Move (MoveFacts (..), Pruning (..), copiedImportLines, planMove)
 import HInsight.Source (SourceFile, Span, positionLine, renderPosition, sourceFilePath, spanStart, unLine)
@@ -203,3 +206,43 @@ verifyMove checker fromSrc toSrc facts = do
       ]
     place :: Diagnostic -> Text
     place d = T.pack (sourceFilePath (diagnosticFile d)) <> maybe "" (\sp -> ":" <> renderPosition (spanStart sp)) (diagnosticSpan d) <> ": "
+
+-- | Ask GHC about a text in place of the file's own, twice over: as it is,
+-- where the first error stops it, and with type errors deferred, where it
+-- reaches every module and gives each as a message.
+data ChangeChecker m = ChangeChecker
+  { checkStrictly :: Map SourceFile Text -> m (Either InsightError MoveChecked),
+    -- | Deferred type errors, typed holes and out-of-scope names come back as errors.
+    checkDeferring :: Map SourceFile Text -> m (Either InsightError MoveChecked)
+  }
+
+-- | Plan the change, and have GHC check it. The file must typecheck as it is.
+-- An error GHC gives in the changed file refuses the change; an error it
+-- gives in another file is a note, a place the change leaves to be fixed.
+verifyChangeType :: forall m. (Monad m) => ChangeChecker m -> Text -> ChangeFacts -> TypeText -> m (Either InsightError VerifiedPlan)
+verifyChangeType checker src facts wanted = do
+  baseline <- checkStrictly checker original
+  case baseline of
+    Left failure -> pure (Left failure)
+    Right before -> case moveErrors before of
+      [] -> case planChangeType facts wanted >>= applied of
+        Left failure -> pure (Left failure)
+        Right (set, texts) -> do
+          after <- checkDeferring checker texts
+          pure $ after >>= \checked -> case filter ours (moveErrors checked) of
+            bad : _ -> Left (RefactorFailure (VerificationFailed (diagnosticText bad)))
+            [] -> Right (UnsafeVerifiedPlan set [placeNote d | d <- moveErrors checked])
+      errors -> pure (Left (RefactorFailure (FileDoesNotCompile (length errors))))
+  where
+    file :: SourceFile
+    file = changeFile facts
+    original :: Map SourceFile Text
+    original = M.singleton file src
+    ours :: Diagnostic -> Bool
+    ours d = diagnosticFile d == file
+    applied :: EditSet -> Either InsightError (EditSet, Map SourceFile Text)
+    applied set = case applyEditSet (`M.lookup` original) set of
+      Left _ -> Left (RefactorFailure SelectionNotInText)
+      Right changed -> Right (set, M.union changed original)
+    placeNote :: Diagnostic -> Text
+    placeNote d = "GHC reports a place still to fix: " <> T.pack (sourceFilePath (diagnosticFile d)) <> maybe "" (\sp -> ":" <> renderPosition (spanStart sp)) (diagnosticSpan d) <> ": " <> diagnosticText d

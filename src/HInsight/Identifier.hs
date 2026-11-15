@@ -5,9 +5,11 @@ module HInsight.Identifier
   ( Identifier,
     mkIdentifier,
     unIdentifier,
+    valueName,
   )
 where
 
+import Data.Char (isAlpha)
 import Data.Text (Text)
 import Data.Text qualified as T
 import HInsight.Error (DomainError (..))
@@ -25,3 +27,10 @@ mkIdentifier t
 -- | The text inside an 'Identifier'.
 unIdentifier :: Identifier -> Text
 unIdentifier (UnsafeIdentifier t) = t
+
+-- | The name as an expression writes it: an operator in parentheses, any
+-- other name as it is.
+valueName :: Identifier -> Text
+valueName i = case T.uncons (unIdentifier i) of
+  Just (c, _) | isAlpha c || c == '_' -> unIdentifier i
+  _ -> "(" <> unIdentifier i <> ")"

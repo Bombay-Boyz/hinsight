@@ -14,7 +14,7 @@ where
 
 import Control.Monad (unless)
 import Data.Bifunctor (first)
-import Data.Char (isAlpha, isAlphaNum, isSpace)
+import Data.Char (isAlphaNum, isSpace)
 import Data.List (findIndices)
 import Data.Maybe (listToMaybe)
 import Data.Text (Text)
@@ -22,7 +22,7 @@ import Data.Text qualified as T
 import HInsight.Edit (Edit, EditSet, endOfText, mkEdit, mkEditSet, offsetOf)
 import HInsight.Error (DomainError, InsightError (..), RefactorError (..))
 import HInsight.Graph (ModuleName, unModuleName)
-import HInsight.Identifier (Identifier, unIdentifier)
+import HInsight.Identifier (Identifier, valueName)
 import HInsight.Source
   ( Position,
     SourceFile,
@@ -141,9 +141,7 @@ planMove pruning fromSrc toSrc facts = do
     importLine :: Text
     importLine = "import " <> unModuleName (moveToModule facts) <> " (" <> nameText <> ")"
     nameText :: Text
-    nameText = case T.uncons (unIdentifier (moveName facts)) of
-      Just (c, _) | isAlpha c || c == '_' -> unIdentifier (moveName facts)
-      _ -> "(" <> unIdentifier (moveName facts) <> ")"
+    nameText = valueName (moveName facts)
     -- The pruned source imports that sit alone on their lines.
     prunable :: [Span]
     prunable = [sp | sp <- pruneSource pruning, wholeLines sp]

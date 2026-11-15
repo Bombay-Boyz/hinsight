@@ -18,6 +18,7 @@ import HInsight.Identifier (Identifier)
 import HInsight.Refactor (FunctionName)
 import HInsight.Refactor.Verify (VerifiedPlan)
 import HInsight.Source (SourceFile, Span)
+import HInsight.TypeText (TypeText)
 
 -- | The refactorings, over an effect @m@.
 data Refactor m = Refactor
@@ -28,5 +29,10 @@ data Refactor m = Refactor
     -- the imports it needs, from the first file into the second, as GHC
     -- accepted it. The files after those two are checked too: what GHC still
     -- reports in them is in the plan's notes.
-    moveDefinition :: SourceFile -> SourceFile -> Identifier -> [SourceFile] -> m (Either InsightError VerifiedPlan)
+    moveDefinition :: SourceFile -> SourceFile -> Identifier -> [SourceFile] -> m (Either InsightError VerifiedPlan),
+    -- | The plan that gives a top-level binding the type written, in its
+    -- signature or in a new one. The files after the first are checked too:
+    -- what GHC reports in them, now that the type changed, is in the plan's
+    -- notes.
+    changeType :: SourceFile -> Identifier -> TypeText -> [SourceFile] -> m (Either InsightError VerifiedPlan)
   }

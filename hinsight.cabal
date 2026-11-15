@@ -63,6 +63,7 @@ library
     HInsight.Explanation
     HInsight.Flow
     HInsight.Ghc.Bindings
+    HInsight.Ghc.ChangeType
     HInsight.Ghc.Convert
     HInsight.Ghc.Environment
     HInsight.Ghc.Flow
@@ -81,6 +82,7 @@ library
     HInsight.Instance
     HInsight.Project
     HInsight.Refactor
+    HInsight.Refactor.ChangeType
     HInsight.Refactor.Handle
     HInsight.Refactor.Move
     HInsight.Refactor.Verify
@@ -157,6 +159,8 @@ test-suite hinsight-test
     HInsight.IdentifierSpec
     HInsight.InstanceSpec
     HInsight.ProjectSpec
+    HInsight.ChangeTypeGhcSpec
+    HInsight.ChangeTypeSpec
     HInsight.MoveGhcSpec
     HInsight.MoveVerifySpec
     HInsight.MoveSpec
