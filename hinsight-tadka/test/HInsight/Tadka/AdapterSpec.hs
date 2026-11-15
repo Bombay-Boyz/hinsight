@@ -165,7 +165,7 @@ spec = describe "findings" $ do
       src <- sourceOf "x\n"
       binding <- span' (1, 1) (1, 15)
       err <- span' (1, 5) (1, 7)
-      let chains = buildChains WholeBinding [binding] [err] (map parseRecord ["Sample.hs:1:5-6:: utype_defer nominal Int Bool"])
+      let chains = buildChains WholeBinding [binding] [err] [parseRecord "Sample.hs:1:5-6:: utype_defer nominal Int Bool"]
       fmap length (chainFindings src chains) `shouldBe` Left (UnusableSpan 1 5 1 7)
   describe "spliceFindings" $ do
     it "draws a splice at its span with what GHC says it produced, as advice with its own code" $ do
