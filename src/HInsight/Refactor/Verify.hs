@@ -30,8 +30,8 @@ import Data.Text qualified as T
 import HInsight.Edit (EditSet, applyEditSet)
 import HInsight.Error (InsightError (..), RefactorError (..))
 import HInsight.Identifier (Identifier, mkIdentifier)
-import HInsight.Refactor.ChangeType (ChangeFacts (..), planChangeType)
 import HInsight.Refactor (ExtractFacts (..), FunctionName, planExtract, unFunctionName)
+import HInsight.Refactor.ChangeType (ChangeFacts (..), planChangeType)
 import HInsight.Refactor.Move (MoveFacts (..), Pruning (..), copiedImportLines, planMove)
 import HInsight.Source (SourceFile, Span, positionLine, renderPosition, sourceFilePath, spanStart, unLine)
 import HInsight.TypeText (TypeText)
@@ -229,9 +229,10 @@ verifyChangeType checker src facts wanted = do
         Left failure -> pure (Left failure)
         Right (set, texts) -> do
           after <- checkDeferring checker texts
-          pure $ after >>= \checked -> case filter ours (moveErrors checked) of
-            bad : _ -> Left (RefactorFailure (VerificationFailed (diagnosticText bad)))
-            [] -> Right (UnsafeVerifiedPlan set [placeNote d | d <- moveErrors checked])
+          pure $
+            after >>= \checked -> case filter ours (moveErrors checked) of
+              bad : _ -> Left (RefactorFailure (VerificationFailed (diagnosticText bad)))
+              [] -> Right (UnsafeVerifiedPlan set [placeNote d | d <- moveErrors checked])
       errors -> pure (Left (RefactorFailure (FileDoesNotCompile (length errors))))
   where
     file :: SourceFile

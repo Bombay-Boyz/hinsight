@@ -3,6 +3,8 @@ module Main (main) where
 import HInsight.AcceptGhcSpec qualified
 import HInsight.ChainGhcSpec qualified
 import HInsight.ChainSpec qualified
+import HInsight.ChangeTypeGhcSpec qualified
+import HInsight.ChangeTypeSpec qualified
 import HInsight.CliSpec qualified
 import HInsight.CoreGhcSpec qualified
 import HInsight.CoreSpec qualified
@@ -18,8 +20,6 @@ import HInsight.GraphSpec qualified
 import HInsight.HoleSpec qualified
 import HInsight.IdentifierSpec qualified
 import HInsight.InstanceSpec qualified
-import HInsight.ChangeTypeGhcSpec qualified
-import HInsight.ChangeTypeSpec qualified
 import HInsight.MoveGhcSpec qualified
 import HInsight.MoveSpec qualified
 import HInsight.MoveVerifySpec qualified
