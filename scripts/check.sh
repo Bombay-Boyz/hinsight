@@ -13,8 +13,11 @@
 #   sh scripts/check.sh profile
 #       Build the benchmark with profiling, run it, and show the cost centres
 #       that take the most time and allocation.
+#   sh scripts/check.sh fixtures
+#       Compare what GHC prints for the splice, trace and Core fixtures with
+#       the committed captures (scripts/refresh-fixtures.sh --check).
 #   sh scripts/check.sh all
-#       compat, dead and bench, in that order.
+#       compat, dead, fixtures and bench, in that order.
 #
 # Variables: SLOWER (percent slower than baseline that counts as a regression,
 # default 20), WEEDER_VERSION (default 2.11.0), GHC_VERSION (the compiler used
@@ -225,12 +228,14 @@ case $cmd in
   dead) dead ;;
   bench) bench "$@" ;;
   profile) profile ;;
+  fixtures) sh scripts/refresh-fixtures.sh --check ;;
   all)
     rc=0
     compat "$@" || rc=1
     dead || rc=1
+    sh scripts/refresh-fixtures.sh --check || rc=1
     bench || rc=1
     exit $rc
     ;;
-  *) sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+  *) sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac
