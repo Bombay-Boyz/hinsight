@@ -1,0 +1,39 @@
+[1 of 2] Compiling Lib              ( Lib.hs, <scratch>/build-splices-Use/Lib.o, <scratch>/build-splices-Use/Lib.dyn_o )
+[2 of 2] Compiling Use              ( Use.hs, <scratch>/build-splices-Use/Use.o )
+Use.hs:8:6-24: Splicing expression litE (integerL 7) ======> 7
+Use.hs:11:6-39: Splicing expression
+    [| 1 + $(litE (integerL 2)) |]
+    pending(rn) [<spn_a2yN, litE (integerL 2)>]
+  ======>
+    (1 + 2)
+Use.hs:16:2-18: Splicing declarations
+    mkConst "k1" 10
+  ======>
+    k1 :: Integer
+    k1 = 10
+Use.hs:18:1-15: Splicing declarations
+    mkConst "k2" 20
+  ======>
+    k2 :: Integer
+    k2 = 20
+Use.hs:20:2-77: Splicing declarations
+    do ds_a2Aw <- mkConst "k3" 30
+       e_a2Ay <- [| $(litE (integerL 1)) |]
+                 pending(rn) [<spn_a2Ax, litE (integerL 1)>]
+       return ds_a2Aw
+  ======>
+    k3 :: Integer
+    k3 = 30
+Use.hs:25:7-15: Splicing type tupleT2 ======> (Int, Bool)
+Use.hs:23:13-27: Splicing expression twice [| 3 |] ======> (3 + 3)
+Use.hs:29:4-10: Splicing pattern justP ======> Just _
+Use.hs:33:10-16: Splicing expression
+    Language.Haskell.TH.Quote.quoteExp str "hello" ======> "hello"
+Use.hs:36:18-36: Splicing expression litE (integerL 9) ======> 9
+Use.hs:14:7-16: Splicing expression typedOne ======> 1
+Use.hs:1:47-55: warning: [GHC-42044] [-Wunrecognised-pragmas]
+    Unrecognised pragma: HLINT
+  |
+1 | {-# LANGUAGE TemplateHaskell, QuasiQuotes #-} {-# HLINT ignore "Redundant bracket" #-}
+  |                                               ^^^^^^^^^
+

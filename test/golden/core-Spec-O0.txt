@@ -1,0 +1,294 @@
+[1 of 1] Compiling Spec             ( Spec.hs, <scratch>/build-core-Spec-O0/Spec.o )
+
+==================== Tidy Core ====================
+Result size of Tidy Core
+  = {terms: 184, types: 122, coercions: 9, joins: 0/6}
+
+-- RHS size: {terms: 3, types: 3, coercions: 2, joins: 0/0}
+area [InlPrag=INLINE] :: forall a. Shape a => a -> Double
+[GblId[ClassOp], Arity=1, Str=<SL>, Unf=OtherCon []]
+area
+  = \ (@a_awx) (v_B1 :: Shape a_awx) ->
+      v_B1
+      `cast` (Spec.N:Shape[0] <a_awx>_N
+              :: Shape a_awx ~R# (a_awx -> Double))
+
+-- RHS size: {terms: 5, types: 2, coercions: 2, joins: 0/0}
+$carea_rWB :: Sq -> Double
+[GblId, Arity=1, Unf=OtherCon []]
+$carea_rWB
+  = \ (ds_dWn :: Sq) ->
+      * @Double
+        GHC.Internal.Float.$fNumDouble
+        (ds_dWn `cast` (Spec.N:Sq[0] :: Sq ~R# Double))
+        (ds_dWn `cast` (Spec.N:Sq[0] :: Sq ~R# Double))
+
+-- RHS size: {terms: 1, types: 0, coercions: 3, joins: 0/0}
+Spec.$fShapeSq [InlPrag=INLINE (sat-args=0)] :: Shape Sq
+[GblId[DFunId(nt)], Arity=1, Unf=OtherCon []]
+Spec.$fShapeSq
+  = $carea_rWB
+    `cast` (Sym (Spec.N:Shape[0] <Sq>_N)
+            :: (Sq -> Double) ~R# Shape Sq)
+
+Rec {
+-- RHS size: {terms: 15, types: 15, coercions: 0, joins: 0/0}
+mymap [InlPrag=NOINLINE[1], Occ=LoopBreaker]
+  :: forall a b. (a -> b) -> [a] -> [b]
+[GblId, Arity=2, Unf=OtherCon []]
+mymap
+  = \ (@a_aSy)
+      (@b_aSz)
+      (ds_dWh :: a_aSy -> b_aSz)
+      (ds1_dWi :: [a_aSy]) ->
+      case ds1_dWi of {
+        [] -> GHC.Types.[] @b_aSz;
+        : x_azh xs_azi ->
+          GHC.Types.:
+            @b_aSz (ds_dWh x_azh) (mymap @a_aSy @b_aSz ds_dWh xs_azi)
+      }
+end Rec }
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+$trModule1_rWC :: GHC.Prim.Addr#
+[GblId, Unf=OtherCon []]
+$trModule1_rWC = "main"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+$trModule2_rWD :: GHC.Types.TrName
+[GblId, Unf=OtherCon []]
+$trModule2_rWD = GHC.Types.TrNameS $trModule1_rWC
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+$trModule3_rWE :: GHC.Prim.Addr#
+[GblId, Unf=OtherCon []]
+$trModule3_rWE = "Spec"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+$trModule4_rWF :: GHC.Types.TrName
+[GblId, Unf=OtherCon []]
+$trModule4_rWF = GHC.Types.TrNameS $trModule3_rWE
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+Spec.$trModule :: GHC.Types.Module
+[GblId, Unf=OtherCon []]
+Spec.$trModule = GHC.Types.Module $trModule2_rWD $trModule4_rWF
+
+-- RHS size: {terms: 3, types: 1, coercions: 0, joins: 0/0}
+$krep_rWG :: GHC.Types.KindRep
+[GblId, Unf=OtherCon []]
+$krep_rWG
+  = GHC.Types.KindRepTyConApp
+      GHC.Types.$tcDouble (GHC.Types.[] @GHC.Types.KindRep)
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+$krep1_rWH :: GHC.Types.KindRep
+[GblId, Unf=OtherCon []]
+$krep1_rWH
+  = GHC.Types.KindRepFun GHC.Types.krep$* GHC.Types.krep$Constraint
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+$krep2_rWI :: GHC.Types.KindRep
+[GblId, Unf=OtherCon []]
+$krep2_rWI = GHC.Types.KindRepVar 0#
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+$krep3_rWJ :: GHC.Types.KindRep
+[GblId, Unf=OtherCon []]
+$krep3_rWJ = GHC.Types.KindRepFun $krep2_rWI $krep_rWG
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+$tcShape1_rWK :: GHC.Prim.Addr#
+[GblId, Unf=OtherCon []]
+$tcShape1_rWK = "Shape"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+$tcShape2_rWL :: GHC.Types.TrName
+[GblId, Unf=OtherCon []]
+$tcShape2_rWL = GHC.Types.TrNameS $tcShape1_rWK
+
+-- RHS size: {terms: 7, types: 0, coercions: 0, joins: 0/0}
+Spec.$tcShape :: GHC.Types.TyCon
+[GblId, Unf=OtherCon []]
+Spec.$tcShape
+  = GHC.Types.TyCon
+      9386022168553519181#Word64
+      1551831434318234716#Word64
+      Spec.$trModule
+      $tcShape2_rWL
+      0#
+      $krep1_rWH
+
+-- RHS size: {terms: 3, types: 2, coercions: 0, joins: 0/0}
+$krep4_rWM :: [GHC.Types.KindRep]
+[GblId, Unf=OtherCon []]
+$krep4_rWM
+  = GHC.Types.:
+      @GHC.Types.KindRep $krep2_rWI (GHC.Types.[] @GHC.Types.KindRep)
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+$krep5_rWN :: GHC.Types.KindRep
+[GblId, Unf=OtherCon []]
+$krep5_rWN = GHC.Types.KindRepTyConApp Spec.$tcShape $krep4_rWM
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+$krep6_rWO :: GHC.Types.KindRep
+[GblId, Unf=OtherCon []]
+$krep6_rWO = GHC.Types.KindRepFun $krep3_rWJ $krep5_rWN
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+$tc'C:Shape1_rWP :: GHC.Prim.Addr#
+[GblId, Unf=OtherCon []]
+$tc'C:Shape1_rWP = "'C:Shape"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+$tc'C:Shape2_rWQ :: GHC.Types.TrName
+[GblId, Unf=OtherCon []]
+$tc'C:Shape2_rWQ = GHC.Types.TrNameS $tc'C:Shape1_rWP
+
+-- RHS size: {terms: 7, types: 0, coercions: 0, joins: 0/0}
+Spec.$tc'C:Shape :: GHC.Types.TyCon
+[GblId, Unf=OtherCon []]
+Spec.$tc'C:Shape
+  = GHC.Types.TyCon
+      17868146261553436999#Word64
+      10395566325686405843#Word64
+      Spec.$trModule
+      $tc'C:Shape2_rWQ
+      1#
+      $krep6_rWO
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+$tcSq1_rWR :: GHC.Prim.Addr#
+[GblId, Unf=OtherCon []]
+$tcSq1_rWR = "Sq"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+$tcSq2_rWS :: GHC.Types.TrName
+[GblId, Unf=OtherCon []]
+$tcSq2_rWS = GHC.Types.TrNameS $tcSq1_rWR
+
+-- RHS size: {terms: 7, types: 0, coercions: 0, joins: 0/0}
+Spec.$tcSq :: GHC.Types.TyCon
+[GblId, Unf=OtherCon []]
+Spec.$tcSq
+  = GHC.Types.TyCon
+      4009232702766773409#Word64
+      1554268974307566154#Word64
+      Spec.$trModule
+      $tcSq2_rWS
+      0#
+      GHC.Types.krep$*
+
+-- RHS size: {terms: 3, types: 1, coercions: 0, joins: 0/0}
+$krep7_rWT :: GHC.Types.KindRep
+[GblId, Unf=OtherCon []]
+$krep7_rWT
+  = GHC.Types.KindRepTyConApp
+      Spec.$tcSq (GHC.Types.[] @GHC.Types.KindRep)
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+$krep8_rWU :: GHC.Types.KindRep
+[GblId, Unf=OtherCon []]
+$krep8_rWU = GHC.Types.KindRepFun $krep_rWG $krep7_rWT
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+$tc'Sq1_rWV :: GHC.Prim.Addr#
+[GblId, Unf=OtherCon []]
+$tc'Sq1_rWV = "'Sq"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+$tc'Sq2_rWW :: GHC.Types.TrName
+[GblId, Unf=OtherCon []]
+$tc'Sq2_rWW = GHC.Types.TrNameS $tc'Sq1_rWV
+
+-- RHS size: {terms: 7, types: 0, coercions: 0, joins: 0/0}
+Spec.$tc'Sq :: GHC.Types.TyCon
+[GblId, Unf=OtherCon []]
+Spec.$tc'Sq
+  = GHC.Types.TyCon
+      5870444601292572992#Word64
+      6404047078472211901#Word64
+      Spec.$trModule
+      $tc'Sq2_rWW
+      0#
+      $krep8_rWU
+
+-- RHS size: {terms: 24, types: 18, coercions: 0, joins: 0/4}
+useMap :: [Int] -> [Int]
+[GblId, Arity=1, Unf=OtherCon []]
+useMap
+  = \ (xs_aKn :: [Int]) ->
+      mymap
+        @Int
+        @Int
+        (let {
+           v_B1 :: Int -> Int -> Int
+           [LclId]
+           v_B1 = + @Int GHC.Internal.Num.$fNumInt } in
+         let {
+           v1_B3 :: Int
+           [LclId, Unf=OtherCon []]
+           v1_B3 = GHC.Types.I# 1# } in
+         \ (v2_B2 :: Int) -> v_B1 v2_B2 v1_B3)
+        (mymap
+           @Int
+           @Int
+           (let {
+              v_B1 :: Int -> Int -> Int
+              [LclId]
+              v_B1 = * @Int GHC.Internal.Num.$fNumInt } in
+            let {
+              v1_B3 :: Int
+              [LclId, Unf=OtherCon []]
+              v1_B3 = GHC.Types.I# 2# } in
+            \ (v2_B2 :: Int) -> v_B1 v2_B2 v1_B3)
+           xs_aKn)
+
+-- RHS size: {terms: 20, types: 12, coercions: 0, joins: 0/2}
+fused :: Int -> Int
+[GblId, Arity=1, Unf=OtherCon []]
+fused
+  = \ (n_aKo :: Int) ->
+      sum
+        @[]
+        GHC.Internal.Data.Foldable.$fFoldableList
+        @Int
+        GHC.Internal.Num.$fNumInt
+        (map
+           @Int
+           @Int
+           (let {
+              v_B1 :: Int -> Int -> Int
+              [LclId]
+              v_B1 = * @Int GHC.Internal.Num.$fNumInt } in
+            let {
+              v1_B3 :: Int
+              [LclId, Unf=OtherCon []]
+              v1_B3 = GHC.Types.I# 2# } in
+            \ (v2_B2 :: Int) -> v_B1 v2_B2 v1_B3)
+           (enumFromTo
+              @Int GHC.Internal.Enum.$fEnumInt (GHC.Types.I# 1#) n_aKo))
+
+-- RHS size: {terms: 8, types: 12, coercions: 2, joins: 0/0}
+total :: forall a. Shape a => [a] -> Double
+[GblId, Arity=1, Unf=OtherCon []]
+total
+  = \ (@a_aS2) ($dShape_aS3 :: Shape a_aS2) ->
+      . @[Double]
+        @Double
+        @[a_aS2]
+        (sum
+           @[]
+           GHC.Internal.Data.Foldable.$fFoldableList
+           @Double
+           GHC.Internal.Float.$fNumDouble)
+        (map
+           @a_aS2
+           @Double
+           ($dShape_aS3
+            `cast` (Spec.N:Shape[0] <a_aS2>_N
+                    :: Shape a_aS2 ~R# (a_aS2 -> Double))))
+
+
+

@@ -1,0 +1,1036 @@
+[1 of 1] Compiling Spec             ( Spec.hs, <scratch>/build-core-Spec/Spec.o )
+Rule fired: Class op * (BUILTIN)
+Rule fired: Class op + (BUILTIN)
+Rule fired: Class op * (BUILTIN)
+Rule fired: mymap/mymap (Spec)
+Rule fired: Class op sum (BUILTIN)
+Rule fired: Class op + (BUILTIN)
+Rule fired: Class op fromInteger (BUILTIN)
+Rule fired: Int# -> Integer -> Int# (GHC.Num.Integer)
+Rule fired: Class op * (BUILTIN)
+Rule fired: Class op enumFromTo (BUILTIN)
+Rule fired: map (GHC.Internal.Base)
+Rule fired: fold/build (GHC.Internal.Base)
+Rule fired: Class op sum (BUILTIN)
+Rule fired: Class op + (BUILTIN)
+Rule fired: Class op fromInteger (BUILTIN)
+Rule fired: Int# -> Integer -> Double# (GHC.Internal.Float)
+Rule fired: int2Double# (BUILTIN)
+Rule fired: map (GHC.Internal.Base)
+Rule fired: Class op sum (BUILTIN)
+Rule fired: Class op + (BUILTIN)
+Rule fired: Class op fromInteger (BUILTIN)
+Rule fired: Int# -> Integer -> Double# (GHC.Internal.Float)
+Rule fired: int2Double# (BUILTIN)
+Rule fired: map (GHC.Internal.Base)
+Rule fired: fold/build (GHC.Internal.Base)
+Rule fired: fold/build (GHC.Internal.Base)
+
+==================== Specialise ====================
+Result size of Specialise
+  = {terms: 232, types: 151, coercions: 7, joins: 0/0}
+
+-- RHS size: {terms: 4, types: 1, coercions: 2, joins: 0/0}
+$carea_aTr :: Sq -> Double
+[LclId,
+ Arity=1,
+ Unf=Unf{Src=<vanilla>, TopLvl=False,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [0] 30 0}]
+$carea_aTr
+  = \ (ds_dWn :: Sq) ->
+      GHC.Internal.Float.timesDouble
+        (ds_dWn `cast` (Spec.N:Sq[0] :: Sq ~R# Double))
+        (ds_dWn `cast` (Spec.N:Sq[0] :: Sq ~R# Double))
+
+-- RHS size: {terms: 1, types: 0, coercions: 3, joins: 0/0}
+Spec.$fShapeSq [InlPrag=INLINE (sat-args=0)] :: Shape Sq
+[LclIdX[DFunId(nt)],
+ Arity=1,
+ Unf=Unf{Src=StableUser, TopLvl=True,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=ALWAYS_IF(arity=0,unsat_ok=False,boring_ok=True)
+         Tmpl= $carea_aTr
+               `cast` (Sym (Spec.N:Shape[0] <Sq>_N)
+                       :: (Sq -> Double) ~R# Shape Sq)}]
+Spec.$fShapeSq
+  = $carea_aTr
+    `cast` (Sym (Spec.N:Shape[0] <Sq>_N)
+            :: (Sq -> Double) ~R# Shape Sq)
+
+Rec {
+-- RHS size: {terms: 15, types: 15, coercions: 0, joins: 0/0}
+mymap [InlPrag=NOINLINE[1], Occ=LoopBreaker]
+  :: forall a b. (a -> b) -> [a] -> [b]
+[LclIdX,
+ Arity=2,
+ Unf=Unf{Src=<vanilla>, TopLvl=True,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [60 30] 80 20},
+ RULES: "mymap/mymap"
+            forall (@b_aTM)
+                   (@b_aTX)
+                   (@a_aTU)
+                   (f_aKp :: b_aTX -> b_aTM)
+                   (g_aKq :: a_aTU -> b_aTX)
+                   (xs_aKr :: [a_aTU]).
+              mymap @b_aTX @b_aTM f_aKp (mymap @a_aTU @b_aTX g_aKq xs_aKr)
+              = mymap @a_aTU @b_aTM (. @b_aTX @b_aTM @a_aTU f_aKp g_aKq) xs_aKr]
+mymap
+  = \ (@a_aSy)
+      (@b_aSz)
+      (ds_dWh :: a_aSy -> b_aSz)
+      (ds_dWi :: [a_aSy]) ->
+      case ds_dWi of {
+        [] -> GHC.Types.[] @b_aSz;
+        : x_azh xs_azi ->
+          GHC.Types.:
+            @b_aSz (ds_dWh x_azh) (mymap @a_aSy @b_aSz ds_dWh xs_azi)
+      }
+end Rec }
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+$trModule_sWo :: GHC.Prim.Addr#
+[LclId,
+ Unf=Unf{Src=<vanilla>, TopLvl=False,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 20 0}]
+$trModule_sWo = "main"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+$trModule_sWp :: GHC.Types.TrName
+[LclId,
+ Unf=Unf{Src=<vanilla>, TopLvl=False,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+$trModule_sWp = GHC.Types.TrNameS $trModule_sWo
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+$trModule_sWq :: GHC.Prim.Addr#
+[LclId,
+ Unf=Unf{Src=<vanilla>, TopLvl=False,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 20 0}]
+$trModule_sWq = "Spec"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+$trModule_sWr :: GHC.Types.TrName
+[LclId,
+ Unf=Unf{Src=<vanilla>, TopLvl=False,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+$trModule_sWr = GHC.Types.TrNameS $trModule_sWq
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+Spec.$trModule :: GHC.Types.Module
+[LclIdX,
+ Unf=Unf{Src=<vanilla>, TopLvl=False,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+Spec.$trModule = GHC.Types.Module $trModule_sWp $trModule_sWr
+
+-- RHS size: {terms: 3, types: 1, coercions: 0, joins: 0/0}
+$krep_aW5 [InlPrag=[~]] :: GHC.Types.KindRep
+[LclId,
+ Unf=Unf{Src=<vanilla>, TopLvl=False,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+$krep_aW5
+  = GHC.Types.KindRepTyConApp
+      GHC.Types.$tcDouble (GHC.Types.[] @GHC.Types.KindRep)
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+$krep_aW7 [InlPrag=[~]] :: GHC.Types.KindRep
+[LclId,
+ Unf=Unf{Src=<vanilla>, TopLvl=False,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+$krep_aW7
+  = GHC.Types.KindRepFun GHC.Types.krep$* GHC.Types.krep$Constraint
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+$krep_sWs :: Int
+[LclId,
+ Unf=Unf{Src=<vanilla>, TopLvl=False,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+$krep_sWs = GHC.Types.I# 0#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+$krep_aWa [InlPrag=[~]] :: GHC.Types.KindRep
+[LclId,
+ Unf=Unf{Src=<vanilla>, TopLvl=False,
+         Value=False, ConLike=True, WorkFree=False, Expandable=True,
+         Guidance=IF_ARGS [] 20 0}]
+$krep_aWa = GHC.Types.$WKindRepVar $krep_sWs
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+$krep_aW9 [InlPrag=[~]] :: GHC.Types.KindRep
+[LclId,
+ Unf=Unf{Src=<vanilla>, TopLvl=False,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+$krep_aW9 = GHC.Types.KindRepFun $krep_aWa $krep_aW5
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+$tcShape_sWt :: GHC.Prim.Addr#
+[LclId,
+ Unf=Unf{Src=<vanilla>, TopLvl=False,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 30 0}]
+$tcShape_sWt = "Shape"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+$tcShape_sWu :: GHC.Types.TrName
+[LclId,
+ Unf=Unf{Src=<vanilla>, TopLvl=False,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+$tcShape_sWu = GHC.Types.TrNameS $tcShape_sWt
+
+-- RHS size: {terms: 7, types: 0, coercions: 0, joins: 0/0}
+Spec.$tcShape :: GHC.Types.TyCon
+[LclIdX,
+ Unf=Unf{Src=<vanilla>, TopLvl=False,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+Spec.$tcShape
+  = GHC.Types.TyCon
+      9386022168553519181#Word64
+      1551831434318234716#Word64
+      Spec.$trModule
+      $tcShape_sWu
+      0#
+      $krep_aW7
+
+-- RHS size: {terms: 3, types: 2, coercions: 0, joins: 0/0}
+$krep_sWv :: [GHC.Types.KindRep]
+[LclId,
+ Unf=Unf{Src=<vanilla>, TopLvl=False,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+$krep_sWv
+  = GHC.Types.:
+      @GHC.Types.KindRep $krep_aWa (GHC.Types.[] @GHC.Types.KindRep)
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+$krep_aWb [InlPrag=[~]] :: GHC.Types.KindRep
+[LclId,
+ Unf=Unf{Src=<vanilla>, TopLvl=False,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+$krep_aWb = GHC.Types.KindRepTyConApp Spec.$tcShape $krep_sWv
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+$krep_aW8 [InlPrag=[~]] :: GHC.Types.KindRep
+[LclId,
+ Unf=Unf{Src=<vanilla>, TopLvl=False,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+$krep_aW8 = GHC.Types.KindRepFun $krep_aW9 $krep_aWb
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+$tc'C:Shape_sWw :: GHC.Prim.Addr#
+[LclId,
+ Unf=Unf{Src=<vanilla>, TopLvl=False,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 30 0}]
+$tc'C:Shape_sWw = "'C:Shape"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+$tc'C:Shape_sWx :: GHC.Types.TrName
+[LclId,
+ Unf=Unf{Src=<vanilla>, TopLvl=False,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+$tc'C:Shape_sWx = GHC.Types.TrNameS $tc'C:Shape_sWw
+
+-- RHS size: {terms: 7, types: 0, coercions: 0, joins: 0/0}
+Spec.$tc'C:Shape :: GHC.Types.TyCon
+[LclIdX,
+ Unf=Unf{Src=<vanilla>, TopLvl=False,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+Spec.$tc'C:Shape
+  = GHC.Types.TyCon
+      17868146261553436999#Word64
+      10395566325686405843#Word64
+      Spec.$trModule
+      $tc'C:Shape_sWx
+      1#
+      $krep_aW8
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+$tcSq_sWy :: GHC.Prim.Addr#
+[LclId,
+ Unf=Unf{Src=<vanilla>, TopLvl=False,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 20 0}]
+$tcSq_sWy = "Sq"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+$tcSq_sWz :: GHC.Types.TrName
+[LclId,
+ Unf=Unf{Src=<vanilla>, TopLvl=False,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+$tcSq_sWz = GHC.Types.TrNameS $tcSq_sWy
+
+-- RHS size: {terms: 7, types: 0, coercions: 0, joins: 0/0}
+Spec.$tcSq :: GHC.Types.TyCon
+[LclIdX,
+ Unf=Unf{Src=<vanilla>, TopLvl=False,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+Spec.$tcSq
+  = GHC.Types.TyCon
+      4009232702766773409#Word64
+      1554268974307566154#Word64
+      Spec.$trModule
+      $tcSq_sWz
+      0#
+      GHC.Types.krep$*
+
+-- RHS size: {terms: 3, types: 1, coercions: 0, joins: 0/0}
+$krep_aW6 [InlPrag=[~]] :: GHC.Types.KindRep
+[LclId,
+ Unf=Unf{Src=<vanilla>, TopLvl=False,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+$krep_aW6
+  = GHC.Types.KindRepTyConApp
+      Spec.$tcSq (GHC.Types.[] @GHC.Types.KindRep)
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+$krep_aW4 [InlPrag=[~]] :: GHC.Types.KindRep
+[LclId,
+ Unf=Unf{Src=<vanilla>, TopLvl=False,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+$krep_aW4 = GHC.Types.KindRepFun $krep_aW5 $krep_aW6
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+$tc'Sq_sWA :: GHC.Prim.Addr#
+[LclId,
+ Unf=Unf{Src=<vanilla>, TopLvl=False,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 20 0}]
+$tc'Sq_sWA = "'Sq"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+$tc'Sq_sWB :: GHC.Types.TrName
+[LclId,
+ Unf=Unf{Src=<vanilla>, TopLvl=False,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+$tc'Sq_sWB = GHC.Types.TrNameS $tc'Sq_sWA
+
+-- RHS size: {terms: 7, types: 0, coercions: 0, joins: 0/0}
+Spec.$tc'Sq :: GHC.Types.TyCon
+[LclIdX,
+ Unf=Unf{Src=<vanilla>, TopLvl=False,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+Spec.$tc'Sq
+  = GHC.Types.TyCon
+      5870444601292572992#Word64
+      6404047078472211901#Word64
+      Spec.$trModule
+      $tc'Sq_sWB
+      0#
+      $krep_aW4
+
+-- RHS size: {terms: 13, types: 7, coercions: 0, joins: 0/0}
+useMap :: [Int] -> [Int]
+[LclIdX,
+ Arity=1,
+ Unf=Unf{Src=<vanilla>, TopLvl=False,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [0] 62 0}]
+useMap
+  = \ (xs_aKn :: [Int]) ->
+      mymap
+        @Int
+        @Int
+        (\ (x_aWX :: Int) ->
+           case x_aWX of { GHC.Types.I# x_aWN ->
+           GHC.Types.I# (GHC.Prim.+# (GHC.Prim.*# x_aWN 2#) 1#)
+           })
+        xs_aKn
+
+-- RHS size: {terms: 40, types: 29, coercions: 0, joins: 0/0}
+fused :: Int -> Int
+[LclIdX,
+ Arity=1,
+ Unf=Unf{Src=<vanilla>, TopLvl=False,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [20] 282 0}]
+fused
+  = \ (n_aKo :: Int) ->
+      GHC.Internal.Base.foldr
+        @Int
+        @(Int -> Int)
+        (GHC.Internal.Base.mapFB
+           @Int
+           @(Int -> Int)
+           @Int
+           (\ (ds_a1bK :: Int)
+              (ds1_a1bL [OS=OneShot] :: Int -> Int)
+              (v_a1bM [OS=OneShot] :: Int) ->
+              case v_a1bM of { GHC.Types.I# ipv_s1f2 ->
+              ds1_a1bL
+                (case ds_a1bK of { GHC.Types.I# y_aWI ->
+                 GHC.Types.I# (GHC.Prim.+# ipv_s1f2 y_aWI)
+                 })
+              })
+           (\ (v_B2 :: Int) ->
+              case v_B2 of { GHC.Types.I# x_aWN ->
+              GHC.Types.I# (GHC.Prim.*# x_aWN 2#)
+              }))
+        (id @Int)
+        (case n_aKo of { GHC.Types.I# y_a1eN ->
+         GHC.Internal.Base.build
+           @Int
+           (\ (@b_a1eJ)
+              (c_a1eK [OS=OneShot] :: Int -> b_a1eJ -> b_a1eJ)
+              (n_a1eL [OS=OneShot] :: b_a1eJ) ->
+              GHC.Internal.Enum.eftIntFB @b_a1eJ c_a1eK n_a1eL 1# y_a1eN)
+         })
+        (GHC.Types.I# 0#)
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+z0_a1bI :: Double
+[LclId,
+ Unf=Unf{Src=<vanilla>, TopLvl=False,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+z0_a1bI = GHC.Types.D# 0.0##
+
+-- RHS size: {terms: 21, types: 18, coercions: 0, joins: 0/0}
+$stotal_dWg :: [Sq] -> Double
+[LclId,
+ Arity=1,
+ Unf=Unf{Src=<vanilla>, TopLvl=False,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [0] 161 0}]
+$stotal_dWg
+  = \ (x_aWX :: [Sq]) ->
+      GHC.Internal.Base.foldr
+        @Sq
+        @(Double -> Double)
+        (GHC.Internal.Base.mapFB
+           @Double
+           @(Double -> Double)
+           @Sq
+           (\ (ds_a1bK :: Double)
+              (ds1_a1bL [OS=OneShot] :: Double -> Double)
+              (v_a1bM [OS=OneShot] :: Double) ->
+              case v_a1bM of { GHC.Types.D# ipv_s1fi ->
+              ds1_a1bL
+                (case ds_a1bK of { GHC.Types.D# y_a1fg ->
+                 GHC.Types.D# (GHC.Prim.+## ipv_s1fi y_a1fg)
+                 })
+              })
+           $carea_aTr)
+        (id @Double)
+        x_aWX
+        z0_a1bI
+
+-- RHS size: {terms: 24, types: 21, coercions: 2, joins: 0/0}
+total :: forall a. Shape a => [a] -> Double
+[LclIdX,
+ Arity=2,
+ Unf=Unf{Src=<vanilla>, TopLvl=False,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [0 0] 171 0},
+ RULES: "USPEC total @Sq"
+            forall ($dShape_aSv :: Shape Sq).
+              total @Sq $dShape_aSv
+              = $stotal_dWg]
+total
+  = \ (@a_aS2) ($dShape_aS3 :: Shape a_aS2) (eta_B0 :: [a_aS2]) ->
+      GHC.Internal.Base.foldr
+        @a_aS2
+        @(Double -> Double)
+        (GHC.Internal.Base.mapFB
+           @Double
+           @(Double -> Double)
+           @a_aS2
+           (\ (ds_a1bK :: Double)
+              (ds1_a1bL [OS=OneShot] :: Double -> Double)
+              (v_a1bM [OS=OneShot] :: Double) ->
+              case v_a1bM of { GHC.Types.D# ipv_s1fk ->
+              ds1_a1bL
+                (case ds_a1bK of { GHC.Types.D# y_a1fg ->
+                 GHC.Types.D# (GHC.Prim.+## ipv_s1fk y_a1fg)
+                 })
+              })
+           ($dShape_aS3
+            `cast` (Spec.N:Shape[0] <a_aS2>_N
+                    :: Shape a_aS2 ~R# (a_aS2 -> Double))))
+        (id @Double)
+        eta_B0
+        (GHC.Types.D# 0.0##)
+
+
+
+Rule fired: fold/build (GHC.Internal.Base)
+
+==================== Tidy Core ====================
+Result size of Tidy Core
+  = {terms: 238, types: 138, coercions: 10, joins: 2/2}
+
+-- RHS size: {terms: 3, types: 3, coercions: 2, joins: 0/0}
+area [InlPrag=INLINE] :: forall a. Shape a => a -> Double
+[GblId[ClassOp],
+ Arity=1,
+ Str=<SL>,
+ Unf=Unf{Src=StableSystem, TopLvl=True,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=ALWAYS_IF(arity=1,unsat_ok=False,boring_ok=True)
+         Tmpl= \ (@a_awx) (v_B1 [Occ=Once1] :: Shape a_awx) ->
+                 v_B1
+                 `cast` (Spec.N:Shape[0] <a_awx>_N
+                         :: Shape a_awx ~R# (a_awx -> Double))}]
+area
+  = \ (@a_awx) (v_B1 :: Shape a_awx) ->
+      v_B1
+      `cast` (Spec.N:Shape[0] <a_awx>_N
+              :: Shape a_awx ~R# (a_awx -> Double))
+
+-- RHS size: {terms: 4, types: 1, coercions: 2, joins: 0/0}
+Spec.$fShapeSq_$carea :: Sq -> Double
+[GblId,
+ Arity=1,
+ Str=<S!P(L)>,
+ Cpr=1,
+ Unf=Unf{Src=StableSystem, TopLvl=True,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=ALWAYS_IF(arity=1,unsat_ok=True,boring_ok=False)
+         Tmpl= \ (ds_dWn :: Sq) ->
+                 GHC.Internal.Float.timesDouble
+                   (ds_dWn `cast` (Spec.N:Sq[0] :: Sq ~R# Double))
+                   (ds_dWn `cast` (Spec.N:Sq[0] :: Sq ~R# Double))}]
+Spec.$fShapeSq_$carea
+  = \ (ds_dWn :: Sq) ->
+      GHC.Internal.Float.timesDouble
+        (ds_dWn `cast` (Spec.N:Sq[0] :: Sq ~R# Double))
+        (ds_dWn `cast` (Spec.N:Sq[0] :: Sq ~R# Double))
+
+-- RHS size: {terms: 1, types: 0, coercions: 3, joins: 0/0}
+Spec.$fShapeSq [InlPrag=INLINE (sat-args=0)] :: Shape Sq
+[GblId[DFunId(nt)],
+ Arity=1,
+ Str=<S!P(L)>,
+ Unf=Unf{Src=StableUser, TopLvl=True,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=ALWAYS_IF(arity=0,unsat_ok=False,boring_ok=True)
+         Tmpl= Spec.$fShapeSq_$carea
+               `cast` (Sym (Spec.N:Shape[0] <Sq>_N)
+                       :: (Sq -> Double) ~R# Shape Sq)}]
+Spec.$fShapeSq
+  = Spec.$fShapeSq_$carea
+    `cast` (Sym (Spec.N:Shape[0] <Sq>_N)
+            :: (Sq -> Double) ~R# Shape Sq)
+
+Rec {
+-- RHS size: {terms: 15, types: 15, coercions: 0, joins: 0/0}
+mymap [InlPrag=NOINLINE[1], Occ=LoopBreaker]
+  :: forall a b. (a -> b) -> [a] -> [b]
+[GblId, Arity=2, Str=<L><1L>, Unf=OtherCon []]
+mymap
+  = \ (@a_aSy)
+      (@b_aSz)
+      (ds_dWh :: a_aSy -> b_aSz)
+      (ds1_dWi :: [a_aSy]) ->
+      case ds1_dWi of {
+        [] -> GHC.Types.[] @b_aSz;
+        : x_azh xs_azi ->
+          GHC.Types.:
+            @b_aSz (ds_dWh x_azh) (mymap @a_aSy @b_aSz ds_dWh xs_azi)
+      }
+end Rec }
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+Spec.$trModule4 :: GHC.Prim.Addr#
+[GblId,
+ Unf=Unf{Src=<vanilla>, TopLvl=True,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 20 0}]
+Spec.$trModule4 = "main"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+Spec.$trModule3 :: GHC.Types.TrName
+[GblId,
+ Unf=Unf{Src=<vanilla>, TopLvl=True,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+Spec.$trModule3 = GHC.Types.TrNameS Spec.$trModule4
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+Spec.$trModule2 :: GHC.Prim.Addr#
+[GblId,
+ Unf=Unf{Src=<vanilla>, TopLvl=True,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 20 0}]
+Spec.$trModule2 = "Spec"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+Spec.$trModule1 :: GHC.Types.TrName
+[GblId,
+ Unf=Unf{Src=<vanilla>, TopLvl=True,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+Spec.$trModule1 = GHC.Types.TrNameS Spec.$trModule2
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+Spec.$trModule :: GHC.Types.Module
+[GblId,
+ Unf=Unf{Src=<vanilla>, TopLvl=True,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+Spec.$trModule = GHC.Types.Module Spec.$trModule3 Spec.$trModule1
+
+-- RHS size: {terms: 3, types: 1, coercions: 0, joins: 0/0}
+$krep_r1hv :: GHC.Types.KindRep
+[GblId, Unf=OtherCon []]
+$krep_r1hv
+  = GHC.Types.KindRepTyConApp
+      GHC.Types.$tcDouble (GHC.Types.[] @GHC.Types.KindRep)
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+Spec.$tcShape1 [InlPrag=[~]] :: GHC.Types.KindRep
+[GblId, Unf=OtherCon []]
+Spec.$tcShape1
+  = GHC.Types.KindRepFun GHC.Types.krep$* GHC.Types.krep$Constraint
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+$krep1_r1hw :: GHC.Types.KindRep
+[GblId, Unf=OtherCon []]
+$krep1_r1hw = GHC.Types.KindRepVar 0#
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+$krep2_r1hx :: GHC.Types.KindRep
+[GblId, Unf=OtherCon []]
+$krep2_r1hx = GHC.Types.KindRepFun $krep1_r1hw $krep_r1hv
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+Spec.$tcShape3 :: GHC.Prim.Addr#
+[GblId,
+ Unf=Unf{Src=<vanilla>, TopLvl=True,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 30 0}]
+Spec.$tcShape3 = "Shape"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+Spec.$tcShape2 :: GHC.Types.TrName
+[GblId,
+ Unf=Unf{Src=<vanilla>, TopLvl=True,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+Spec.$tcShape2 = GHC.Types.TrNameS Spec.$tcShape3
+
+-- RHS size: {terms: 7, types: 0, coercions: 0, joins: 0/0}
+Spec.$tcShape :: GHC.Types.TyCon
+[GblId,
+ Unf=Unf{Src=<vanilla>, TopLvl=True,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+Spec.$tcShape
+  = GHC.Types.TyCon
+      9386022168553519181#Word64
+      1551831434318234716#Word64
+      Spec.$trModule
+      Spec.$tcShape2
+      0#
+      Spec.$tcShape1
+
+-- RHS size: {terms: 3, types: 2, coercions: 0, joins: 0/0}
+$krep3_r1hy :: [GHC.Types.KindRep]
+[GblId, Unf=OtherCon []]
+$krep3_r1hy
+  = GHC.Types.:
+      @GHC.Types.KindRep $krep1_r1hw (GHC.Types.[] @GHC.Types.KindRep)
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+$krep4_r1hz :: GHC.Types.KindRep
+[GblId, Unf=OtherCon []]
+$krep4_r1hz = GHC.Types.KindRepTyConApp Spec.$tcShape $krep3_r1hy
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+Spec.$tc'C:Shape1 [InlPrag=[~]] :: GHC.Types.KindRep
+[GblId, Unf=OtherCon []]
+Spec.$tc'C:Shape1 = GHC.Types.KindRepFun $krep2_r1hx $krep4_r1hz
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+Spec.$tc'C:Shape3 :: GHC.Prim.Addr#
+[GblId,
+ Unf=Unf{Src=<vanilla>, TopLvl=True,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 30 0}]
+Spec.$tc'C:Shape3 = "'C:Shape"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+Spec.$tc'C:Shape2 :: GHC.Types.TrName
+[GblId,
+ Unf=Unf{Src=<vanilla>, TopLvl=True,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+Spec.$tc'C:Shape2 = GHC.Types.TrNameS Spec.$tc'C:Shape3
+
+-- RHS size: {terms: 7, types: 0, coercions: 0, joins: 0/0}
+Spec.$tc'C:Shape :: GHC.Types.TyCon
+[GblId,
+ Unf=Unf{Src=<vanilla>, TopLvl=True,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+Spec.$tc'C:Shape
+  = GHC.Types.TyCon
+      17868146261553436999#Word64
+      10395566325686405843#Word64
+      Spec.$trModule
+      Spec.$tc'C:Shape2
+      1#
+      Spec.$tc'C:Shape1
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+Spec.$tcSq2 :: GHC.Prim.Addr#
+[GblId,
+ Unf=Unf{Src=<vanilla>, TopLvl=True,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 20 0}]
+Spec.$tcSq2 = "Sq"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+Spec.$tcSq1 :: GHC.Types.TrName
+[GblId,
+ Unf=Unf{Src=<vanilla>, TopLvl=True,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+Spec.$tcSq1 = GHC.Types.TrNameS Spec.$tcSq2
+
+-- RHS size: {terms: 7, types: 0, coercions: 0, joins: 0/0}
+Spec.$tcSq :: GHC.Types.TyCon
+[GblId,
+ Unf=Unf{Src=<vanilla>, TopLvl=True,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+Spec.$tcSq
+  = GHC.Types.TyCon
+      4009232702766773409#Word64
+      1554268974307566154#Word64
+      Spec.$trModule
+      Spec.$tcSq1
+      0#
+      GHC.Types.krep$*
+
+-- RHS size: {terms: 3, types: 1, coercions: 0, joins: 0/0}
+$krep5_r1hA :: GHC.Types.KindRep
+[GblId, Unf=OtherCon []]
+$krep5_r1hA
+  = GHC.Types.KindRepTyConApp
+      Spec.$tcSq (GHC.Types.[] @GHC.Types.KindRep)
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+Spec.$tc'Sq1 [InlPrag=[~]] :: GHC.Types.KindRep
+[GblId, Unf=OtherCon []]
+Spec.$tc'Sq1 = GHC.Types.KindRepFun $krep_r1hv $krep5_r1hA
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+Spec.$tc'Sq3 :: GHC.Prim.Addr#
+[GblId,
+ Unf=Unf{Src=<vanilla>, TopLvl=True,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 20 0}]
+Spec.$tc'Sq3 = "'Sq"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+Spec.$tc'Sq2 :: GHC.Types.TrName
+[GblId,
+ Unf=Unf{Src=<vanilla>, TopLvl=True,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+Spec.$tc'Sq2 = GHC.Types.TrNameS Spec.$tc'Sq3
+
+-- RHS size: {terms: 7, types: 0, coercions: 0, joins: 0/0}
+Spec.$tc'Sq :: GHC.Types.TyCon
+[GblId,
+ Unf=Unf{Src=<vanilla>, TopLvl=True,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+Spec.$tc'Sq
+  = GHC.Types.TyCon
+      5870444601292572992#Word64
+      6404047078472211901#Word64
+      Spec.$trModule
+      Spec.$tc'Sq2
+      0#
+      Spec.$tc'Sq1
+
+-- RHS size: {terms: 10, types: 3, coercions: 0, joins: 0/0}
+Spec.useMap1 :: Int -> Int
+[GblId,
+ Arity=1,
+ Str=<1!P(L)>,
+ Cpr=1,
+ Unf=Unf{Src=StableSystem, TopLvl=True,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=ALWAYS_IF(arity=1,unsat_ok=True,boring_ok=False)
+         Tmpl= \ (x_aWX [Occ=Once1!] :: Int) ->
+                 case x_aWX of { GHC.Types.I# x1_aWN [Occ=Once1] ->
+                 GHC.Types.I# (GHC.Prim.+# (GHC.Prim.*# x1_aWN 2#) 1#)
+                 }}]
+Spec.useMap1
+  = \ (x_aWX :: Int) ->
+      case x_aWX of { GHC.Types.I# x1_aWN ->
+      GHC.Types.I# (GHC.Prim.+# (GHC.Prim.*# x1_aWN 2#) 1#)
+      }
+
+-- RHS size: {terms: 4, types: 4, coercions: 0, joins: 0/0}
+useMap :: [Int] -> [Int]
+[GblId,
+ Arity=1,
+ Str=<1L>,
+ Unf=Unf{Src=<vanilla>, TopLvl=True,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [0] 30 0}]
+useMap = \ (xs_aKn :: [Int]) -> mymap @Int @Int Spec.useMap1 xs_aKn
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+Spec.fused1 :: Int
+[GblId,
+ Unf=Unf{Src=<vanilla>, TopLvl=True,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+Spec.fused1 = GHC.Types.I# 0#
+
+-- RHS size: {terms: 38, types: 10, coercions: 0, joins: 1/1}
+fused :: Int -> Int
+[GblId,
+ Arity=1,
+ Str=<1!P(L)>,
+ Cpr=1,
+ Unf=Unf{Src=StableSystem, TopLvl=True,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=ALWAYS_IF(arity=1,unsat_ok=True,boring_ok=False)
+         Tmpl= \ (n_aKo [Occ=Once1!] :: Int) ->
+                 case n_aKo of { GHC.Types.I# y_a1eN ->
+                 case GHC.Prim.># 1# y_a1eN of {
+                   __DEFAULT ->
+                     joinrec {
+                       go3_a1fI [InlPrag=[2], Occ=T[2], Dmd=LC(S,C(1,!P(L)))]
+                         :: GHC.Prim.Int# -> Int -> Int
+                       [LclId[JoinId(2)(Just [~, !])],
+                        Arity=2,
+                        Str=<L><S!P(L)>,
+                        Unf=Unf{Src=StableSystem, TopLvl=False,
+                                Value=True, ConLike=True, WorkFree=True, Expandable=True,
+                                Guidance=ALWAYS_IF(arity=2,unsat_ok=True,boring_ok=False)
+                                Tmpl= \ (x_s1gv [Occ=Once1] :: GHC.Prim.Int#)
+                                        (v_s1gw [Occ=Once1!, OS=OneShot] :: Int) ->
+                                        case v_s1gw of { GHC.Types.I# ww_s1gy [Occ=Once1] ->
+                                        jump $wgo3_s1gB x_s1gv ww_s1gy
+                                        }}]
+                       go3_a1fI (x_s1gv [Occ=Once1] :: GHC.Prim.Int#)
+                                (v_s1gw [Occ=Once1!, OS=OneShot] :: Int)
+                         = case v_s1gw of { GHC.Types.I# ww_s1gy [Occ=Once1] ->
+                           jump $wgo3_s1gB x_s1gv ww_s1gy
+                           };
+                       $wgo3_s1gB [InlPrag=[2], Occ=LoopBreakerT[2]]
+                         :: GHC.Prim.Int# -> GHC.Prim.Int# -> Int
+                       [LclId[JoinId(2)(Nothing)], Arity=2, Str=<L><L>, Unf=OtherCon []]
+                       $wgo3_s1gB (x_s1gv :: GHC.Prim.Int#)
+                                  (ww_s1gy [Occ=Once2] :: GHC.Prim.Int#)
+                         = case GHC.Prim.==# x_s1gv y_a1eN of {
+                             __DEFAULT ->
+                               jump go3_a1fI
+                                 (GHC.Prim.+# x_s1gv 1#)
+                                 (GHC.Types.I# (GHC.Prim.+# ww_s1gy (GHC.Prim.*# x_s1gv 2#)));
+                             1# -> GHC.Types.I# (GHC.Prim.+# ww_s1gy (GHC.Prim.*# x_s1gv 2#))
+                           }; } in
+                     jump go3_a1fI 1# Spec.fused1;
+                   1# -> Spec.fused1
+                 }
+                 }}]
+fused
+  = \ (n_aKo :: Int) ->
+      case n_aKo of { GHC.Types.I# y_a1eN ->
+      case GHC.Prim.># 1# y_a1eN of {
+        __DEFAULT ->
+          joinrec {
+            $wgo3_s1gB [InlPrag=[2], Occ=LoopBreaker, Dmd=SC(S,C(1,!P(L)))]
+              :: GHC.Prim.Int# -> GHC.Prim.Int# -> Int
+            [LclId[JoinId(2)(Nothing)], Arity=2, Str=<L><L>, Unf=OtherCon []]
+            $wgo3_s1gB (x_s1gv :: GHC.Prim.Int#) (ww_s1gy :: GHC.Prim.Int#)
+              = case GHC.Prim.==# x_s1gv y_a1eN of {
+                  __DEFAULT ->
+                    jump $wgo3_s1gB
+                      (GHC.Prim.+# x_s1gv 1#)
+                      (GHC.Prim.+# ww_s1gy (GHC.Prim.*# x_s1gv 2#));
+                  1# -> GHC.Types.I# (GHC.Prim.+# ww_s1gy (GHC.Prim.*# x_s1gv 2#))
+                }; } in
+          jump $wgo3_s1gB 1# 0#;
+        1# -> Spec.fused1
+      }
+      }
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+Spec.total_z0 :: Double
+[GblId,
+ Unf=Unf{Src=<vanilla>, TopLvl=True,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=IF_ARGS [] 10 10}]
+Spec.total_z0 = GHC.Types.D# 0.0##
+
+Rec {
+-- RHS size: {terms: 18, types: 10, coercions: 1, joins: 0/0}
+$wgo1_r1hB :: [Sq] -> GHC.Prim.Double# -> Double
+[GblId[StrictWorker([!])], Arity=2, Str=<1L><L>, Unf=OtherCon []]
+$wgo1_r1hB
+  = \ (ds_s1gK :: [Sq]) (ww_s1gN :: GHC.Prim.Double#) ->
+      case ds_s1gK of {
+        [] -> GHC.Types.D# ww_s1gN;
+        : y_a1g4 ys_a1g5 ->
+          case y_a1g4 `cast` (Spec.N:Sq[0] :: Sq ~R# Double) of
+          { GHC.Types.D# x_a1fQ ->
+          $wgo1_r1hB
+            ys_a1g5 (GHC.Prim.+## ww_s1gN (GHC.Prim.*## x_a1fQ x_a1fQ))
+          }
+      }
+end Rec }
+
+-- RHS size: {terms: 4, types: 2, coercions: 0, joins: 0/0}
+Spec.total_$stotal :: [Sq] -> Double
+[GblId,
+ Arity=1,
+ Str=<1L>,
+ Cpr=1,
+ Unf=Unf{Src=StableSystem, TopLvl=True,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=ALWAYS_IF(arity=1,unsat_ok=True,boring_ok=False)
+         Tmpl= \ (x_aWX [Occ=Once1] :: [Sq]) ->
+                 joinrec {
+                   go1_a1g0 [InlPrag=[2], Occ=T[2], Dmd=LC(S,C(1,!P(L)))]
+                     :: [Sq] -> Double -> Double
+                   [LclId[JoinId(2)(Just [!, !])],
+                    Arity=2,
+                    Str=<SL><S!P(L)>,
+                    Unf=Unf{Src=StableSystem, TopLvl=False,
+                            Value=True, ConLike=True, WorkFree=True, Expandable=True,
+                            Guidance=ALWAYS_IF(arity=2,unsat_ok=True,boring_ok=False)
+                            Tmpl= \ (ds_s1gK [Occ=Once1] :: [Sq])
+                                    (eta_s1gL [Occ=Once1!, OS=OneShot] :: Double) ->
+                                    case eta_s1gL of { GHC.Types.D# ww_s1gN [Occ=Once1] ->
+                                    jump $wgo2_s1gQ ds_s1gK ww_s1gN
+                                    }}]
+                   go1_a1g0 (ds_s1gK [Occ=Once1] :: [Sq])
+                            (eta_s1gL [Occ=Once1!, OS=OneShot] :: Double)
+                     = case eta_s1gL of { GHC.Types.D# ww_s1gN [Occ=Once1] ->
+                       jump $wgo2_s1gQ ds_s1gK ww_s1gN
+                       };
+                   $wgo2_s1gQ [InlPrag=[2], Occ=LoopBreakerT[2]]
+                     :: [Sq] -> GHC.Prim.Double# -> Double
+                   [LclId[JoinId(2)(Just [!])], Arity=2, Str=<SL><L>, Unf=OtherCon []]
+                   $wgo2_s1gQ (ds_s1gK [Occ=Once1!] :: [Sq])
+                              (ww_s1gN [Occ=Once2] :: GHC.Prim.Double#)
+                     = case ds_s1gK of {
+                         [] -> GHC.Types.D# ww_s1gN;
+                         : y_a1g4 [Occ=Once1!] ys_a1g5 [Occ=Once1] ->
+                           case y_a1g4 `cast` (Spec.N:Sq[0] :: Sq ~R# Double) of
+                           { GHC.Types.D# x1_a1fQ ->
+                           jump go1_a1g0
+                             ys_a1g5
+                             (GHC.Types.D#
+                                (GHC.Prim.+## ww_s1gN (GHC.Prim.*## x1_a1fQ x1_a1fQ)))
+                           }
+                       }; } in
+                 jump go1_a1g0 x_aWX Spec.total_z0}]
+Spec.total_$stotal = \ (x_aWX :: [Sq]) -> $wgo1_r1hB x_aWX 0.0##
+
+-- RHS size: {terms: 24, types: 19, coercions: 2, joins: 1/1}
+total :: forall a. Shape a => [a] -> Double
+[GblId,
+ Arity=2,
+ Str=<LC(S,L)><1L>,
+ Cpr=1,
+ Unf=Unf{Src=StableSystem, TopLvl=True,
+         Value=True, ConLike=True, WorkFree=True, Expandable=True,
+         Guidance=ALWAYS_IF(arity=2,unsat_ok=True,boring_ok=False)
+         Tmpl= \ (@a_aS2)
+                 ($dShape_aS3 [Occ=OnceL1] :: Shape a_aS2)
+                 (eta_B0 [Occ=Once1] :: [a_aS2]) ->
+                 joinrec {
+                   go1_a1g0 [InlPrag=[2], Occ=T[2], Dmd=LC(S,C(1,!P(L)))]
+                     :: [a_aS2] -> Double -> Double
+                   [LclId[JoinId(2)(Just [!, !])],
+                    Arity=2,
+                    Str=<SL><S!P(L)>,
+                    Unf=Unf{Src=StableSystem, TopLvl=False,
+                            Value=True, ConLike=True, WorkFree=True, Expandable=True,
+                            Guidance=ALWAYS_IF(arity=2,unsat_ok=True,boring_ok=False)
+                            Tmpl= \ (ds_s1gW [Occ=Once1] :: [a_aS2])
+                                    (eta1_s1gX [Occ=Once1!, OS=OneShot] :: Double) ->
+                                    case eta1_s1gX of { GHC.Types.D# ww_s1gZ [Occ=Once1] ->
+                                    jump $wgo2_s1h2 ds_s1gW ww_s1gZ
+                                    }}]
+                   go1_a1g0 (ds_s1gW [Occ=Once1] :: [a_aS2])
+                            (eta1_s1gX [Occ=Once1!, OS=OneShot] :: Double)
+                     = case eta1_s1gX of { GHC.Types.D# ww_s1gZ [Occ=Once1] ->
+                       jump $wgo2_s1h2 ds_s1gW ww_s1gZ
+                       };
+                   $wgo2_s1h2 [InlPrag=[2], Occ=LoopBreakerT[2]]
+                     :: [a_aS2] -> GHC.Prim.Double# -> Double
+                   [LclId[JoinId(2)(Just [!])], Arity=2, Str=<SL><L>, Unf=OtherCon []]
+                   $wgo2_s1h2 (ds_s1gW [Occ=Once1!] :: [a_aS2])
+                              (ww_s1gZ [Occ=Once2] :: GHC.Prim.Double#)
+                     = case ds_s1gW of {
+                         [] -> GHC.Types.D# ww_s1gZ;
+                         : y_a1g4 [Occ=Once1] ys_a1g5 [Occ=Once1] ->
+                           case ($dShape_aS3
+                                 `cast` (Spec.N:Shape[0] <a_aS2>_N
+                                         :: Shape a_aS2 ~R# (a_aS2 -> Double)))
+                                  y_a1g4
+                           of
+                           { GHC.Types.D# y1_a1fg [Occ=Once1] ->
+                           jump go1_a1g0 ys_a1g5 (GHC.Types.D# (GHC.Prim.+## ww_s1gZ y1_a1fg))
+                           }
+                       }; } in
+                 jump go1_a1g0 eta_B0 Spec.total_z0}]
+total
+  = \ (@a_aS2) ($dShape_aS3 :: Shape a_aS2) (eta_B0 :: [a_aS2]) ->
+      joinrec {
+        $wgo2_s1h2 [InlPrag=[2], Occ=LoopBreaker, Dmd=SC(S,C(1,!P(L)))]
+          :: [a_aS2] -> GHC.Prim.Double# -> Double
+        [LclId[JoinId(2)(Just [!])], Arity=2, Str=<1L><L>, Unf=OtherCon []]
+        $wgo2_s1h2 (ds_s1gW :: [a_aS2]) (ww_s1gZ :: GHC.Prim.Double#)
+          = case ds_s1gW of {
+              [] -> GHC.Types.D# ww_s1gZ;
+              : y_a1g4 ys_a1g5 ->
+                case ($dShape_aS3
+                      `cast` (Spec.N:Shape[0] <a_aS2>_N
+                              :: Shape a_aS2 ~R# (a_aS2 -> Double)))
+                       y_a1g4
+                of
+                { GHC.Types.D# y1_a1fg ->
+                jump $wgo2_s1h2 ys_a1g5 (GHC.Prim.+## ww_s1gZ y1_a1fg)
+                }
+            }; } in
+      jump $wgo2_s1h2 eta_B0 0.0##
+
+
+------ Local rules for imported ids --------
+"mymap/mymap"
+    forall (@b_aTM)
+           (@b1_aTX)
+           (@a_aTU)
+           (f_aKp :: b1_aTX -> b_aTM)
+           (g_aKq :: a_aTU -> b1_aTX)
+           (xs_aKr :: [a_aTU]).
+      mymap @b1_aTX @b_aTM f_aKp (mymap @a_aTU @b1_aTX g_aKq xs_aKr)
+      = mymap @a_aTU @b_aTM (. @b1_aTX @b_aTM @a_aTU f_aKp g_aKq) xs_aKr
+"USPEC total @Sq"
+    forall ($dShape_aSv :: Shape Sq).
+      total @Sq $dShape_aSv
+      = Spec.total_$stotal
+
+

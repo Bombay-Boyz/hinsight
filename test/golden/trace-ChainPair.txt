@@ -1,0 +1,621 @@
+ChainPair.hs:1:1::
+ChainPair.hs:1:1:: checkFamInstConsistency [Prelude]
+ChainPair.hs:1:1:: init_consistent_set [(Prelude, 8)]
+ChainPair.hs:1:1::
+ChainPair.hs:1:1:: Tc2 (src)
+ChainPair.hs:1:1:: Tc3
+ChainPair.hs:1:1:: tcExtendKindEnvList []
+ChainPair.hs:1:1:: tcExtendKindEnvList []
+ChainPair.hs:1:1:: tcDeriving []
+ChainPair.hs:1:1:: rnd
+ChainPair.hs:1:1:: Adding instances:
+ChainPair.hs:1:1:: Tc4
+ChainPair.hs:1:1:: Tc5
+ChainPair.hs:1:1:: tcExtendKindEnvList []
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:7-9:: lk1 GHC.Types.Int{(w) tc 3u}
+ChainPair.hs:6:7-9::
+ChainPair.hs:6:7-9::
+ChainPair.hs:6:7-9::
+ChainPair.hs:6:7-9::
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10:: u_tys yields no coercion
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10:: u_tys yields no coercion
+ChainPair.hs:6:6-10:: u_tys yields no coercion
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10:: newNoTcEvBinds unique = aww
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10:: doNotQuantifyTyVars has nothing to error on
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10:: quantifyTyVars has nothing to quantify
+ChainPair.hs:6:6-10:: newNoTcEvBinds unique = awx
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10:: newNoTcEvBinds unique = awy
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10:: solveSimpleWanteds { {}
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10:: solveNestedImplications starting {
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10:: unif_happened False
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10:: emitFlatConstraints { WC {}
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10:: emitDelayedErrors {}
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10:: done ct [] GHC.Types.Int{(w) tc 3u}
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10:: pushLevelAndCaptureConstraints { 1
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10:: u_tys yields no coercion
+ChainPair.hs:6:6-10:: u_tys yields no coercion
+ChainPair.hs:6:6-10:: pushLevelAndCaptureConstraints } 1
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10:: newTcEvBinds unique = awz
+ChainPair.hs:6:6-10:: newTcEvBinds unique = awA
+ChainPair.hs:6:6-10:: End simplifyAmbiguityCheck }
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10::
+ChainPair.hs:6:6-10:: end tcHsSigType } [] GHC.Types.Int{(w) tc 3u}
+ChainPair.hs:6:1-10:: tcuser [] GHC.Types.Int{(w) tc 3u}
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21:: pushLevelAndCaptureConstraints { 2
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9:: lk1 a{tv awr}
+ChainPair.hs:3:9::
+ChainPair.hs:3:9::
+ChainPair.hs:3:9::
+ChainPair.hs:3:9::
+ChainPair.hs:3:9::
+ChainPair.hs:3:9::
+ChainPair.hs:3:9:: u_tys yields no coercion
+ChainPair.hs:3:9::
+ChainPair.hs:3:9:: u_tys yields no coercion
+ChainPair.hs:3:9::
+ChainPair.hs:3:14-21::
+ChainPair.hs:3:14-21::
+ChainPair.hs:3:14-21::
+ChainPair.hs:3:14:: lk1 a{tv awr}
+ChainPair.hs:3:14::
+ChainPair.hs:3:14::
+ChainPair.hs:3:14::
+ChainPair.hs:3:14::
+ChainPair.hs:3:14::
+ChainPair.hs:3:14::
+ChainPair.hs:3:14::
+ChainPair.hs:3:14::
+ChainPair.hs:3:14::
+ChainPair.hs:3:14::
+ChainPair.hs:3:14::
+ChainPair.hs:3:14:: u_tys yields no coercion
+ChainPair.hs:3:14::
+ChainPair.hs:3:14:: u_tys yields no coercion
+ChainPair.hs:3:14:: u_tys yields no coercion
+ChainPair.hs:3:14:: u_tys yields no coercion
+ChainPair.hs:3:14::
+ChainPair.hs:3:20:: lk1 a{tv awr}
+ChainPair.hs:3:20::
+ChainPair.hs:3:20::
+ChainPair.hs:3:20::
+ChainPair.hs:3:20::
+ChainPair.hs:3:20::
+ChainPair.hs:3:20::
+ChainPair.hs:3:20::
+ChainPair.hs:3:20::
+ChainPair.hs:3:20::
+ChainPair.hs:3:20::
+ChainPair.hs:3:20::
+ChainPair.hs:3:20::
+ChainPair.hs:3:20::
+ChainPair.hs:3:20:: u_tys yields no coercion
+ChainPair.hs:3:20::
+ChainPair.hs:3:20:: u_tys yields no coercion
+ChainPair.hs:3:20:: u_tys yields no coercion
+ChainPair.hs:3:20:: u_tys yields no coercion
+ChainPair.hs:3:20:: u_tys yields no coercion
+ChainPair.hs:3:20::
+ChainPair.hs:3:19-21::
+ChainPair.hs:3:19-21::
+ChainPair.hs:3:19-21::
+ChainPair.hs:3:19-21::
+ChainPair.hs:3:19-21::
+ChainPair.hs:3:19-21::
+ChainPair.hs:3:19-21::
+ChainPair.hs:3:19-21:: u_tys yields no coercion
+ChainPair.hs:3:19-21::
+ChainPair.hs:3:19-21:: u_tys yields no coercion
+ChainPair.hs:3:19-21:: u_tys yields no coercion
+ChainPair.hs:3:19-21::
+ChainPair.hs:3:14-21:: lk1 GHC.Types.Many{(w) d 65I}
+ChainPair.hs:3:14-21:: tcTyVar GHC.Types.Many{(w) d 65I} []
+ChainPair.hs:3:14-21::
+ChainPair.hs:3:14-21::
+ChainPair.hs:3:14-21::
+ChainPair.hs:3:14-21::
+ChainPair.hs:3:14-21::
+ChainPair.hs:3:14-21::
+ChainPair.hs:3:14-21::
+ChainPair.hs:3:14-21::
+ChainPair.hs:3:14-21::
+ChainPair.hs:3:14-21::
+ChainPair.hs:3:14-21::
+ChainPair.hs:3:14-21:: u_tys yields no coercion
+ChainPair.hs:3:14-21::
+ChainPair.hs:3:14-21:: u_tys yields no coercion
+ChainPair.hs:3:14-21:: u_tys yields no coercion
+ChainPair.hs:3:14-21::
+ChainPair.hs:3:9-21:: lk1 GHC.Types.Many{(w) d 65I}
+ChainPair.hs:3:9-21:: tcTyVar GHC.Types.Many{(w) d 65I} []
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21:: pushLevelAndCaptureConstraints } 2
+ChainPair.hs:3:9-21:: newNoTcEvBinds unique = awJ
+ChainPair.hs:3:9-21:: newNoTcEvBinds unique = awK
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21:: solveSimpleWanteds { {}
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21:: solveNestedImplications starting {
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21:: ----------------------------- 
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21:: rewrite { GHC.Types.LiftedRep{(w) tc 33a}
+ChainPair.hs:3:9-21:: rewrite } GHC.Types.LiftedRep{(w) tc 33a}
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21:: End solver pipeline }
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21:: unif_happened False
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21:: unif_happened True
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21:: simplify_loop: wc = WC {}
+ChainPair.hs:3:9-21:: solveSimpleWanteds { {}
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21:: unif_happened False
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21:: Constraint solver steps = 1
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21:: doNotQuantifyTyVars has nothing to error on
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21:: quantifyTyVars has nothing to quantify
+ChainPair.hs:3:9-21:: newNoTcEvBinds unique = awL
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21:: newNoTcEvBinds unique = awM
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21:: solveSimpleWanteds { {}
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21:: solveNestedImplications starting {
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21:: unif_happened False
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21:: emitFlatConstraints { WC {}
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21:: emitDelayedErrors {}
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21:: pushLevelAndCaptureConstraints { 1
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21:: u_tys yields no coercion
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21:: u_tys yields no coercion
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21:: u_tys yields no coercion
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21:: u_tys yields no coercion
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21:: u_tys yields no coercion
+ChainPair.hs:3:9-21:: u_tys yields no coercion
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21:: u_tys yields no coercion
+ChainPair.hs:3:9-21:: u_tys yields no coercion
+ChainPair.hs:3:9-21:: u_tys yields no coercion
+ChainPair.hs:3:9-21:: u_tys yields no coercion
+ChainPair.hs:3:9-21:: u_tys yields no coercion
+ChainPair.hs:3:9-21:: pushLevelAndCaptureConstraints } 1
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21:: newTcEvBinds unique = awQ
+ChainPair.hs:3:9-21:: newTcEvBinds unique = awR
+ChainPair.hs:3:9-21:: End simplifyAmbiguityCheck }
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:9-21::
+ChainPair.hs:3:1-21::
+ChainPair.hs:1:1::
+ChainPair.hs:4:1-17::
+ChainPair.hs:4:1-17:: Bindings for { [ChainPair.pair{v rh3}]
+ChainPair.hs:4:1-17::
+ChainPair.hs:4:1-17::
+ChainPair.hs:4:1-17::
+ChainPair.hs:3:1-21::
+ChainPair.hs:3:1-21::
+ChainPair.hs:3:1-21:: pushLevelAndCaptureConstraints { 1
+ChainPair.hs:4:1-17::
+ChainPair.hs:4:1-17::
+ChainPair.hs:4:1-17::
+ChainPair.hs:4:1-17::
+ChainPair.hs:4:1-17::
+ChainPair.hs:4:6::
+ChainPair.hs:4:6::
+ChainPair.hs:4:6::
+ChainPair.hs:4:8::
+ChainPair.hs:4:8::
+ChainPair.hs:4:8::
+ChainPair.hs:4:10-17::
+ChainPair.hs:4:13::
+ChainPair.hs:4:13::
+ChainPair.hs:4:13::
+ChainPair.hs:4:13::
+ChainPair.hs:4:13::
+ChainPair.hs:4:13::
+ChainPair.hs:4:13:: u_tys yields no coercion
+ChainPair.hs:4:13::
+ChainPair.hs:4:16::
+ChainPair.hs:4:16::
+ChainPair.hs:4:16::
+ChainPair.hs:4:16::
+ChainPair.hs:4:16::
+ChainPair.hs:4:16::
+ChainPair.hs:4:16:: u_tys yields no coercion
+ChainPair.hs:4:16::
+ChainPair.hs:4:8::
+ChainPair.hs:4:6::
+ChainPair.hs:4:1-17::
+ChainPair.hs:4:1-17::
+ChainPair.hs:3:1-21:: pushLevelAndCaptureConstraints } 1
+ChainPair.hs:3:1-21::
+ChainPair.hs:4:1-17::
+ChainPair.hs:4:1-17::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:7:1-23::
+ChainPair.hs:7:1-23:: Bindings for { [ChainPair.r{v rh4}]
+ChainPair.hs:7:1-23::
+ChainPair.hs:7:1-23::
+ChainPair.hs:7:1-23::
+ChainPair.hs:6:1-10:: pushLevelAndCaptureConstraints { 1
+ChainPair.hs:7:1-23:: tc_extend_local_env []
+ChainPair.hs:7:1-23:: tcExtendBinderStack []
+ChainPair.hs:7:1-23::
+ChainPair.hs:7:1-23::
+ChainPair.hs:7:1-23::
+ChainPair.hs:7:3-23:: tcBody Check{[] GHC.Types.Int{(w) tc 3u}}
+ChainPair.hs:7:5-23::
+ChainPair.hs:7:5-8::
+ChainPair.hs:7:5-23::
+ChainPair.hs:7:5-8::
+ChainPair.hs:7:5-8::
+ChainPair.hs:7:5-23::
+ChainPair.hs:7:5-23::
+ChainPair.hs:7:5-23::
+ChainPair.hs:7:5-23::
+ChainPair.hs:7:5-23::
+ChainPair.hs:7:5-23::
+ChainPair.hs:7:5-23::
+ChainPair.hs:7:5-23:: u_tys yields no coercion
+ChainPair.hs:7:5-23::
+ChainPair.hs:7:5-23:: u_tys yields no coercion
+ChainPair.hs:7:5-23:: u_tys yields no coercion
+ChainPair.hs:7:5-23::
+ChainPair.hs:7:11-18::
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18:: lk1 GHC.Types.Int{(w) tc 3u}
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18:: u_tys yields no coercion
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18:: u_tys yields no coercion
+ChainPair.hs:7:16-18:: u_tys yields no coercion
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18:: newNoTcEvBinds unique = ax4
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18:: doNotQuantifyTyVars has nothing to error on
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18:: quantifyTyVars has nothing to quantify
+ChainPair.hs:7:16-18:: newNoTcEvBinds unique = ax5
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18:: newNoTcEvBinds unique = ax6
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18:: solveSimpleWanteds { {}
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18:: solveNestedImplications starting {
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18:: unif_happened False
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18:: emitFlatConstraints { WC {}
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18:: emitDelayedErrors {}
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18:: done ct GHC.Types.Int{(w) tc 3u}
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18:: u_tys yields no coercion
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18:: newTcEvBinds unique = ax7
+ChainPair.hs:7:16-18:: newTcEvBinds unique = ax8
+ChainPair.hs:7:16-18:: End simplifyAmbiguityCheck }
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18::
+ChainPair.hs:7:16-18:: end tcHsSigType } GHC.Types.Int{(w) tc 3u}
+ChainPair.hs:7:11-18:: tcuser GHC.Types.Int{(w) tc 3u}
+ChainPair.hs:7:11::
+ChainPair.hs:7:11:: tc_extend_local_env []
+ChainPair.hs:7:11:: tcExtendBinderStack []
+ChainPair.hs:7:11-18::
+ChainPair.hs:7:11-18:: tcInstFun:ret GHC.Types.Int{(w) tc 3u}
+ChainPair.hs:7:11-18::
+ChainPair.hs:7:11-18::
+ChainPair.hs:7:11-18::
+ChainPair.hs:7:11-18::
+ChainPair.hs:7:11-18:: u_tys yields no coercion
+ChainPair.hs:7:11-18:: u_tys yields no coercion
+ChainPair.hs:7:11-18::
+ChainPair.hs:7:5-23:: tcScalingUsage GHC.Types.Many{(w) d 65I}
+ChainPair.hs:7:5-23::
+ChainPair.hs:7:21-23::
+ChainPair.hs:7:21-23::
+ChainPair.hs:7:21-23::
+ChainPair.hs:7:21-23::
+ChainPair.hs:7:21-23::
+ChainPair.hs:7:21-23::
+ChainPair.hs:7:21-23::
+ChainPair.hs:7:21-23::
+ChainPair.hs:7:21-23::
+ChainPair.hs:7:21-23::
+ChainPair.hs:7:5-23:: tcScalingUsage GHC.Types.Many{(w) d 65I}
+ChainPair.hs:7:5-23::
+ChainPair.hs:7:1-23::
+ChainPair.hs:7:1-23::
+ChainPair.hs:6:1-10:: pushLevelAndCaptureConstraints } 1
+ChainPair.hs:6:1-10:: newTcEvBinds unique = axb
+ChainPair.hs:6:1-10::
+ChainPair.hs:7:1-23::
+ChainPair.hs:7:1-23::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1:: u_tys yields no coercion
+ChainPair.hs:1:1::
+ChainPair.hs:1:1:: u_tys yields no coercion
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1:: u_tys yields no coercion
+ChainPair.hs:1:1::
+ChainPair.hs:1:1:: u_tys yields no coercion
+ChainPair.hs:1:1::
+ChainPair.hs:1:1:: complete_matches []
+ChainPair.hs:1:1:: tcExtendKindEnvList []
+ChainPair.hs:1:1:: tc_extend_local_env []
+ChainPair.hs:1:1::
+ChainPair.hs:1:1:: complete_matches []
+ChainPair.hs:1:1:: Tc6
+ChainPair.hs:1:1:: Tc7
+ChainPair.hs:1:1:: Tc7a
+ChainPair.hs:1:1::
+ChainPair.hs:1:1:: newTcEvBinds unique = axc
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1:: solveSimpleWanteds { {}
+ChainPair.hs:1:1::
+ChainPair.hs:1:1:: solveNestedImplications starting {
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1:: ----------------------------- 
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1:: rewriteForErrors { [] GHC.Types.Char{(w) tc 3g}
+ChainPair.hs:1:1:: rewriteForErrors } [] GHC.Types.Char{(w) tc 3g}
+ChainPair.hs:1:1:: rewriteForErrors { GHC.Types.Int{(w) tc 3u}
+ChainPair.hs:1:1:: rewriteForErrors } GHC.Types.Int{(w) tc 3u}
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1:: End solver pipeline }
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1:: unif_happened False
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1:: unif_happened False
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1:: Constraint solver steps = 1
+ChainPair.hs:1:1:: End simplifyTop }
+ChainPair.hs:1:1:: newTcEvBinds unique = axd
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1:: reportWanteds suppressed: []
+ChainPair.hs:1:1::
+ChainPair.hs:1:1:: tryReporters } []
+ChainPair.hs:1:1::
+ChainPair.hs:1:1:: tryReporters } []
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1:: reportWanteds suppressed: []
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1::
+ChainPair.hs:1:1:: tryReporter end } insoluble2 False True
+ChainPair.hs:1:1:: tryReporters } []
+ChainPair.hs:1:1::
+ChainPair.hs:1:1:: tryReporters } []
+ChainPair.hs:1:1::
+ChainPair.hs:1:1:: tryReporters } []
+ChainPair.hs:1:1::
+ChainPair.hs:1:1:: tryReporters } []
+ChainPair.hs:1:1:: reportUnsolved }
+ChainPair.hs:1:1:: reportUnsolved (unsafe overlapping) {
+ChainPair.hs:1:1:: reportUnsolved (unsafe overlapping) }
+ChainPair.hs:1:1:: mkTypeableBinds []
+ChainPair.hs:1:1:: Tc9
+ChainPair.hs:1:1:: Tc11
+ChainPair.hs:1:1::
+ChainPair.hs:1:1:: simplifyTop { wanted =  WC {}
+ChainPair.hs:1:1:: newTcEvBinds unique = axu
+ChainPair.hs:1:1:: End simplifyTop }
+ChainPair.hs:1:1:: newTcEvBinds unique = axv
+ChainPair.hs:1:1:: reportUnsolved (unsafe overlapping) {
+ChainPair.hs:1:1:: reportUnsolved (unsafe overlapping) }
+ChainPair.hs:7:21-23: warning: [GHC-83865] [-Wdeferred-type-errors]
