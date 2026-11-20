@@ -14,6 +14,7 @@ where
 
 import Control.Monad (unless)
 import Data.Bifunctor (first)
+import Data.Bool (bool)
 import Data.Char (isAlphaNum, isSpace)
 import Data.List (findIndices)
 import Data.Maybe (listToMaybe)
@@ -190,7 +191,7 @@ planMove pruning fromSrc toSrc facts = do
 
 -- | The line ending a text uses: CRLF when it has one, else LF.
 lineEnding :: Text -> Text
-lineEnding t = if "\r\n" `T.isInfixOf` t then "\r\n" else "\n"
+lineEnding t = bool "\n" "\r\n" ("\r\n" `T.isInfixOf` t)
 
 -- | The text with every line ending the given one.
 withEol :: Text -> Text -> Text

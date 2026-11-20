@@ -3,8 +3,10 @@
 -- Description : What a move does to any module of a generated shape, and to a very large one.
 module HInsight.MovePropSpec (spec) where
 
+import Data.Bool (bool)
 import Data.List (isSubsequenceOf)
 import Data.Map.Strict qualified as M
+import Data.Maybe (listToMaybe)
 import Data.Text (Text)
 import Data.Text qualified as T
 import HInsight.Edit (applyEditSet)
@@ -66,7 +68,7 @@ render :: Shape -> (Text, [(Int, Int)])
 render s = (ending (T.intercalate eol allLines), spans)
   where
     eol :: Text
-    eol = if shapeCrlf s then "\r\n" else "\n"
+    eol = bool "\n" "\r\n" (shapeCrlf s)
     ending :: Text -> Text
     ending t = if shapeFinalNewline s then t <> eol else t
     header :: [Text]
@@ -108,7 +110,7 @@ factsFor s sourceText = do
   let ls = T.splitOn "\n" sourceText
       width :: Int -> Int
       width l = maybe 0 (T.length . T.dropWhileEnd (== '\r')) (lookup l (zip [1 ..] ls))
-      (from, to) = snd (render s) !! shapeMoved s
+  (from, to) <- maybe (fail "the shape has no such definition") pure (listToMaybe (drop (shapeMoved s) (snd (render s))))
   def <- spanOf (from, 1) (to, width to + 1)
   let importLines = [1 + 2 + i | i <- [0 .. length (shapeImports s) - 1]]
   imports <- traverse (\l -> spanOf (l, 1) (l, width l + 1)) importLines
