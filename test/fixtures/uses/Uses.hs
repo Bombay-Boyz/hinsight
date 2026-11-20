@@ -14,3 +14,12 @@ unused = 9
 
 hole :: Int
 hole = _
+
+nothingOnce :: Maybe Int
+nothingOnce = Nothing
+
+nothingTwice :: Maybe Int
+nothingTwice = Nothing
+
+holeM :: Maybe Int
+holeM = _

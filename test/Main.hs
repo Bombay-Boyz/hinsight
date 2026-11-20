@@ -21,6 +21,7 @@ import HInsight.HoleSpec qualified
 import HInsight.IdentifierSpec qualified
 import HInsight.InstanceSpec qualified
 import HInsight.MoveGhcSpec qualified
+import HInsight.MovePropSpec qualified
 import HInsight.MoveSpec qualified
 import HInsight.MoveVerifySpec qualified
 import HInsight.ProjectSpec qualified
@@ -56,6 +57,7 @@ main = hspec $ do
   HInsight.ChangeTypeGhcSpec.spec
   HInsight.ChangeTypeSpec.spec
   HInsight.MoveGhcSpec.spec
+  HInsight.MovePropSpec.spec
   HInsight.MoveVerifySpec.spec
   HInsight.MoveSpec.spec
   HInsight.VerifySpec.spec

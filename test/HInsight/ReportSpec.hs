@@ -45,7 +45,7 @@ spec = do
       f <- fitNamed "x" Local []
       c <- ok (mkUseCount 3)
       h <- holeAt [f {fitUses = Just c}]
-      T.lines (renderHoleReport h) `shouldBe` ["typed hole _ at 4:10, wanted type: Int", "  fits, best first:", "    x :: Int  [local, used 3 in this file, counted by hinsight]"]
+      T.lines (renderHoleReport h) `shouldBe` ["typed hole _ at 4:10, wanted type: Int", "  fits, best first:", "    x :: Int  [local, used 3 in expressions of this file, counted by hinsight]"]
   describe "renderHoleReport" $ do
     it "says when there are no fits" $ do
       h <- holeAt []

@@ -92,7 +92,7 @@ data HoleFit = HoleFit
     fitQualifier :: !(Maybe ModuleAlias),
     -- | Whether GHC counts the name as an operator symbol.
     fitIsOperator :: !Bool,
-    -- | How many places in the file refer to the name, counted by hinsight;
+    -- | How many expressions in the file write the name, counted by hinsight;
     -- absent for a name that is not at module level.
     fitUses :: !(Maybe UseCount)
   }

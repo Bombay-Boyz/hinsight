@@ -70,6 +70,7 @@ realSpec libDir = do
     let usesOf name = [fmap unUseCount (fitUses f) | h <- analysisHoles a, f <- holeFits h, unIdentifier (fitName f) == name]
     usesOf "shared" `shouldBe` [Just 3]
     usesOf "unused" `shouldBe` [Just 0]
+    usesOf "Nothing" `shouldBe` [Just 2]
   it "reads the alias of a fit imported only qualified" $ do
     dir <- ok (mkLibDir libDir)
     file <- ok (mkSourceFile "test/fixtures/accept/Accept.hs")

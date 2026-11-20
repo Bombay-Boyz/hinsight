@@ -103,7 +103,7 @@ planMove pruning fromSrc toSrc facts = do
   moved <- refuse' (slice fromSrc =<< domain' (mkSpan' from (spanEnd definition)))
   removal <- edit (moveFrom facts) from upTo ""
   eof <- domain (endOfText toSrc)
-  added <- edit (moveTo facts) eof eof ((if "\n" `T.isSuffixOf` toSrc then "\n" else "\n\n") <> moved <> "\n")
+  added <- edit (moveTo facts) eof eof ((if "\n" `T.isSuffixOf` toSrc then eolTo else eolTo <> eolTo) <> withEol eolTo moved <> eolTo)
   copied <- copiedImports pruning fromSrc toSrc facts
   imports <- anchored (moveTo facts) (moveToAnchor facts) (map snd copied)
   back <- importBack
@@ -113,6 +113,10 @@ planMove pruning fromSrc toSrc facts = do
   where
     fromLines :: [Text]
     fromLines = T.splitOn "\n" fromSrc
+    eolFrom :: Text
+    eolFrom = lineEnding fromSrc
+    eolTo :: Text
+    eolTo = lineEnding toSrc
     refuse :: RefactorError -> Either InsightError a
     refuse = Left . RefactorFailure
     refuse' :: Either RefactorError a -> Either InsightError a
@@ -169,17 +173,28 @@ planMove pruning fromSrc toSrc facts = do
           AfterImport p
             | (sp : _) <- [sp | sp <- prunable, spanEnd sp == p] -> do
                 start <- domain (position (unLine (positionLine (spanStart sp))) 1)
-                pure <$> edit (moveFrom facts) start start (importLine <> "\n")
+                pure <$> edit (moveFrom facts) start start (importLine <> eolFrom)
           anchor -> anchored (moveFrom facts) anchor [importLine]
     anchored :: SourceFile -> Anchor -> [Text] -> Either InsightError [Edit]
     anchored _ _ [] = Right []
     anchored file anchor texts = case anchor of
-      AfterImport p -> pure <$> edit file p p ("\n" <> T.intercalate "\n" texts)
-      AfterModuleHeader p -> pure <$> edit file p p ("\n\n" <> T.intercalate "\n" texts)
+      AfterImport p -> pure <$> edit file p p (eol <> T.intercalate eol texts)
+      AfterModuleHeader p -> pure <$> edit file p p (eol <> eol <> T.intercalate eol texts)
+      where
+        eol :: Text
+        eol = if file == moveTo facts then eolTo else eolFrom
     exportEdit :: Either InsightError [Edit]
     exportEdit = case moveToExports facts of
       Just (ExportClose (p, nonEmpty)) | moveKeepsImport facts -> pure <$> edit (moveTo facts) p p ((if nonEmpty then ", " else "") <> nameText)
       _ -> Right []
+
+-- | The line ending a text uses: CRLF when it has one, else LF.
+lineEnding :: Text -> Text
+lineEnding t = if "\r\n" `T.isInfixOf` t then "\r\n" else "\n"
+
+-- | The text with every line ending the given one.
+withEol :: Text -> Text -> Text
+withEol eol = T.replace "\n" eol . T.replace "\r\n" "\n"
 
 -- | The source's imports that are copied to the target, each with its text:
 -- not the pruned ones, and not those the target already has, whatever their

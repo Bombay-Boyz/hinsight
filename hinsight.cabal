@@ -163,6 +163,7 @@ test-suite hinsight-test
     HInsight.ChangeTypeGhcSpec
     HInsight.ChangeTypeSpec
     HInsight.MoveGhcSpec
+    HInsight.MovePropSpec
     HInsight.MoveVerifySpec
     HInsight.MoveSpec
     HInsight.RefactorGhcSpec

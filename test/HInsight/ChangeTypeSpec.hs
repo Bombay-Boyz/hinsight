@@ -6,6 +6,7 @@ module HInsight.ChangeTypeSpec (spec) where
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as M
 import Data.Text (Text)
+import Data.Text qualified as T
 import HInsight.Edit (applyEditSet)
 import HInsight.Error (InsightError (..), RefactorError (..))
 import HInsight.Identifier (mkIdentifier)
@@ -15,6 +16,8 @@ import HInsight.Source (Position, SourceFile, Span, mkColumn, mkLine, mkPosition
 import HInsight.Support (ok)
 import HInsight.TypeText (mkTypeText)
 import Test.Hspec
+import Test.Hspec.QuickCheck (prop)
+import Test.QuickCheck
 
 at :: (Int, Int) -> IO Position
 at (l, c) = mkPosition <$> ok (mkLine l) <*> ok (mkColumn c)
@@ -68,6 +71,21 @@ spec = do
     it "puts a signature above a binding that has none" $ do
       facts <- unsigned
       rewritten facts "Int" `shouldReturn` "module A (count, bare) where\n\ncount :: Int -> Int\ncount n = n + 1\n\nbare :: Int\nbare = 7\n"
+    it "writes an operator in parentheses in the signature it adds" $ do
+      file <- ok (mkSourceFile "A.hs")
+      name <- ok (mkIdentifier "<+>")
+      binding <- spanOf (6, 1) (6, 9)
+      rewritten (ChangeFacts name file Nothing binding) "Int" `shouldReturn` "module A (count, bare) where\n\ncount :: Int -> Int\ncount n = n + 1\n\n(<+>) :: Int\nbare = 7\n"
+    prop "changes only the type of the signature, whatever the type is" $
+      forAll genType $ \wanted -> ioProperty $ do
+        facts <- signed
+        text <- rewritten facts wanted
+        pure (text === "module A (count, bare) where\n\ncount :: " <> T.unwords (T.words wanted) <> "\ncount n = n + 1\n\nbare = 7\n")
+    prop "puts a signature above the binding and changes nothing else" $
+      forAll genType $ \wanted -> ioProperty $ do
+        facts <- unsigned
+        text <- rewritten facts wanted
+        pure (text === "module A (count, bare) where\n\ncount :: Int -> Int\ncount n = n + 1\n\nbare :: " <> T.unwords (T.words wanted) <> "\nbare = 7\n")
   describe "verifyChangeType" $ do
     it "refuses when the file does not typecheck as it is" $ do
       facts <- signed
@@ -92,3 +110,10 @@ spec = do
       t <- ok (mkTypeText "Int -> Int")
       Right plan <- verifyChangeType (checkerAfter [] []) source facts t
       planNotes plan `shouldBe` []
+
+-- | A type written with any spacing, as a user might type it.
+genType :: Gen Text
+genType = do
+  tokens <- listOf1 (elements ["Int", "->", "Maybe", "String", "[a]", "Bool", "(a, b)"])
+  gaps <- infiniteListOf (elements [" ", "  ", " \n  ", "\t"])
+  pure (T.concat (zipWith (<>) tokens (gaps <> [""])))

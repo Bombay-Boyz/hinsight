@@ -61,7 +61,7 @@ renderFit f =
     <> "]"
   where
     used :: Text
-    used = maybe "" (\u -> ", used " <> T.pack (show (unUseCount u)) <> " in this file, counted by hinsight") (fitUses f)
+    used = maybe "" (\u -> ", used " <> T.pack (show (unUseCount u)) <> " in expressions of this file, counted by hinsight") (fitUses f)
     locality :: Locality -> Text
     locality = \case
       Local -> "local"

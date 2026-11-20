@@ -12,9 +12,13 @@ module Main (main) where
 import Control.DeepSeq (NFData (..))
 import Data.List (sortOn)
 import Data.Maybe (mapMaybe)
+import Data.Text (Text)
 import Data.Text qualified as T
 import HInsight
+import HInsight.Error (DomainError)
 import HInsight.Ghc.Session (ghcDeep, ghcInsight)
+import HInsight.Graph (mkModuleName)
+import HInsight.Refactor.Move (Anchor (..), ExportClose (..), MoveFacts (..), planMove)
 import HInsight.Report (renderAnalysis)
 import HInsight.Toolchain (findGhcLibDir)
 import HInsight.TypeText (mkTypeText)
@@ -24,7 +28,7 @@ main :: IO ()
 main = do
   libDir <- findGhcLibDir
   defaultMain
-    ( [rankingGroup, renderingGroup]
+    ( [rankingGroup, renderingGroup, movingGroup]
         <> maybe [] (pure . analysisGroup) libDir
     )
 
@@ -61,6 +65,48 @@ renderingGroup = bgroup "render analysis" (map sized [100, 1_000, 10_000])
     sized n =
       env (pure (Built (analysisWithHoles n))) $ \ ~(Built a) ->
         bench (show n <> " holes") (nf renderAnalysis a)
+
+-- | A module of many definitions, the text of a small target, and the facts
+-- of moving one definition from the middle.
+data Moving = Moving Text Text MoveFacts
+
+instance NFData Moving where
+  rnf (Moving source target _) = rnf source `seq` rnf target
+
+-- | Planning a move reads the text of the whole source module, so its cost
+-- must grow in step with it; these sizes show whether it does.
+movingGroup :: Benchmark
+movingGroup = bgroup "plan a move" (map sized [1_000, 10_000, 100_000])
+  where
+    sized :: Int -> Benchmark
+    sized n =
+      env (either (fail . show) pure (movingOf n)) $ \ ~(Moving source target facts) ->
+        bench (show n <> " definitions") (whnf (editedSize source target) facts)
+
+-- | The characters the plan writes, so that all of the plan is computed.
+editedSize :: Text -> Text -> MoveFacts -> Int
+editedSize source target = either (const 0) (sum . map (T.length . editText) . editSetEdits) . planMove mempty source target
+
+movingOf :: Int -> Either DomainError Moving
+movingOf n = do
+  from <- mkSourceFile "A.hs"
+  to <- mkSourceFile "B.hs"
+  modName <- mkModuleName "B"
+  name <- mkIdentifier "d0"
+  line <- mkLine 6
+  endLine <- mkLine 8
+  start <- mkPosition line <$> mkColumn 1
+  end <- mkPosition endLine <$> mkColumn 6
+  definition <- mkSpan start end
+  importLine <- mkLine 3
+  importStart <- mkPosition importLine <$> mkColumn 1
+  importEnd <- mkPosition importLine <$> mkColumn 24
+  importSpan <- mkSpan importStart importEnd
+  close <- mkPosition <$> mkLine 1 <*> mkColumn 16
+  let defs = [T.unlines ["-- | A doc.", d <> " :: Int -> Int", d <> " x = x", "  + 1", ""] | i <- [0 .. n - 1], let d = "d" <> T.pack (show i)]
+      source = T.unlines ["module A where", "", "import Data.List (sort)", ""] <> T.concat defs
+      target = "module B (b0) where\n\nimport Data.List (sort)\n\nb0 :: Int\nb0 = 0\n"
+  pure (Moving source target (MoveFacts name from to modName definition [importSpan] (AfterImport importEnd) [importSpan] (AfterImport importEnd) (Just (ExportClose (close, True))) True))
 
 -- | Analyse real files. One analysis starts a GHC session, so these take
 -- much longer than the pure benchmarks and are timed only a few times.

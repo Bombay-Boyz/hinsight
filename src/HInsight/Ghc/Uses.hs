@@ -13,9 +13,10 @@ where
 import Data.Data (Data, cast, gmapQ)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as M
-import GHC.Hs (GhcTc, HsExpr (..))
+import GHC.Core.ConLike (conLikeName)
+import GHC.Hs (FieldOcc (..), GhcTc, HsExpr (..), XXExprGhcTc (..))
 import GHC.Types.Id (idName)
-import GHC.Types.Name (nameModule_maybe, nameOccName)
+import GHC.Types.Name (Name, nameModule_maybe, nameOccName)
 import GHC.Types.Name.Occurrence (occNameString)
 import GHC.Types.SrcLoc (GenLocated (..))
 import GHC.Unit.Module (moduleName, moduleNameString)
@@ -24,7 +25,9 @@ import HInsight.Ghc.HoleCapture (CapturedFit (..), CapturedHole (..))
 -- | A name that belongs to a module: the module, and the name in it.
 type UseKey = (String, String)
 
--- | The number of places each module-level name is referred to below a node.
+-- | The number of places each module-level name is written in an expression
+-- below a node: as a variable, as a constructor, or as a record selector.
+-- Patterns and types are not counted.
 countUses :: (Data a) => a -> Map UseKey Int
 countUses x = M.fromListWith (+) (references x)
 
@@ -33,10 +36,12 @@ references x = here <> concat (gmapQ references x)
   where
     here :: [(UseKey, Int)]
     here = case (cast x :: Maybe (HsExpr GhcTc)) of
-      Just (HsVar _ (L _ i)) ->
-        let n = idName i
-         in [((moduleNameString (moduleName m), occNameString (nameOccName n)), 1) | Just m <- [nameModule_maybe n]]
+      Just (HsVar _ (L _ i)) -> keyed (idName i)
+      Just (HsRecSel _ (FieldOcc sel _)) -> keyed (idName sel)
+      Just (XExpr (ConLikeTc con _ _)) -> keyed (conLikeName con)
       _ -> []
+    keyed :: Name -> [(UseKey, Int)]
+    keyed n = [((moduleNameString (moduleName m), occNameString (nameOccName n)), 1) | Just m <- [nameModule_maybe n]]
 
 -- | Put each fit's count in: a fit of a module-level name gets its count,
 -- which is none when nothing refers to it; any other fit gets no count.
