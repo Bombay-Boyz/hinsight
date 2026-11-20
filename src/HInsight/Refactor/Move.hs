@@ -91,103 +91,154 @@ instance Semigroup Pruning where
 instance Monoid Pruning where
   mempty = Pruning [] []
 
+-- | What each step of a plan reads: the pruning, both texts and the facts.
+data Ctx = Ctx
+  { ctxPruning :: !Pruning,
+    ctxFromSrc :: !Text,
+    ctxToSrc :: !Text,
+    ctxFacts :: !MoveFacts
+  }
+
 -- | The edits that take the definition out of the source module and put it,
 -- with the source's imports minus the ones pruned, in the target.
 planMove :: Pruning -> Text -> Text -> MoveFacts -> Either InsightError EditSet
 planMove pruning fromSrc toSrc facts = do
-  let definition = moveSpan facts
-      defLine = unLine (positionLine (spanStart definition))
-  unless (unColumn (positionColumn (spanStart definition)) == 1) (refuse NotATopLevelDefinition)
-  let firstLine = haddockStart fromLines defLine
-  from <- domain (position firstLine 1)
-  upTo <- removalEnd
-  moved <- refuse' (slice fromSrc =<< domain' (mkSpan' from (spanEnd definition)))
-  removal <- edit (moveFrom facts) from upTo ""
-  eof <- domain (endOfText toSrc)
-  added <- edit (moveTo facts) eof eof ((if "\n" `T.isSuffixOf` toSrc then eolTo else eolTo <> eolTo) <> withEol eolTo moved <> eolTo)
-  copied <- copiedImports pruning fromSrc toSrc facts
-  imports <- anchored (moveTo facts) (moveToAnchor facts) (map snd copied)
-  back <- importBack
-  pruned <- traverse pruneEdit prunable
-  exports <- exportEdit
-  domain (mkEditSet (removal : added : imports <> back <> pruned <> exports))
+  unless (unColumn (positionColumn (spanStart (moveSpan facts))) == 1) (refuse NotATopLevelDefinition)
+  (from, moved) <- movedBlock ctx
+  removal <- removalEdit ctx from
+  added <- additionEdit ctx moved
+  imports <- importEdits ctx
+  fixes <- sourceEdits ctx
+  exports <- exportEdit ctx
+  domain (mkEditSet (removal : added : imports <> fixes <> exports))
   where
-    fromLines :: [Text]
-    fromLines = T.splitOn "\n" fromSrc
-    eolFrom :: Text
-    eolFrom = lineEnding fromSrc
-    eolTo :: Text
-    eolTo = lineEnding toSrc
-    refuse :: RefactorError -> Either InsightError a
-    refuse = Left . RefactorFailure
-    refuse' :: Either RefactorError a -> Either InsightError a
-    refuse' = first RefactorFailure
-    domain :: Either DomainError a -> Either InsightError a
-    domain = first DomainFailure
-    domain' :: Either DomainError a -> Either RefactorError a
-    domain' = first (const SelectionNotInText)
-    position :: Int -> Int -> Either DomainError Position
-    position l c = mkPosition <$> mkLine l <*> mkColumn c
-    mkSpan' :: Position -> Position -> Either DomainError Span
-    mkSpan' = mkSpan
-    edit :: SourceFile -> Position -> Position -> Text -> Either InsightError Edit
-    edit file a b t = domain (mkSpan a b) >>= \sp -> domain (mkEdit file sp t)
+    ctx :: Ctx
+    ctx = Ctx pruning fromSrc toSrc facts
+
+refuse :: RefactorError -> Either InsightError a
+refuse = Left . RefactorFailure
+
+domain :: Either DomainError a -> Either InsightError a
+domain = first DomainFailure
+
+positionAt :: Int -> Int -> Either DomainError Position
+positionAt l c = mkPosition <$> mkLine l <*> mkColumn c
+
+-- | An edit of a file, between two positions.
+editAt :: SourceFile -> Position -> Position -> Text -> Either InsightError Edit
+editAt file a b t = domain (mkSpan a b) >>= \sp -> domain (mkEdit file sp t)
+
+fromLines :: Ctx -> [Text]
+fromLines = T.splitOn "\n" . ctxFromSrc
+
+eolFrom, eolTo :: Ctx -> Text
+eolFrom = lineEnding . ctxFromSrc
+eolTo = lineEnding . ctxToSrc
+
+nameText :: Ctx -> Text
+nameText = valueName . moveName . ctxFacts
+
+-- | The first position of the moved block, with its Haddock comment, and its text.
+movedBlock :: Ctx -> Either InsightError (Position, Text)
+movedBlock ctx = do
+  let definition = moveSpan (ctxFacts ctx)
+  from <- domain (positionAt (haddockStart (fromLines ctx) (unLine (positionLine (spanStart definition)))) 1)
+  block <- first RefactorFailure (slice (ctxFromSrc ctx) =<< first (const SelectionNotInText) (mkSpan from (spanEnd definition)))
+  pure (from, block)
+
+-- | The edit that takes the block out, with the blank lines after it up to
+-- the next text.
+removalEdit :: Ctx -> Position -> Either InsightError Edit
+removalEdit ctx from = removalEnd >>= \upTo -> editAt (moveFrom (ctxFacts ctx)) from upTo ""
+  where
+    ls :: [Text]
+    ls = fromLines ctx
+    endLine :: Int
+    endLine = unLine (positionLine (spanEnd (moveSpan (ctxFacts ctx))))
     removalEnd :: Either InsightError Position
     removalEnd
-      | endLine >= length fromLines = Right (spanEnd (moveSpan facts))
-      | otherwise = domain (position next 1)
-      where
-        endLine :: Int
-        endLine = unLine (positionLine (spanEnd (moveSpan facts)))
-        next :: Int
-        next = case [n | (n, l) <- zip [1 ..] fromLines, n > endLine, not (T.all isSpace l)] of
-          n : _ -> n
-          [] -> length fromLines
-    importLine :: Text
-    importLine = "import " <> unModuleName (moveToModule facts) <> " (" <> nameText <> ")"
-    nameText :: Text
-    nameText = valueName (moveName facts)
-    -- The pruned source imports that sit alone on their lines.
-    prunable :: [Span]
-    prunable = [sp | sp <- pruneSource pruning, wholeLines sp]
+      | endLine >= length ls = Right (spanEnd (moveSpan (ctxFacts ctx)))
+      | otherwise = domain (positionAt nextText 1)
+    nextText :: Int
+    nextText = case [n | (n, l) <- zip [1 ..] ls, n > endLine, not (T.all isSpace l)] of
+      n : _ -> n
+      [] -> length ls
+
+-- | The edit that puts the block at the end of the target.
+additionEdit :: Ctx -> Text -> Either InsightError Edit
+additionEdit ctx moved = do
+  eof <- domain (endOfText (ctxToSrc ctx))
+  let eol = eolTo ctx
+      gap = if "\n" `T.isSuffixOf` ctxToSrc ctx then eol else eol <> eol
+  editAt (moveTo (ctxFacts ctx)) eof eof (gap <> withEol eol moved <> eol)
+
+-- | The edit that adds the lines at an anchor of a file, in that file's line ending.
+anchoredEdits :: Ctx -> SourceFile -> Anchor -> [Text] -> Either InsightError [Edit]
+anchoredEdits _ _ _ [] = Right []
+anchoredEdits ctx file anchor texts = case anchor of
+  AfterImport p -> pure <$> editAt file p p (eol <> T.intercalate eol texts)
+  AfterModuleHeader p -> pure <$> editAt file p p (eol <> eol <> T.intercalate eol texts)
+  where
+    eol :: Text
+    eol = if file == moveTo (ctxFacts ctx) then eolTo ctx else eolFrom ctx
+
+-- | The source's imports that the target needs, added to the target.
+importEdits :: Ctx -> Either InsightError [Edit]
+importEdits ctx = do
+  copied <- copiedImports (ctxPruning ctx) (ctxFromSrc ctx) (ctxToSrc ctx) (ctxFacts ctx)
+  anchoredEdits ctx (moveTo (ctxFacts ctx)) (moveToAnchor (ctxFacts ctx)) (map snd copied)
+
+-- | The pruned source imports that sit alone on their lines.
+prunable :: Ctx -> [Span]
+prunable ctx = [sp | sp <- pruneSource (ctxPruning ctx), wholeLines sp]
+  where
     wholeLines :: Span -> Bool
     wholeLines sp =
       unColumn (positionColumn (spanStart sp)) == 1
         && maybe False (T.all isSpace . T.drop (unColumn (positionColumn (spanEnd sp)) - 1)) (lineAt (unLine (positionLine (spanEnd sp))))
     lineAt :: Int -> Maybe Text
-    lineAt n = listToMaybe (drop (n - 1) fromLines)
-    pruneEdit :: Span -> Either InsightError Edit
-    pruneEdit sp = do
-      start <- domain (position (unLine (positionLine (spanStart sp))) 1)
-      let endLine = unLine (positionLine (spanEnd sp))
-      end <-
-        if endLine >= length fromLines
-          then Right (spanEnd sp)
-          else domain (position (endLine + 1) 1)
-      edit (moveFrom facts) start end ""
-    -- The import that gives the source the name back. When the import it
-    -- would follow is pruned, it takes that import's place.
-    importBack :: Either InsightError [Edit]
-    importBack
-      | not (moveKeepsImport facts) = Right []
-      | otherwise = case moveFromAnchor facts of
-          AfterImport p
-            | (sp : _) <- [sp | sp <- prunable, spanEnd sp == p] -> do
-                start <- domain (position (unLine (positionLine (spanStart sp))) 1)
-                pure <$> edit (moveFrom facts) start start (importLine <> eolFrom)
-          anchor -> anchored (moveFrom facts) anchor [importLine]
-    anchored :: SourceFile -> Anchor -> [Text] -> Either InsightError [Edit]
-    anchored _ _ [] = Right []
-    anchored file anchor texts = case anchor of
-      AfterImport p -> pure <$> edit file p p (eol <> T.intercalate eol texts)
-      AfterModuleHeader p -> pure <$> edit file p p (eol <> eol <> T.intercalate eol texts)
-      where
-        eol :: Text
-        eol = if file == moveTo facts then eolTo else eolFrom
-    exportEdit :: Either InsightError [Edit]
-    exportEdit = case moveToExports facts of
-      Just (ExportClose (p, nonEmpty)) | moveKeepsImport facts -> pure <$> edit (moveTo facts) p p ((if nonEmpty then ", " else "") <> nameText)
-      _ -> Right []
+    lineAt n = listToMaybe (drop (n - 1) (fromLines ctx))
+
+-- | The edits to the source's imports: the pruned ones go, and the import
+-- that gives the source the name back comes in.
+sourceEdits :: Ctx -> Either InsightError [Edit]
+sourceEdits ctx = (<>) <$> importBack ctx <*> traverse (pruneEdit ctx) (prunable ctx)
+
+-- | The line or lines of a pruned import, taken out whole.
+pruneEdit :: Ctx -> Span -> Either InsightError Edit
+pruneEdit ctx sp = do
+  start <- domain (positionAt (unLine (positionLine (spanStart sp))) 1)
+  end <- if endLine >= length (fromLines ctx) then Right (spanEnd sp) else domain (positionAt (endLine + 1) 1)
+  editAt (moveFrom (ctxFacts ctx)) start end ""
+  where
+    endLine :: Int
+    endLine = unLine (positionLine (spanEnd sp))
+
+-- | The import that gives the source the name back. When the import it
+-- would follow is pruned, it takes that import's place.
+importBack :: Ctx -> Either InsightError [Edit]
+importBack ctx
+  | not (moveKeepsImport facts) = Right []
+  | otherwise = case moveFromAnchor facts of
+      AfterImport p
+        | (sp : _) <- [sp | sp <- prunable ctx, spanEnd sp == p] -> do
+            start <- domain (positionAt (unLine (positionLine (spanStart sp))) 1)
+            pure <$> editAt (moveFrom facts) start start (importLine <> eolFrom ctx)
+      anchor -> anchoredEdits ctx (moveFrom facts) anchor [importLine]
+  where
+    facts :: MoveFacts
+    facts = ctxFacts ctx
+    importLine :: Text
+    importLine = "import " <> unModuleName (moveToModule facts) <> " (" <> nameText ctx <> ")"
+
+-- | The edit that adds the name to the target's export list, when the source keeps importing it.
+exportEdit :: Ctx -> Either InsightError [Edit]
+exportEdit ctx = case moveToExports facts of
+  Just (ExportClose (p, nonEmpty)) | moveKeepsImport facts -> pure <$> editAt (moveTo facts) p p ((if nonEmpty then ", " else "") <> nameText ctx)
+  _ -> Right []
+  where
+    facts :: MoveFacts
+    facts = ctxFacts ctx
 
 -- | The line ending a text uses: CRLF when it has one, else LF.
 lineEnding :: Text -> Text

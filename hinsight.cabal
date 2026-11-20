@@ -147,6 +147,7 @@ test-suite hinsight-test
     HInsight.CoreGhcSpec
     HInsight.CoreSpec
     HInsight.CliSpec
+    HInsight.BoundarySpec
     HInsight.EditSpec
     HInsight.EnvironmentSpec
     HInsight.ErrorSpec

@@ -1,6 +1,7 @@
 module Main (main) where
 
 import HInsight.AcceptGhcSpec qualified
+import HInsight.BoundarySpec qualified
 import HInsight.ChainGhcSpec qualified
 import HInsight.ChainSpec qualified
 import HInsight.ChangeTypeGhcSpec qualified
@@ -49,6 +50,7 @@ main = hspec $ do
   HInsight.FlowSpec.spec
   HInsight.GraphSpec.spec
   HInsight.HoleSpec.spec
+  HInsight.BoundarySpec.spec
   HInsight.EditSpec.spec
   HInsight.IdentifierSpec.spec
   HInsight.InstanceSpec.spec
