@@ -51,7 +51,7 @@ import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.IO qualified as TIO
-import Data.Time.Clock (getCurrentTime)
+import Data.Time.Clock (UTCTime, getCurrentTime)
 import GHC
   ( DynFlags (..),
     Ghc,
@@ -499,11 +499,11 @@ ghcMoveFacts dir from to name = do
         Right (fromText, toText) -> do
           source <- catchSession fromPath $ do
             logged <- newIORef []
-            result <- runGhc (Just (libDirPath dir)) (sourcePass logged from fromText)
+            result <- runGhc (Just (libDirPath dir)) (moveSourcePass name logged from fromText)
             evaluate result
           target <- catchSession toPath $ do
             logged <- newIORef []
-            result <- runGhc (Just (libDirPath dir)) (targetPass logged to toText)
+            result <- runGhc (Just (libDirPath dir)) (moveTargetPass name logged to toText)
             evaluate result
           pure (source >>= \s -> target >>= moveFacts from to name s)
   where
@@ -511,27 +511,32 @@ ghcMoveFacts dir from to name = do
     fromPath = sourceFilePath from
     toPath :: FilePath
     toPath = sourceFilePath to
-    sourcePass :: IORef [Text] -> SourceFile -> Text -> Ghc (Either InsightError SourceSide)
-    sourcePass logged file text = do
-      found <- preparedSummary logged file
-      case found of
-        Left problem -> pure (Left problem)
-        Right summary -> do
-          parsed <- parseModule summary
-          checked <- handleSourceError (pure . Left . brokenSource) (Right <$> typecheckModule parsed)
-          pure $
-            checked >>= \typechecked -> case tm_renamed_source typechecked of
-              Nothing -> Left (SessionFailure (GhcThrew (sourceFilePath file) "GHC kept no renamed source"))
-              Just (group, _, exports, _, _) ->
-                sourceSide file text name (ms_mod_name summary) (unLoc (pm_parsed_source parsed)) group exports
-    targetPass :: IORef [Text] -> SourceFile -> Text -> Ghc (Either InsightError TargetSide)
-    targetPass logged file text = do
-      found <- preparedSummary logged file
-      case found of
-        Left problem -> pure (Left problem)
-        Right summary -> handleSourceError (pure . Left . brokenSource) $ do
-          parsed <- parseModule summary
-          pure (targetSide file text name (unLoc (pm_parsed_source parsed)))
+
+-- | What the source file says of the definition, from GHC's parsed and
+-- renamed programs.
+moveSourcePass :: Identifier -> IORef [Text] -> SourceFile -> Text -> Ghc (Either InsightError SourceSide)
+moveSourcePass name logged file text = do
+  found <- preparedSummary logged file
+  case found of
+    Left problem -> pure (Left problem)
+    Right summary -> do
+      parsed <- parseModule summary
+      checked <- handleSourceError (pure . Left . brokenSource) (Right <$> typecheckModule parsed)
+      pure $
+        checked >>= \typechecked -> case tm_renamed_source typechecked of
+          Nothing -> Left (SessionFailure (GhcThrew (sourceFilePath file) "GHC kept no renamed source"))
+          Just (group, _, exports, _, _) ->
+            sourceSide file text name (ms_mod_name summary) (unLoc (pm_parsed_source parsed)) group exports
+
+-- | What the target file says, from GHC's parsed program.
+moveTargetPass :: Identifier -> IORef [Text] -> SourceFile -> Text -> Ghc (Either InsightError TargetSide)
+moveTargetPass name logged file text = do
+  found <- preparedSummary logged file
+  case found of
+    Left problem -> pure (Left problem)
+    Right summary -> handleSourceError (pure . Left . brokenSource) $ do
+      parsed <- parseModule summary
+      pure (targetSide file text name (unLoc (pm_parsed_source parsed)))
 
 -- | The module summary of a file, placed by its header, once its
 -- dependencies typecheck.
@@ -596,7 +601,7 @@ movePass deferring logged moves anchor others texts = do
     Right () -> do
       pushLogHookM (recordMoves deferring moves)
       flags <- getSessionDynFlags
-      void (setSessionDynFlags (deferral (wopt_set flags Opt_WarnUnusedImports)))
+      void (setSessionDynFlags (deferErrors deferring (wopt_set flags Opt_WarnUnusedImports)))
       -- The anchor's own header says where the source folder is.
       setImportPath (takeDirectory path)
       first' <- guessTarget path Nothing Nothing
@@ -605,38 +610,47 @@ movePass deferring logged moves anchor others texts = do
       guessed <- targetSummary path (mgModSummaries guess)
       setImportPath (maybe (takeDirectory path) (sourceRoot path . moduleNameString . ms_mod_name) guessed)
       now <- liftIO getCurrentTime
-      targets <- traverse (targetFor now) watched
+      targets <- traverse (moveTarget now texts) watched
       setTargets targets
       void (handleSourceError (\e -> printException e >> pure Nothing) (Just <$> (depanal [] False >> load LoadAllTargets)))
       entries <- liftIO (reverse <$> readIORef moves)
       pure $ do
-        found <- traverse diagnosed entries
+        found <- traverse (diagnosedMove anchor watched) entries
         Right (MoveChecked [d | (LoggedError, d) <- found] [d | (LoggedUnused, d) <- found])
   where
-    deferral :: DynFlags -> DynFlags
-    deferral flags
-      | deferring = foldl' gopt_set flags [Opt_DeferTypeErrors, Opt_DeferTypedHoles, Opt_DeferOutOfScopeVariables]
-      | otherwise = flags
     path :: FilePath
     path = sourceFilePath anchor
     watched :: [SourceFile]
     watched = M.keys texts <> filter (`M.notMember` texts) others
-    targetFor now file = do
-      target <- guessTarget (sourceFilePath file) Nothing Nothing
-      pure (maybe target (\text -> target {targetContents = Just (stringToStringBuffer (T.unpack text), now)}) (M.lookup file texts))
-    diagnosed :: Logged -> Either InsightError (LoggedKind, Diagnostic)
-    diagnosed logged' =
-      (loggedKind logged',) <$> case loggedAt logged' of
-        RealSrcSpan rs _ -> do
-          let named = unpackFS (srcSpanFile rs)
-          place <- convertSpan named rs
-          file <- fileNamed named
-          pure (Diagnostic file (Just place) (loggedText logged'))
-        _ -> pure (Diagnostic anchor Nothing (loggedText logged'))
-    fileNamed :: FilePath -> Either InsightError SourceFile
-    fileNamed named = case find ((== normalise named) . normalise . sourceFilePath) watched of
-      Just file -> Right file
-      Nothing -> fromDomain named (mkSourceFile named)
+
+-- | The flags with the deferral of errors GHC can defer, when asked for.
+deferErrors :: Bool -> DynFlags -> DynFlags
+deferErrors deferring flags
+  | deferring = foldl' gopt_set flags [Opt_DeferTypeErrors, Opt_DeferTypedHoles, Opt_DeferOutOfScopeVariables]
+  | otherwise = flags
+
+-- | The target for a file, with the text given for it in place of the file's.
+moveTarget :: UTCTime -> Map SourceFile Text -> SourceFile -> Ghc Target
+moveTarget now texts file = do
+  target <- guessTarget (sourceFilePath file) Nothing Nothing
+  pure (maybe target (\text -> target {targetContents = Just (stringToStringBuffer (T.unpack text), now)}) (M.lookup file texts))
+
+-- | A message GHC logged, placed in the file it names.
+diagnosedMove :: SourceFile -> [SourceFile] -> Logged -> Either InsightError (LoggedKind, Diagnostic)
+diagnosedMove anchor watched logged =
+  (loggedKind logged,) <$> case loggedAt logged of
+    RealSrcSpan rs _ -> do
+      let named = unpackFS (srcSpanFile rs)
+      place <- convertSpan named rs
+      file <- namedFile watched named
+      pure (Diagnostic file (Just place) (loggedText logged))
+    _ -> pure (Diagnostic anchor Nothing (loggedText logged))
+
+-- | The file of the watched ones that a path names.
+namedFile :: [SourceFile] -> FilePath -> Either InsightError SourceFile
+namedFile watched named = case find ((== normalise named) . normalise . sourceFilePath) watched of
+  Just file -> Right file
+  Nothing -> fromDomain named (mkSourceFile named)
 
 -- | The plan that moves a top-level definition into another module, as GHC
 -- accepted it: both files with the plan's edits made typecheck. The other
@@ -814,55 +828,67 @@ corePass placement request folder logged path = do
     blocked' :: Int -> CoreDump
     blocked' n = (emptyCore request) {coreBlocked = n}
     simplified :: FilePath -> Ghc (Either InsightError CoreDump)
-    simplified located = do
+    simplified = coreSimplified request logged path
+    withStg :: FilePath -> Ghc (Either InsightError CoreDump)
+    withStg = coreWithStg request logged path
+
+-- | The Core of the file at the optimisation asked for, without STG.
+coreSimplified :: CoreRequest -> IORef [Text] -> FilePath -> FilePath -> Ghc (Either InsightError CoreDump)
+coreSimplified request logged path located = do
+  missed <- liftIO (newIORef [])
+  pushLogHookM (missedHook missed)
+  ref <- liftIO (newIORef (emptyCapture defaultRecordLimit))
+  pushLogHookM (captureHook ref isCoreMessage)
+  -- GHC adds the file as a target itself, and a file given twice is an
+  -- error, so the targets are cleared first.
+  setTargets []
+  made <- handleSourceError (pure . Left . errorsOf) (Right <$> compileToCoreSimplified located)
+  coreGather request logged path ref missed (either (const False) (const True) made)
+
+-- | The Core and the STG of the file, after its dependencies are compiled.
+coreWithStg :: CoreRequest -> IORef [Text] -> FilePath -> FilePath -> Ghc (Either InsightError CoreDump)
+coreWithStg request logged path located = do
+  graph <- depanal [] False
+  found <- targetSummary path (mgModSummaries graph)
+  case found of
+    Nothing -> pure (Left (SessionFailure (TargetNotInGraph path)))
+    Just summary -> do
       missed <- liftIO (newIORef [])
       pushLogHookM (missedHook missed)
-      ref <- liftIO (newIORef (emptyCapture defaultRecordLimit))
-      pushLogHookM (captureHook ref isCoreMessage)
-      -- GHC adds the file as a target itself, and a file given twice is an
-      -- error, so the targets are cleared first.
-      setTargets []
-      made <- handleSourceError (pure . Left . errorsOf) (Right <$> compileToCoreSimplified located)
-      gather ref missed (either (const False) (const True) made)
-    withStg :: FilePath -> Ghc (Either InsightError CoreDump)
-    withStg located = do
-      graph <- depanal [] False
-      found <- targetSummary path (mgModSummaries graph)
-      case found of
-        Nothing -> pure (Left (SessionFailure (TargetNotInGraph path)))
-        Just summary -> do
-          missed <- liftIO (newIORef [])
-          pushLogHookM (missedHook missed)
-          dependencies <- loadDependencies logged graph summary
-          case dependencies of
-            Just why -> pure (Left (SessionFailure (CoreFailed path why)))
-            Nothing -> do
-              enabled <- enableFlags stgDumpFlags
-              case enabled of
-                Left failure -> pure (Left (EnvironmentFailure failure))
-                Right () -> do
-                  ref <- liftIO (newIORef (emptyCapture defaultRecordLimit))
-                  pushLogHookM (captureHook ref isCoreMessage)
-                  guessTarget located Nothing Nothing >>= setTargets . pure
-                  modifySession (\env -> env {hsc_mod_graph = emptyMG})
-                  made <- handleSourceError (pure . Left . errorsOf) (Right <$> load LoadAllTargets)
-                  gather ref missed $ case made of
-                    Right Succeeded -> True
-                    _ -> False
-    gather :: IORef Capture -> IORef [RawMissed] -> Bool -> Ghc (Either InsightError CoreDump)
-    gather ref missed succeeded = do
-      captured <- liftIO (readIORef ref)
-      errors <- liftIO (readIORef logged)
-      warnings <- liftIO (readIORef missed >>= traverse placed . reverse)
-      pure $ do
-        trace <- first TraceFailure (finishCapture captured)
-        if succeeded
-          then Right (withMissed warnings (buildCore request (map recordRaw (traceRecords trace))))
-          else Left (SessionFailure (CoreFailed path (describeErrors (reverse errors))))
-    placed :: RawMissed -> IO MissedWarning
-    placed raw = do
-      inFile <- if null (rawFile raw) then pure False else (==) <$> canonicalizePath path <*> canonicalizePath (rawFile raw)
-      pure (MissedWarning (rawKind raw) inFile (rawMessage raw))
+      dependencies <- loadDependencies logged graph summary
+      case dependencies of
+        Just why -> pure (Left (SessionFailure (CoreFailed path why)))
+        Nothing -> do
+          enabled <- enableFlags stgDumpFlags
+          case enabled of
+            Left failure -> pure (Left (EnvironmentFailure failure))
+            Right () -> do
+              ref <- liftIO (newIORef (emptyCapture defaultRecordLimit))
+              pushLogHookM (captureHook ref isCoreMessage)
+              guessTarget located Nothing Nothing >>= setTargets . pure
+              modifySession (\env -> env {hsc_mod_graph = emptyMG})
+              made <- handleSourceError (pure . Left . errorsOf) (Right <$> load LoadAllTargets)
+              coreGather request logged path ref missed $ case made of
+                Right Succeeded -> True
+                _ -> False
+
+-- | What was captured, as a 'CoreDump' when the compile succeeded.
+coreGather :: CoreRequest -> IORef [Text] -> FilePath -> IORef Capture -> IORef [RawMissed] -> Bool -> Ghc (Either InsightError CoreDump)
+coreGather request logged path ref missed succeeded = do
+  captured <- liftIO (readIORef ref)
+  errors <- liftIO (readIORef logged)
+  warnings <- liftIO (readIORef missed >>= traverse (missedWarning path) . reverse)
+  pure $ do
+    trace <- first TraceFailure (finishCapture captured)
+    if succeeded
+      then Right (withMissed warnings (buildCore request (map recordRaw (traceRecords trace))))
+      else Left (SessionFailure (CoreFailed path (describeErrors (reverse errors))))
+
+-- | A missed-specialisation warning, with whether it is in the analysed file.
+missedWarning :: FilePath -> RawMissed -> IO MissedWarning
+missedWarning path raw = do
+  inFile <- if null (rawFile raw) then pure False else (==) <$> canonicalizePath path <*> canonicalizePath (rawFile raw)
+  pure (MissedWarning (rawKind raw) inFile (rawMessage raw))
 
 useNativeBackend :: Ghc ()
 useNativeBackend = do
