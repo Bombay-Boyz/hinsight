@@ -155,6 +155,20 @@ spec = describe "findings" $ do
           length (Td.related f) `shouldBe` 3
           length (Td.contextLabelStates (Td.context f)) `shouldBe` 1
         _ -> expectationFailure ("expected one finding, got " <> show (length fs))
+    it "reads aloud as Tadka 2.0's narratable renderer words a chain" $ do
+      (src, chains) <- chainsFor WholeBinding
+      fs <- ok (chainFindings src chains)
+      map (T.lines . narrate) fs
+        `shouldBe` [ [ "Advice, code hinsight::E0006: what GHC logged on the way to an error.",
+                       "Location: Sample.hs, line 1, column 5.",
+                       "Source line 1: \"abcd efgh ijkl\".",
+                       "The problem is at columns 5 through 6, labeled: GHC's trace leads up to the error here.",
+                       "Help: every record in the binding up to the error, in the order GHC logged them",
+                       "Related: 1:1 unify v2_b[tau:0] with Bool.",
+                       "Related: 1:5 unify v1_a[tau:0] with Int.",
+                       "Related: 1:5 GHC deferred the nominal equality: Int Bool."
+                     ]
+                   ]
     it "draws nothing for no chains, and says how many errors had none" $ do
       src <- sourceOf "x = 1\n"
       fmap length (ok (chainFindings src (Chains [] 2))) `shouldReturn` 0
@@ -180,6 +194,19 @@ spec = describe "findings" $ do
           narrate f `shouldSatisfy` T.isInfixOf "litE (integerL 7)"
           narrate f `shouldSatisfy` T.isInfixOf "as GHC logged it"
         _ -> expectationFailure ("expected one finding, got " <> show (length fs))
+    it "reads aloud as Tadka 2.0's narratable renderer words a splice" $ do
+      src <- sourceOf "x = $(litE (integerL 7))\n"
+      fs <- ok (spliceFindings src (buildSplices ["Sample.hs:1:5-23: Splicing expression litE (integerL 7) ======> 7"]))
+      map (T.lines . narrate) fs
+        `shouldBe` [ [ "Advice, code hinsight::E0007: \"expression\" splice.",
+                       "Location: Sample.hs, line 1, column 5.",
+                       "Source line 1: \"x = $(litE (integerL 7))\".",
+                       "The problem is at columns 5 through 23, labeled: produced: \"7\".",
+                       "Help: source: \"litE (integerL 7)\"",
+                       "Related: produced: \"7\".",
+                       "Related: as GHC logged it: Sample.hs:1:5-23: Splicing expression litE (integerL 7) ======> 7."
+                     ]
+                   ]
     it "draws nothing for no splices" $ do
       src <- sourceOf "x = 1\n"
       fmap length (ok (spliceFindings src (buildSplices []))) `shouldReturn` 0
