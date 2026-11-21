@@ -91,9 +91,12 @@ been reviewed.
 
 ## 9. Ranking uses fit and locality only
 
-The module document names a third signal, usage. Nothing in the current
-extraction can supply it, so it is not in the type. Add it in the change that
-makes it available.
+The module document names a third signal, usage. Nothing in the first
+extraction could supply it, so it was not in the type. It is now: a fit carries
+an optional use count (item 16), shown beside the fit. The order GHC's data
+gives (fewer new holes, local before imported, fewer new hole types) is
+unchanged; the count is the last field of the sort key, so it only separates
+fits that are otherwise equal.
 
 ## 10. Type flow walks the typechecked tree generically
 
@@ -197,6 +200,18 @@ carries the raw output. Features whose only source would be our own theory
 (space-leak findings) are dropped; features whose source is unconfirmed wait
 for a spike.
 
+Amended after the refactoring work. A ranking is presentation when its key is a
+fixed lexicographic order over facts the result also shows. It stays forbidden
+when the key mixes facts with weights, learns from the user, or hides a fact. A
+count that hinsight makes itself is allowed only when it is exact, is shown, and
+is labelled as hinsight's, never as GHC's statement: the use count of a hole fit
+is the number of occurrences of the name in the expressions of the analysed
+file's typechecked source (variables, constructors and record selectors), and
+the report says "counted by hinsight". Names are told apart by module and
+occurrence, so a local `lookup` and an imported one are separate; only
+module-level names are counted, a local name has no count. The count reaches the
+order only as the last tie-breaker.
+
 ## 17. Chains, splices and Core are one handle apart from the analysis
 
 Decided across steps 5 to 7 of the explanation phase
@@ -221,14 +236,73 @@ which item 16 forbids. The cost is that the text of an `OtherHint` is GHC's
 wording and can change with a GHC release; the bump procedure refreshes the
 fixtures.
 
-## 19. No STG, and no claim about what the optimiser did to dependencies
+## 19. STG on request, and no claim about what the optimiser did to dependencies
 
 The Core mode offers the simplifier's input and output, the specialisations and
-the rule firings. STG needs a backend that writes an object file, so it is left
-out rather than half-offered. Only the analysed file is simplified; its
-dependencies are typechecked, so a rule that needs one of their unfoldings may
-not fire, and the documentation says so (`docs/phase-explanation.md`, decision
-17).
+the rule firings. STG was first left out, because it needs a backend that writes
+an object file. It is now offered on request (`CoreAndStg`, `--core --stg` in
+the demo): the file and the project modules it imports are compiled to object
+code in a temporary folder that is removed, which costs several times a
+typecheck, and the documentation says so. At `-O` the Core mode also lists the
+missed-specialisation warnings GHC itself gives for the file
+(`-Wmissed-specialisations` and `-Wall-missed-specialisations`), classified by
+the warning's flag and never by its text. Other kinds of missed optimisation
+have no GHC warning and are not offered. Only the analysed file is simplified;
+its dependencies are typechecked, so a rule that needs one of their unfoldings
+may not fire, and the documentation says so (`docs/phase-explanation.md`,
+decision 17).
+
+## 20. Refactorings are verified plans, built from spans GHC reports
+
+`Refactor m` (`extractFunction`, `moveDefinition`, `changeType`) is a record of
+functions apart from `Insight` and `Deep`, because it proposes changes to
+source. No operation writes a file: each returns a `VerifiedPlan`, a set of edits
+that GHC accepted when it checked the result with the edited text supplied as
+in-memory targets, plus notes in plain words. `VerifiedPlan` can be built only in
+`HInsight.Refactor.Verify`, so a plan that was not checked is not a value. The
+gate is pure over a record of checkers, so it is tested without GHC.
+
+Every edit is a replacement of a span GHC reports, so `HInsight.Edit` is the
+whole editing layer. The spike (HLS 2.14.0.0, GHC 9.10.3) found no extract or
+move action in HLS, no buildable `ghc-exactprint` library for 9.10.3, `retrie`
+failing without `--allow-newer`, and `apply-refact` applying hlint hints only,
+so no exact-printing dependency was added. A plan proves that the files still
+typecheck, not that behaviour is preserved. Extracting an expression can lose
+sharing of a shared subexpression, and the documentation says so.
+
+## 21. ChangeType lets GHC name the places that still need a change
+
+The plan edits the signature, or adds one. GHC then checks the project files the
+caller lists. The unchanged files must compile first (strict check). The check
+after the edit defers type errors, typed holes and out-of-scope variables, so GHC
+compiles the dependents as well and reports each place as a warning instead of
+stopping at the first failing module. An error in the changed file refuses the
+plan with GHC's message. An error in another file is a note, "GHC reports a place
+still to fix", with its position and GHC's text. Nothing in those files is
+edited.
+
+## 22. MoveDefinition: GHC decides the imports, and a cycle is refused
+
+The definition moves with its signature and the Haddock comment directly above
+it; other comments stay. The target gets the source's import declarations
+verbatim; hinsight then removes only those that GHC's `-Wunused-imports` flags in
+the target, only when GHC still accepts both files without them, and never one
+that was already unused before the move. A source module with an explicit export
+list that names the definition imports it from the target and re-exports it, so
+importers keep compiling. A definition that uses a name defined in its own
+module is refused with the names, since the move would need an import cycle.
+Modules beyond the two are listed by the caller; what GHC reports in them is in
+the notes. Text moved into a file takes that file's line ending.
+
+## 23. One static binary is possible; no helper process yet
+
+A program that links the `ghc` library, parses flags and typechecks a module
+links and runs as a dynamic, a static-Haskell and a fully static binary on glibc
+(76 to 78 MB, 79 to 98 ms cold start and typecheck), and a Template Haskell splice
+typechecks from each. Not tested: a musl toolchain and a plugin loaded from the
+static binary. The program still reads the compiler's library folder at run time.
+The helper-process design (protocol, server and client packages) is therefore not
+built. `scripts/spike-link.sh` repeats the test.
 
 ## Checks that run on every push
 

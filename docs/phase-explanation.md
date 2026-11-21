@@ -247,17 +247,18 @@ Ticked only where a test or a run checked it; the rest say what is missing.
    deferral with the error's span. Checked by `ChainSpec` (golden sequence from
    real lines, at both views) and `ChainGhcSpec` (the same program through real
    GHC, and inside a project environment).
-4. [~] The standard path's cost is unchanged. By construction: the trace, splice
+4. [x] The standard path's cost is unchanged. By construction: the trace, splice
    and Core passes are the separate handle `Deep` and are never entered by
    `analyseFile`. Measured after the phase (`hinsight-bench`, the user's
    machine): a plain analysis takes 18.3 ms (one module), 26.7 ms (with two
    project imports) and 22.4 ms (one mismatch); the same mismatch's trace pass
    38.8 ms; a module with eleven splices 80.5 ms plain and 86.9 ms for the splice
    pass; a module with a rule 29.7 ms plain, 71.4 ms for optimised Core and
-   37.8 ms for unoptimised Core. These are well under the analysis time recorded
-   before the phase (under 100 ms, `docs/phase-environment.md`), but there is no
-   like-for-like figure from before the phase, so "no regression" is not claimed
-   from numbers. CI thresholds only the ranking benchmark.
+   37.8 ms for unoptimised Core. Like for like against the commit before the
+   phase (72d0916, same machine, `hinsight-bench`): one module 22.58 ms before and
+   22.28 ms after (0.99 times); a module with two project imports 33.35 ms before
+   and 33.82 ms after (1.01 times). Both are inside the run-to-run spread, so no
+   regression was measured. CI thresholds only the ranking benchmark.
 5. [x] A module with more records than the limit gives `TraceLimitExceeded`, not
    a truncated chain. Checked by `TraceSpec` ("gives an error, not a truncated
    trace, past the limit", a property, and a 100 000-record input).
@@ -285,10 +286,11 @@ Ticked only where a test or a run checked it; the rest say what is missing.
   recorded under acceptance 4.
 - Keep only the records of the binding with the error, so that a module larger
   than about 900 lines can have chains (decision 9). It needs the error's span
-  before the trace is captured, which the second pass does not have.
-- For a like-for-like acceptance 4: check out the commit before the phase, run
-  `cabal bench hinsight-bench`, and compare the plain analysis entries.
-- STG is not offered (decision 20).
+  before the trace is captured, which the second pass does not have. Still open.
+- Done after the phase: the like-for-like figures are under acceptance 4. STG
+  is offered on request (`docs/decisions.md`, item 19). No real-GHC test for
+  `CoreFailed` could be found: eight candidate files were tried on 9.10.3 and
+  none typechecks and then fails to compile, so the rendering test stays.
 
 ## 6. Size
 

@@ -80,11 +80,12 @@ output, never a best-effort sentence.
   for one module, never by default.
 - **Splice expansion** is a presentation of `-ddump-splices`.
 - **Space-leak findings** are out of scope: GHC reports nothing about them.
-- **Refactoring** (extract function, move definition, change type and
-  propagate) has no existing tool to present, so under the rule it is out of
-  scope. What GHC itself suggests is in scope: its typed hints, shown with the
-  diagnostic they belong to. They carry no edit text, so `hinsight` shows the
-  suggestion and does not apply it.
+- **Refactoring** (extract function, move definition, change type): the spike
+  found no existing tool that offers these as edits, so they are built from
+  spans GHC reports and checked by compiling the result (`docs/decisions.md`,
+  items 20 to 22). What GHC itself suggests stays in scope: its typed hints,
+  shown with the diagnostic they belong to. They carry no edit text, so
+  `hinsight` shows the suggestion and does not apply it.
 
 ## Still to look at
 

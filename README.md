@@ -11,6 +11,9 @@ It does these things for a Haskell module:
   the source span, and where GHC says the expectation came from.
 - **Typed holes.** For a `_` hole, it returns the candidate fits GHC found,
   ranked: fits that need no further holes first, then local before imported.
+  A fit can carry how many times its name occurs in the file's expressions,
+  counted by hinsight and labelled so; it only separates fits that are otherwise
+  equal. `acceptFit` gives the edit that puts a fit in place of the hole.
 - **Dependency graph.** The project modules reachable from the file and the
   ordinary imports between them, in dependency order, with import cycles
   named. `{-# SOURCE #-}` imports are left out, so a cycle that an `hs-boot`
@@ -29,9 +32,18 @@ It does these things for a Haskell module:
 - **Template Haskell splices.** What GHC says each splice became, by position
   (`splicesFor`).
 - **Core.** The simplifier's input and output, the specialisations and the rules
-  that fired, for the file, optimised or not (`coreOf`). No STG.
+  that fired, for the file, optimised or not (`coreOf`). At `-O` it also lists
+  the missed-specialisation warnings GHC gives. STG is available on request
+  (`CoreAndStg`); that compiles the file and its project imports to object code
+  in a temporary folder, which costs several times a typecheck.
+- **Refactoring.** `Refactor` gives a plan, never a written file, for extracting
+  an expression into a function, moving a top-level definition to another
+  module, and changing a binding's type. A plan is returned only after GHC has
+  compiled the result with the edits applied in memory. For a type change and a
+  move, what GHC still rejects in the other files you list comes back as notes
+  with GHC's message and position; those files are not edited.
 
-Each of the last three runs GHC again with a dump on, so an ordinary analysis
+Each of the Deep passes runs GHC again with a dump on, so an ordinary analysis
 does not pay for them. They present what GHC printed and infer nothing; where
 the text could not be read it is carried raw and counted.
 
@@ -73,6 +85,13 @@ Early. Read this before relying on it.
   filtered, and are a presentation of what it logged, not a reconstruction.
   A trace is a text format that GHC does not promise to keep, so a GHC release
   means refreshing the fixtures (`docs/feasibility.md`).
+- A refactoring plan proves that the files still typecheck, not that behaviour
+  is preserved. Extracting an expression can lose sharing of a shared
+  subexpression. Moving a definition that uses a name from its own module is
+  refused, since it would need an import cycle. No refactoring is wired into the
+  demo program; they are library calls.
+- A single static binary that links the `ghc` library works with glibc
+  (`docs/decisions.md`, item 23); a musl build was not tested.
 - The trace, splice and Core passes are checked against GHC 9.10.3 by tests that
   run it. Open items of the explanation phase are listed in
   `docs/phase-explanation.md`, section 5, "Owed after the phase".
@@ -154,6 +173,17 @@ main = do
 
 The paths are arguments: the library never searches for tools.
 
+A refactoring, with the files to check besides the changed one:
+
+```haskell
+import HInsight
+import HInsight.Ghc.Session (ghcRefactor)
+
+-- 'Right' is a plan GHC accepted; planEdits and planNotes read it.
+retype libDir file name wanted others =
+  changeType (ghcRefactor libDir) file name wanted others
+```
+
 ## Layout
 
 | Module | Job |
@@ -167,7 +197,11 @@ The paths are arguments: the library never searches for tools.
 | `HInsight.Graph` | the project's modules and imports, as data, and their text rendering |
 | `HInsight.Flow` | pipelines and the type at each stage, as data, and their text rendering |
 | `HInsight.Identifier` | a validated name as written in source |
-| `HInsight.Hole` | typed holes and fit ranking |
+| `HInsight.Hole` | typed holes, fit ranking and the edit that accepts a fit |
+| `HInsight.Edit` | a replacement of a span, sets of them that do not overlap, and applying them to text |
+| `HInsight.Refactor`, `Refactor.Move`, `Refactor.ChangeType` | the pure planners for extract, move and change type |
+| `HInsight.Refactor.Verify` | the gate that checks a plan with GHC; the only place a `VerifiedPlan` is built |
+| `HInsight.Refactor.Handle` | the `Refactor` handle |
 | `HInsight.Instance`, `Suggestion` | the instances GHC lists for a constraint; the hints GHC gives |
 | `HInsight.Trace`, `Trace.Clean`, `Chain` | GHC's typechecker trace: reading a record, cleaning it, and the chain that ends at an error |
 | `HInsight.Splice`, `Core` | what GHC's splice and Core dumps say, read into data |
@@ -180,6 +214,10 @@ The paths are arguments: the library never searches for tools.
 
 Dependencies point inward: `HInsight.Ghc.*` imports the domain modules, never
 the reverse.
+
+`scripts/check.sh` runs the checks that need more than one build (`compat`,
+`dead`, `fixtures`, `bench`, `profile`); `docs/bump.md` is the procedure for
+moving the GHC pin.
 
 ## Standards
 
