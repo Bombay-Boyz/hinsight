@@ -143,8 +143,19 @@ movedBlock :: Ctx -> Either InsightError (Position, Text)
 movedBlock ctx = do
   let definition = moveSpan (ctxFacts ctx)
   from <- domain (positionAt (haddockStart (fromLines ctx) (unLine (positionLine (spanStart definition)))) 1)
-  block <- first RefactorFailure (slice (ctxFromSrc ctx) =<< first (const SelectionNotInText) (mkSpan from (spanEnd definition)))
+  upTo <- endOfLine ctx (unLine (positionLine (spanEnd definition))) (spanEnd definition)
+  block <- first RefactorFailure (slice (ctxFromSrc ctx) =<< first (const SelectionNotInText) (mkSpan from upTo))
   pure (from, block)
+
+-- | The end of a line of the source, without its line ending, so a comment
+-- after the definition's last token goes with it. The definition's own end
+-- when the line is not there.
+endOfLine :: Ctx -> Int -> Position -> Either InsightError Position
+endOfLine ctx n fallback = case listToMaybe (drop (n - 1) (fromLines ctx)) of
+  Nothing -> Right fallback
+  Just l -> do
+    end <- domain (endOfText (T.dropWhileEnd (== '\r') l))
+    domain (positionAt n (unColumn (positionColumn end)))
 
 -- | The edit that takes the block out, with the blank lines after it up to
 -- the next text.
@@ -176,8 +187,8 @@ additionEdit ctx moved = do
 anchoredEdits :: Ctx -> SourceFile -> Anchor -> [Text] -> Either InsightError [Edit]
 anchoredEdits _ _ _ [] = Right []
 anchoredEdits ctx file anchor texts = case anchor of
-  AfterImport p -> pure <$> editAt file p p (eol <> T.intercalate eol texts)
-  AfterModuleHeader p -> pure <$> editAt file p p (eol <> eol <> T.intercalate eol texts)
+  AfterImport p -> pure <$> editAt file p p (eol <> T.intercalate eol (map (withEol eol) texts))
+  AfterModuleHeader p -> pure <$> editAt file p p (eol <> eol <> T.intercalate eol (map (withEol eol) texts))
   where
     eol :: Text
     eol = if file == moveTo (ctxFacts ctx) then eolTo ctx else eolFrom ctx
@@ -195,7 +206,14 @@ prunable ctx = [sp | sp <- pruneSource (ctxPruning ctx), wholeLines sp]
     wholeLines :: Span -> Bool
     wholeLines sp =
       unColumn (positionColumn (spanStart sp)) == 1
-        && maybe False (T.all isSpace . T.drop (unColumn (positionColumn (spanEnd sp)) - 1)) (lineAt (unLine (positionLine (spanEnd sp))))
+        && maybe False blankAfter (lineAt (unLine (positionLine (spanEnd sp))))
+      where
+        blankAfter :: Text -> Bool
+        blankAfter l = case rightToMaybe (positionAt 1 (unColumn (positionColumn (spanEnd sp)))) >>= offsetOf l of
+          Just k -> T.all isSpace (T.drop k l)
+          Nothing -> False
+        rightToMaybe :: Either e a -> Maybe a
+        rightToMaybe = either (const Nothing) Just
     lineAt :: Int -> Maybe Text
     lineAt n = listToMaybe (drop (n - 1) (fromLines ctx))
 
@@ -256,10 +274,20 @@ copiedImports pruning fromSrc toSrc facts = do
   let wanted = filter (`notElem` pruneCopied pruning) (moveFromImports facts)
   texts <- traverse (first RefactorFailure . slice fromSrc) wanted
   present <- traverse (first RefactorFailure . slice toSrc) (moveToImports facts)
-  pure [(sp, t) | (sp, t) <- zip wanted texts, normalised t `notElem` map normalised present]
+  pure [(sp, t) | (sp, t) <- zip wanted texts, normalised t `notElem` map normalised present, not (importsModule (moveToModule facts) t)]
   where
     normalised :: Text -> Text
     normalised = T.unwords . T.words
+
+-- | Whether an import declaration is of this module, which the module cannot
+-- import itself.
+importsModule :: ModuleName -> Text -> Bool
+importsModule target declaration = case dropWhile skipped (drop 1 (T.words declaration)) of
+  named : _ -> T.takeWhile (\c -> isAlphaNum c || c `elem` ("._'" :: String)) named == unModuleName target
+  [] -> False
+  where
+    skipped :: Text -> Bool
+    skipped w = w `elem` ["qualified", "safe", "{-#", "SOURCE", "#-}"] || "\"" `T.isPrefixOf` w
 
 -- | Where each copied import starts in the target once the plan is applied:
 -- the import as written in the source, and its line in the target's new text.
@@ -291,9 +319,16 @@ haddockStart ls defLine = case above of
     fromRun :: [Text] -> Int
     fromRun run = maybe defLine (\j -> defLine - 1 - j) (listToMaybe (reverse (findIndices (T.isPrefixOf "-- |") run)))
     fromBlock :: [Text] -> Int
-    fromBlock block = case [(i, l) | (i, l) <- zip [0 :: Int ..] block, "{-" `T.isPrefixOf` l] of
-      (i, l) : _ | "{- |" `T.isPrefixOf` l || "{-|" `T.isPrefixOf` l -> defLine - 1 - i
-      _ -> defLine
+    fromBlock block = case block of
+      nearest : rest
+        | "{-" `T.isInfixOf` nearest -> bool defLine (defLine - 1) (opensHaddock nearest)
+        | otherwise -> case break ("{-" `T.isInfixOf`) rest of
+            (inner, opening : _)
+              | not (any ("-}" `T.isInfixOf`) inner) && opensHaddock opening -> defLine - 2 - length inner
+            _ -> defLine
+      [] -> defLine
+    opensHaddock :: Text -> Bool
+    opensHaddock l = "{- |" `T.isPrefixOf` l || "{-|" `T.isPrefixOf` l
 
 -- | The position just past the @where@ that ends a module header, found by
 -- reading the text from a position inside the header (the end of the module

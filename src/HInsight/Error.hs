@@ -108,7 +108,8 @@ data RefactorError
     InvalidFunctionName Text
   | -- | A name the selection uses cannot be passed as an ordinary parameter.
     FreeVariableNotAVariable Text
-  | -- | The new function's name is a name the selection uses.
+  | -- | The new function's name is a name the selection uses, or one the
+    -- declaration holding it mentions, where the call could be captured.
     NameClashesWithVariable Text
   | -- | The selection holds no text.
     EmptySelection

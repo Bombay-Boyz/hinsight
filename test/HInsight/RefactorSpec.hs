@@ -105,6 +105,10 @@ spec = describe "Refactor" $ do
       let src = "h x = x + 1\n"
       fs <- facts (1, 7) (1, 12) (1, 1) (1, 12) ["x"] CallIsWhole
       (refusal <$> applied src fs Nothing "x") `shouldReturn` Just (NameClashesWithVariable "x")
+    it "refuses a new name that a local binding of the declaration already has" $ do
+      let src = "f x = let go = 1 in x + (2 * 3)\n"
+      fs <- facts (1, 26) (1, 31) (1, 1) (1, 32) [] CallIsPart
+      (refusal <$> applied src fs Nothing "go") `shouldReturn` Just (NameClashesWithVariable "go")
     it "refuses a selection outside its declaration" $ do
       let src = "a = 1\nb = 2\n"
       fs <- facts (2, 5) (2, 6) (1, 1) (1, 6) [] CallIsWhole

@@ -177,6 +177,38 @@ spec = describe "planMove" $ do
     Right (a, b) <- run [] src sourceB fs {moveFromImports = [], moveFromAnchor = AfterModuleHeader header}
     a `shouldSatisfy` T.isInfixOf "import B ((+++))"
     b `shouldSatisfy` T.isInfixOf "module B (other, (+++)) where"
+  it "does not take a block comment higher up for the Haddock of the definition" $ do
+    let src = "module A where\n\n{-| Header -}\nimport Foo\nf = 1 {- note -}\ng = 2\n"
+    fs <- facts "g" (6, 1) (6, 6)
+    header <- at (1, 15)
+    Right (a, b) <- run [] src sourceB fs {moveFromImports = [], moveFromAnchor = AfterModuleHeader header, moveKeepsImport = False}
+    a `shouldBe` "module A where\n\n{-| Header -}\nimport Foo\nf = 1 {- note -}\n"
+    b `shouldSatisfy` T.isSuffixOf "other = sort\n\ng = 2\n"
+  it "takes a comment after the last token of the definition with it" $ do
+    let src = "module A where\n\nf :: Int\nf = 1 -- note\n\ng = 2\n"
+    fs <- facts "f" (3, 1) (4, 6)
+    header <- at (1, 15)
+    Right (a, b) <- run [] src sourceB fs {moveFromImports = [], moveFromAnchor = AfterModuleHeader header, moveKeepsImport = False}
+    a `shouldBe` "module A where\n\ng = 2\n"
+    b `shouldSatisfy` T.isSuffixOf "f :: Int\nf = 1 -- note\n"
+  it "does not copy an import of the target into the target" $ do
+    let src = "module A where\n\nimport B (other)\n\nf :: Int\nf = 1\n"
+    fs <- facts "f" (5, 1) (6, 6)
+    imports <- sequence [spanOf (3, 1) (3, 16)]
+    anchor <- AfterImport <$> at (3, 16)
+    Right (_, b) <- run [] src sourceB fs {moveFromImports = imports, moveFromAnchor = anchor}
+    b `shouldSatisfy` (not . T.isInfixOf "import B")
+  it "writes the copied imports in the line ending of the target" $ do
+    let src = "module A where\r\n\r\nimport Data.List\r\n  (sort)\r\n\r\nf :: Int\r\nf = 1\r\n"
+        target = "module B (other) where\n\nimport Data.Char (ord)\n\nother = 1\n"
+    fs <- facts "f" (6, 1) (7, 6)
+    imports <- sequence [spanOf (3, 1) (4, 9)]
+    anchor <- AfterImport <$> at (4, 9)
+    present <- sequence [spanOf (3, 1) (3, 23)]
+    toAnchor <- AfterImport <$> at (3, 23)
+    Right (_, b) <- run [] src target fs {moveFromImports = imports, moveFromAnchor = anchor, moveToImports = present, moveToAnchor = toAnchor}
+    b `shouldSatisfy` T.isInfixOf "import Data.List\n  (sort)"
+    b `shouldSatisfy` (not . T.isInfixOf "\r")
   it "refuses a definition that does not start at the first column" $ do
     fs <- facts "moved" (8, 2) (9, 50)
     run [] sourceA sourceB fs `shouldReturn` Left (RefactorFailure NotATopLevelDefinition)

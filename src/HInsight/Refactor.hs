@@ -77,6 +77,8 @@ planExtract src facts signature name = do
   vars <- refuse (traverse variable (nubOrd (factsFreeVariables facts)))
   refuse (when (unFunctionName name `elem` vars) (Left (NameClashesWithVariable (unFunctionName name))))
   refuse (unless (inside (factsSelection facts) (factsDeclaration facts)) (Left SelectionNotInDeclaration))
+  declaration <- refuse (selectionText src (factsDeclaration facts))
+  refuse (when (unFunctionName name `elem` T.split (not . isNameChar) declaration) (Left (NameClashesWithVariable (unFunctionName name))))
   selected <- refuse (selectionText src (factsSelection facts))
   body <- refuse (reindent (unColumn (positionColumn (spanStart (factsSelection facts)))) selected)
   call <- domain (mkEdit (factsFile facts) (factsSelection facts) (callText (factsContext facts) name vars))
@@ -143,11 +145,11 @@ bindingText name vars signature body =
 
 isVariableName :: Text -> Bool
 isVariableName t = case T.uncons t of
-  Just (c, rest) -> (isLower c || c == '_') && T.all nameChar rest && t `notElem` reserved
+  Just (c, rest) -> (isLower c || c == '_') && T.all isNameChar rest && t `notElem` reserved
   Nothing -> False
-  where
-    nameChar :: Char -> Bool
-    nameChar c = isAlphaNum c || c == '_' || c == '\''
+
+isNameChar :: Char -> Bool
+isNameChar c = isAlphaNum c || c == '_' || c == '\''
 
 reserved :: [Text]
 reserved =

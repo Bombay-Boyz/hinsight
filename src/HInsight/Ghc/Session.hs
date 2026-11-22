@@ -601,7 +601,7 @@ movePass deferring logged moves anchor others texts = do
     Right () -> do
       pushLogHookM (recordMoves deferring moves)
       flags <- getSessionDynFlags
-      void (setSessionDynFlags (deferErrors deferring (wopt_set flags Opt_WarnUnusedImports)))
+      void (setSessionDynFlags (deferErrors deferring (gopt_set (wopt_set flags Opt_WarnUnusedImports) Opt_KeepGoing)))
       -- The anchor's own header says where the source folder is.
       setImportPath (takeDirectory path)
       first' <- guessTarget path Nothing Nothing

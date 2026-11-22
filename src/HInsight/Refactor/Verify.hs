@@ -50,7 +50,8 @@ newtype Checker m = Checker
   { checkText :: Text -> m (Either InsightError Checked)
   }
 
--- | A plan GHC accepted. Only 'verifyExtract' builds one.
+-- | A plan GHC accepted. Only this module builds one: 'verifyExtract',
+-- 'verifyMove' and 'verifyChangeType'.
 data VerifiedPlan = UnsafeVerifiedPlan
   { -- | The edits that make the change.
     planEdits :: !EditSet,
@@ -258,7 +259,8 @@ data ChangeChecker m = ChangeChecker
     checkDeferring :: Map SourceFile Text -> m (Either InsightError MoveChecked)
   }
 
--- | Plan the change, and have GHC check it. The file must typecheck as it is.
+-- | Plan the change, and have GHC check it. The file, and the other files
+-- checked with it, must typecheck as they are.
 -- An error GHC gives in the changed file refuses the change; an error it
 -- gives in another file is a note, a place the change leaves to be fixed.
 verifyChangeType :: forall m. (Monad m) => ChangeChecker m -> Text -> ChangeFacts -> TypeText -> m (Either InsightError VerifiedPlan)
