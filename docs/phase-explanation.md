@@ -284,9 +284,11 @@ Ticked only where a test or a run checked it; the rest say what is missing.
 - Done after the phase: `defaultRecordLimit` was checked against measurements
   and kept at 100 000 (decision 9); the analysis benchmarks were run and are
   recorded under acceptance 4.
-- Keep only the records of the binding with the error, so that a module larger
-  than about 900 lines can have chains (decision 9). It needs the error's span
-  before the trace is captured, which the second pass does not have. Still open.
+- Done after the phase: only the records of the bindings that contain an error
+  are kept (`Scoping`, `ErroringBindings`; commit e4206f5), so a module larger
+  than about 900 lines can have chains. Checked by `ChainSpec` and by
+  `ChainGhcSpec` ("keeps the records of the binding with the error only")
+  against real GHC.
 - Done after the phase: the like-for-like figures are under acceptance 4. STG
   is offered on request (`docs/decisions.md`, item 19). No real-GHC test for
   `CoreFailed` could be found: eight candidate files were tried on 9.10.3 and
