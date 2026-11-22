@@ -15,11 +15,10 @@ import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as M
 import GHC.Core.ConLike (conLikeName)
 import GHC.Hs (FieldOcc (..), GhcTc, HsExpr (..), XXExprGhcTc (..))
-import GHC.Parser.Annotation (locA)
 import GHC.Types.Id (idName)
 import GHC.Types.Name (Name, nameModule_maybe, nameOccName)
 import GHC.Types.Name.Occurrence (occNameString)
-import GHC.Types.SrcLoc (GenLocated (..), SrcSpan (..))
+import GHC.Types.SrcLoc (GenLocated (..))
 import GHC.Unit.Module (moduleName, moduleNameString)
 import HInsight.Ghc.HoleCapture (CapturedFit (..), CapturedHole (..))
 
@@ -27,10 +26,11 @@ import HInsight.Ghc.HoleCapture (CapturedFit (..), CapturedHole (..))
 type UseKey = (String, String)
 
 -- | The number of places each module-level name is written in an expression
--- below a node: as a variable that has a place in the source text, as a
--- constructor, or as a record selector. Variables GHC adds itself (the bind of
--- a @do@, the conversion of a literal) have no place in the text and are not
--- counted. Patterns and types are not counted.
+-- below a node: as a variable, as a constructor, or as a record selector, in
+-- the typechecked program. GHC's typechecker leaves no source place on a
+-- variable, so a variable GHC adds itself (the bind of a @do@, the conversion
+-- of a literal) is counted with the written ones. Patterns and types are not
+-- counted.
 countUses :: (Data a) => a -> Map UseKey Int
 countUses x = M.fromListWith (+) (references x)
 
@@ -39,7 +39,7 @@ references x = here <> concat (gmapQ references x)
   where
     here :: [(UseKey, Int)]
     here = case (cast x :: Maybe (HsExpr GhcTc)) of
-      Just (HsVar _ (L l i)) | RealSrcSpan _ _ <- locA l -> keyed (idName i)
+      Just (HsVar _ (L _ i)) -> keyed (idName i)
       Just (HsRecSel _ (FieldOcc sel _)) -> keyed (idName sel)
       Just (XExpr (ConLikeTc con _ _)) -> keyed (conLikeName con)
       _ -> []
