@@ -19,7 +19,8 @@ module HInsight.Hole
   )
 where
 
-import Data.List (sortOn)
+import Data.List (sortBy)
+import Data.Ord (comparing)
 import Data.Text (Text)
 import Data.Text qualified as T
 import HInsight.Edit (Edit, mkEdit)
@@ -110,24 +111,24 @@ data HoleReport = HoleReport
 -- | Order fits best first: fewer new holes, then local before imported, then
 -- fewer new hole types, then by name and type.
 --
--- The sort key contains every field of the fit, so it is injective and the
--- result does not depend on the input order. 'sortOn' is a stable merge sort,
--- O(n log n).
+-- The comparison covers every field of the fit, so it is total and the result
+-- does not depend on the input order. The fields are compared one after the
+-- other and the later ones only when the earlier ones are equal. 'sortBy' is a
+-- stable merge sort, O(n log n).
 rankFits :: [HoleFit] -> [HoleFit]
-rankFits = sortOn key
+rankFits = sortBy better
   where
-    key :: HoleFit -> (RefinementLevel, Locality, Int, Identifier, TypeText, [TypeText], Maybe ModuleAlias, Bool, Maybe UseCount)
-    key f =
-      ( fitRefinement f,
-        fitLocality f,
-        length (fitMatches f),
-        fitName f,
-        fitType f,
-        fitMatches f,
-        fitQualifier f,
-        fitIsOperator f,
-        fitUses f
-      )
+    better :: HoleFit -> HoleFit -> Ordering
+    better a b =
+      comparing fitRefinement a b
+        <> comparing fitLocality a b
+        <> comparing (length . fitMatches) a b
+        <> comparing fitName a b
+        <> comparing fitType a b
+        <> comparing fitMatches a b
+        <> comparing fitQualifier a b
+        <> comparing fitIsOperator a b
+        <> comparing fitUses a b
 
 -- | The edit that puts a fit in the place of its hole. A fit that introduces
 -- new holes is written as an application to that many holes, in parentheses.
