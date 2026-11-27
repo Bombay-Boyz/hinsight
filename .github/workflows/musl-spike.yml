@@ -19,7 +19,7 @@ jobs:
         shell: bash
         run: sh scripts/spike-musl.sh 2>&1 | tee spike-musl.out
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: spike-musl
